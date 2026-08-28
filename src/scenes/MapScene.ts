@@ -20,6 +20,7 @@ interface LabelRef { t: Phaser.GameObjects.Text; css: number; }
 export class MapScene extends Phaser.Scene {
   private token!: Phaser.GameObjects.Container;
   private status = new Map<string, Phaser.GameObjects.Text>();
+  private names = new Map<string, Phaser.GameObjects.Text>();
   private badges = new Map<string, Phaser.GameObjects.Image>();
   private flags = new Map<string, Phaser.GameObjects.Image>();
   private labels: LabelRef[] = [];
@@ -36,6 +37,7 @@ export class MapScene extends Phaser.Scene {
 
   create() {
     this.status.clear();
+    this.names.clear();
     this.badges.clear();
     this.flags.clear();
     this.labels = [];
@@ -117,6 +119,8 @@ export class MapScene extends Phaser.Scene {
     const dpr = this.scale.displayScale.x || 1;
     const s = Phaser.Math.Clamp(dpr / this.cameras.main.zoom, 0.9, 2.4);
     for (const l of this.labels) l.t.setScale(s);
+    // the status line sits under the (now bigger) name
+    for (const [id, name] of this.names) this.status.get(id)?.setY(name.y + name.displayHeight + 2);
   }
 
   /** Days pass: wages, tribute, desertions. Anything notable is shown as a toast. */
@@ -178,7 +182,7 @@ export class MapScene extends Phaser.Scene {
     if (n.kind === 'cross') { this.add.image(n.x, n.y, TEX.mapCross).setDepth(3); return; }
     const tex = n.kind === 'camp' ? TEX.mapCamp : n.kind === 'village' ? TEX.mapVillage : TEX.mapTown;
     this.add.image(n.x, n.y, tex).setDepth(5);
-    this.label(n.x, n.y + 30, n.name, 16, '#fff8e7').setDepth(6);
+    this.names.set(n.id, this.label(n.x, n.y + 30, n.name, 16, '#fff8e7').setDepth(6));
     const st = this.label(n.x, n.y + 50, '', 11, '#e8dcc0');
     st.setDepth(6);
     this.status.set(n.id, st);
