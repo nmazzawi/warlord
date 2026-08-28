@@ -5,9 +5,11 @@ import type { RaidScene } from '../scenes/RaidScene';
 import { TEX } from './Textures';
 
 const FONT = '"Arial Black", Arial, Helvetica, sans-serif';
+const BASE_SIZE = 16;
 
 export class Juice {
-  private pool: Phaser.GameObjects.Text[] = [];
+  /** One pool per colour so pooled texts never change font/colour (that re-rasterises them). */
+  private pools = new Map<number, Phaser.GameObjects.Text[]>();
   private emitter: Phaser.GameObjects.Particles.ParticleEmitter;
 
   constructor(private scene: RaidScene) {
@@ -24,7 +26,17 @@ export class Juice {
   /** Freeze the world for a few milliseconds so a hit has weight. */
   hitStop(ms: number) { this.scene.freeze(ms); }
 
-  shake(intensity: number, duration = 80) { this.scene.cameras.main.shake(duration, intensity); }
+  /**
+   * Shake by an amount in on-screen pixels, the same on every device. (Phaser's own intensity
+   * value scales with viewport width and zoom², which is invisible on phones and nauseating on desktop.)
+   * force=true lets the hero's own hits interrupt a running "you got hurt" shake.
+   */
+  shake(px: number, duration = 80, force = false) {
+    const cam = this.scene.cameras.main;
+    const dpr = this.scene.scale.displayScale.x || 1;
+    const intensity = (px * dpr) / (cam.width * cam.zoom * cam.zoom);
+    cam.shake(duration, intensity, force);
+  }
 
   burst(x: number, y: number, tint: number, count: number) {
     this.emitter.setParticleTint(tint);
@@ -33,26 +45,29 @@ export class Juice {
 
   /** Floating number that pops up and fades. Pooled so it's cheap on phones. */
   damageNumber(x: number, y: number, text: string, color: number, size = 16) {
-    let t = this.pool.find(p => !p.active);
+    let pool = this.pools.get(color);
+    if (!pool) { pool = []; this.pools.set(color, pool); }
+    let t = pool.find(p => !p.active);
     if (!t) {
       t = this.scene.add.text(0, 0, '', {
-        fontFamily: FONT, fontSize: '16px', color: '#ffffff', stroke: '#000000', strokeThickness: 4, fontStyle: 'bold',
+        fontFamily: FONT, fontSize: `${BASE_SIZE}px`, color: '#' + color.toString(16).padStart(6, '0'),
+        stroke: '#000000', strokeThickness: 4, fontStyle: 'bold',
       }).setOrigin(0.5).setDepth(50);
-      this.pool.push(t);
+      pool.push(t);
     }
-    t.setActive(true).setVisible(true).setText(text).setFontSize(size)
-      .setColor('#' + color.toString(16).padStart(6, '0'))
-      .setPosition(x + Phaser.Math.Between(-6, 6), y).setAlpha(1).setScale(1.3);
+    if (t.text !== text) t.setText(text);
+    const s = size / BASE_SIZE;
+    t.setActive(true).setVisible(true).setPosition(x + Phaser.Math.Between(-6, 6), y).setAlpha(1).setScale(s * 1.3);
     this.scene.tweens.killTweensOf(t);
-    this.scene.tweens.add({ targets: t, y: y - 34, scale: 1, alpha: 0, duration: 650, ease: 'Cubic.Out',
+    this.scene.tweens.add({ targets: t, y: y - 34, scale: s, alpha: 0, duration: 650, ease: 'Cubic.Out',
       onComplete: () => { t!.setActive(false).setVisible(false); } });
   }
 
-  /** The sword swing: a wedge that flashes and fades in the strike direction. */
+  /** The sword swing: a wedge that flashes and fades in the strike direction. Its size IS the hit range. */
   slash(x: number, y: number, angle: number, tier: number, tint: number, scale = 1) {
     const img = this.scene.add.image(x, y, TEX.slash(tier)).setRotation(angle).setTint(tint)
-      .setDepth(30).setScale(scale * 0.7).setAlpha(0.95).setBlendMode(Phaser.BlendModes.ADD);
-    this.scene.tweens.add({ targets: img, scale: scale * 1.08, alpha: 0, duration: 150, ease: 'Quad.Out',
+      .setDepth(30).setScale(scale * 0.85).setAlpha(0.95).setBlendMode(Phaser.BlendModes.ADD);
+    this.scene.tweens.add({ targets: img, scale: scale * 1.0, alpha: 0, duration: 150, ease: 'Quad.Out',
       onComplete: () => img.destroy() });
   }
 
@@ -60,6 +75,13 @@ export class Juice {
   ringPulse(x: number, y: number, tint: number, toScale = 7, duration = 550) {
     const ring = this.scene.add.image(x, y, TEX.ring).setTint(tint).setDepth(44).setScale(0.3).setAlpha(1);
     this.scene.tweens.add({ targets: ring, scale: toScale, alpha: 0, duration, ease: 'Cubic.Out', onComplete: () => ring.destroy() });
+  }
+
+  /** A ring on the ground that fills in over `ms` — the captain's "get out of the way" telegraph. */
+  telegraphRing(x: number, y: number, radiusPx: number, tint: number, ms: number) {
+    const ring = this.scene.add.image(x, y, TEX.ring).setTint(tint).setDepth(15).setScale(0.2).setAlpha(0.9);
+    this.scene.tweens.add({ targets: ring, scale: radiusPx / 38, duration: ms, ease: 'Quad.In', onComplete: () => ring.destroy() });
+    return ring;
   }
 
   /** Ghost images left behind by Charge. */

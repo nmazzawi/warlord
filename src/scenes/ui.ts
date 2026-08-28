@@ -4,6 +4,19 @@ import { Sound } from '../systems/Sound';
 
 export const FONT = '"Arial Black", Arial, Helvetica, sans-serif';
 
+/** Notch / home-indicator insets, in game pixels (index.html exposes env(safe-area-inset-*) as CSS vars). */
+export function safeInsets(scene: Phaser.Scene) {
+  const dpr = scene.scale.displayScale.x || 1;
+  const style = getComputedStyle(document.documentElement);
+  const px = (v: string) => (parseFloat(style.getPropertyValue(v)) || 0) * dpr;
+  return { top: px('--sat'), right: px('--sar'), bottom: px('--sab'), left: px('--sal') };
+}
+
+/** UI scale unit that fits both axes (so nothing overflows in landscape phones). */
+export function uiUnit(w: number, h: number) {
+  return Phaser.Math.Clamp(Math.min(w / 420, h / 560), 0.75, 1.6) * (Math.min(w, h) > 1000 ? 1.15 : 1);
+}
+
 export interface ButtonOpts {
   width: number; height: number; label: string; sub?: string; color?: number; fontSize?: number;
   enabled?: boolean; onPress: () => void;
@@ -29,8 +42,10 @@ export function makeButton(scene: Phaser.Scene, x: number, y: number, o: ButtonO
     }).setOrigin(0.5);
     c.add(sub);
   }
+  // Note: Phaser hit-tests containers relative to their top-left (it adds the origin offset itself),
+  // so the hit rectangle must start at (0, 0) even though the container is drawn centred.
   c.setSize(o.width, o.height);
-  c.setInteractive(new Phaser.Geom.Rectangle(-o.width / 2, -o.height / 2, o.width, o.height), Phaser.Geom.Rectangle.Contains);
+  c.setInteractive(new Phaser.Geom.Rectangle(0, 0, o.width, o.height), Phaser.Geom.Rectangle.Contains);
   c.on('pointerdown', () => {
     c.setScale(0.94);
   });

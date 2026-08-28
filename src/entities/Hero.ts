@@ -18,6 +18,7 @@ export class Hero extends Unit {
   chargeCd = 0;
   boostTimer = 0;
   dashTimer = 0;
+  private swingSlow = 0;
   private dashDir = new Phaser.Math.Vector2();
   private dashHit = new Set<Unit>();
   private trailTimer = 0;
@@ -45,6 +46,7 @@ export class Hero extends Unit {
     this.hornCd -= dt;
     this.chargeCd -= dt;
     this.boostTimer -= dt;
+    this.swingSlow -= dt;
 
     const move = input.getMove(this.tmp);
     if (move.lengthSq() > 0.001) this.facing.copy(move).normalize();
@@ -59,7 +61,8 @@ export class Hero extends Unit {
       this.trailTimer -= dt;
       if (this.trailTimer <= 0) { this.trailTimer = 0.03; this.raid.juice.afterImage(this.x, this.y, TEX.hero, 0x9fd8ff); }
     } else {
-      const spd = this.speed * (this.boosted ? ABILITIES.horn.boostMult : 1);
+      let spd = this.speed * (this.boosted ? ABILITIES.horn.boostMult : 1);
+      if (this.swingSlow > 0) spd *= HERO.swingSlowMult; // a swing plants your feet for a moment
       this.desired.set(move.x * spd, move.y * spd);
       if (this.attackTimer <= 0) this.tryStrike();
     }
@@ -82,6 +85,7 @@ export class Hero extends Unit {
     }
     if (!best) return;
     this.attackTimer = HERO.attackCooldown;
+    this.swingSlow = HERO.swingSlow;
     const angle = Math.atan2(best.y - this.y, best.x - this.x);
     this.facing.set(Math.cos(angle), Math.sin(angle));
     const half = Phaser.Math.DegToRad(this.weapon.arcDeg / 2) + 0.12;
@@ -97,7 +101,7 @@ export class Hero extends Unit {
     this.raid.juice.slash(this.x, this.y, angle, this.tier, this.weapon.tint);
     if (hits > 0) {
       this.raid.juice.hitStop(this.weapon.hitStop);
-      this.raid.juice.shake(this.weapon.shake, 70 + this.tier * 15);
+      this.raid.juice.shake(this.weapon.shake, 70 + this.tier * 15, true);
       Sound.heroHit(this.tier);
     }
   }

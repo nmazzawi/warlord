@@ -33,6 +33,8 @@ export class Enemy extends Unit {
   private windingUp = false;
   private stuckTimer = 0;
   private detourUntil = 0;
+  private lastPos: Phaser.Math.Vector2;
+  private telegraph: Phaser.GameObjects.Image | null = null;
   private tmp = new Phaser.Math.Vector2();
 
   constructor(scene: RaidScene, x: number, y: number, kind: EnemyKind, mult: EnemyMult) {
@@ -47,6 +49,7 @@ export class Enemy extends Unit {
     this.damageAmount = s.damage * mult.dmg;
     this.goldValue = Math.round(Phaser.Math.Between(s.gold[0], s.gold[1]) * mult.gold);
     this.post = new Phaser.Math.Vector2(x, y);
+    this.lastPos = new Phaser.Math.Vector2(x, y);
     this.wanderTarget = new Phaser.Math.Vector2(x, y);
     this.wanderTimer = Phaser.Math.FloatBetween(0.5, 2.5);
     this.attackTimer = Phaser.Math.FloatBetween(0, 0.5); // so a group doesn't swing in perfect unison
@@ -85,6 +88,10 @@ export class Enemy extends Unit {
     if (this.windingUp) {
       this.windupTimer -= dt;
       this.desired.set(0, 0);
+      // swell up as the blow approaches; snapping back to normal size IS the strike
+      const p = 1 - Math.max(0, this.windupTimer) / this.stats.windup;
+      const grow = this.kind === 'captain' ? 1.4 : 1.22;
+      this.setScale(1 + (grow - 1) * p * p);
       if (this.windupTimer <= 0) this.finishAttack();
       this.applyVelocity(dt);
       return;
@@ -142,7 +149,15 @@ export class Enemy extends Unit {
     }
     if (t === hero && this.slotAngle !== null) {
       const R = hero.radius + this.radius + SURROUND.slotPadding;
-      this.moveToward(hero.x + Math.cos(this.slotAngle) * R, hero.y + Math.sin(this.slotAngle) * R, this.stats.speed, 12);
+      const a0 = Math.atan2(this.y - hero.y, this.x - hero.x);
+      const diff = Phaser.Math.Angle.Wrap(this.slotAngle - a0);
+      if (Math.abs(diff) > 0.6) {
+        // my slot is round the other side: walk AROUND the hero, not through them
+        const a1 = a0 + Math.sign(diff) * 0.9;
+        this.moveToward(hero.x + Math.cos(a1) * (R + 16), hero.y + Math.sin(a1) * (R + 16), this.stats.speed);
+      } else {
+        this.moveToward(hero.x + Math.cos(this.slotAngle) * R, hero.y + Math.sin(this.slotAngle) * R, this.stats.speed, 12);
+      }
     } else {
       this.moveToward(t.x, t.y, this.stats.speed);
     }
@@ -181,32 +196,40 @@ export class Enemy extends Unit {
 
   /** Pushing against a hut for a while? Take the long way round for a moment. */
   private trackStuck(dt: number) {
-    if (this.desired.lengthSq() > 100 && this.body.speed < 8) this.stuckTimer += dt; else this.stuckTimer = 0;
-    if (this.stuckTimer > 0.7) { this.stuckTimer = 0; this.detourUntil = this.raid.time.now + 1200; }
+    // measure real movement — the body's velocity still reads "walking" while it's pinned on a wall
+    const moved = Phaser.Math.Distance.Between(this.x, this.y, this.lastPos.x, this.lastPos.y) / Math.max(dt, 1e-3);
+    this.lastPos.set(this.x, this.y);
+    if (this.desired.lengthSq() > 100 && moved < 8) this.stuckTimer += dt; else this.stuckTimer = 0;
+    if (this.stuckTimer > 0.6) { this.stuckTimer = 0; this.detourUntil = this.raid.time.now + 1200; }
   }
 
-  /** The telegraph: stop, turn red and swell up before the blow lands. */
+  /** The telegraph: stop, flash bright red and swell up before the blow lands. */
   private beginWindup() {
     this.windingUp = true;
     this.windupTimer = this.stats.windup;
-    this.baseTint = this.kind === 'captain' ? 0xff3030 : 0xff9090;
+    this.baseTint = this.kind === 'captain' ? 0xff5a3c : this.kind === 'archer' ? 0xf0d0ff : 0xffb0a0;
     this.applyTint();
-    const grow = this.kind === 'captain' ? 1.35 : 1.2;
-    this.raid.tweens.add({ targets: this, scaleX: grow, scaleY: grow, duration: this.stats.windup * 900, ease: 'Quad.In', yoyo: true });
+    if (this.kind === 'captain') {
+      // a ring on the ground shows exactly how far the spear will reach
+      this.telegraph = this.raid.juice.telegraphRing(this.x, this.y, this.stats.reach + this.radius + 14, 0xff3030, this.stats.windup * 1000);
+    }
   }
 
   private finishAttack() {
     this.windingUp = false;
     this.baseTint = null;
     this.applyTint();
+    this.setScale(1);
+    this.telegraph = null;
     this.attackTimer = this.stats.cooldown;
     const t = this.target;
     if (!t || !t.alive || !this.alive) return;
     if (this.kind === 'archer') { this.raid.fireArrow(this, t); return; }
     const angle = Math.atan2(t.y - this.y, t.x - this.x);
     this.raid.juice.slash(this.x, this.y, angle, 1, this.kind === 'captain' ? 0xff6040 : 0xffb0b0, this.kind === 'captain' ? 0.9 : 0.5);
-    // a little forgiveness on reach, but stepping well back makes it whiff
-    if (this.edgeDistTo(t) <= this.stats.reach + 12) {
+    // a little forgiveness on reach, but stepping back makes it whiff — and it must be LESS than a
+    // militia's width (22px) so the second row of a crowd can't hit you through the first.
+    if (this.edgeDistTo(t) <= this.stats.reach + 6) {
       const kb = this.kind === 'captain' ? ENEMIES.captain.knockback : 90;
       dealDamage(this.raid, t, this.damageAmount, this.x, this.y, kb, 'enemy');
     } else {
@@ -215,7 +238,8 @@ export class Enemy extends Unit {
   }
 
   protected override die() {
-    this.raid.tweens.killTweensOf(this);
+    if (this.telegraph) { this.telegraph.destroy(); this.telegraph = null; }
+    this.setScale(1);
     super.die();
   }
 }

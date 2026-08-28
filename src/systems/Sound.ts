@@ -21,7 +21,8 @@ class SoundSystem {
       const data = this.noiseBuffer.getChannelData(0);
       for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
     }
-    if (this.ctx.state === 'suspended') void this.ctx.resume();
+    // 'suspended' before the first gesture; iOS also uses 'interrupted' after a call / app switch
+    if (this.ctx.state !== 'running') void this.ctx.resume();
   }
 
   private get ready() { return !!this.ctx && !!this.master && this.ctx.state === 'running' && !this.muted; }

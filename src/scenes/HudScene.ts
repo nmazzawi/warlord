@@ -2,7 +2,7 @@
 // virtual joystick, and the two big ability buttons with cooldown wedges.
 import Phaser from 'phaser';
 import type { PlayerInput } from '../systems/PlayerInput';
-import { FONT } from './ui';
+import { FONT, safeInsets } from './ui';
 
 export interface HudModel {
   heroHp: number; heroMaxHp: number; gold: number; raid: number;
@@ -28,6 +28,8 @@ export class HudScene extends Phaser.Scene {
   private joyMax = 48;
   private horn!: Btn;
   private charge!: Btn;
+  private intro!: Phaser.GameObjects.Text;
+  private hint!: Phaser.GameObjects.Text;
 
   constructor() { super('Hud'); }
 
@@ -48,6 +50,16 @@ export class HudScene extends Phaser.Scene {
 
     this.horn = this.makeBtn('HORN', 'Q', 0xd9a441);
     this.charge = this.makeBtn('CHARGE', 'E', 0x3fa9f5);
+
+    // intro banner (screen space, so it can never be clipped by the map edge)
+    this.intro = this.add.text(0, 0, `RAID ${this.model.raid}\nClear the village of its ${this.model.enemiesAlive} defenders`, {
+      fontFamily: FONT, fontSize: '22px', color: '#fff8e7', stroke: '#000', strokeThickness: 5, align: 'center', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    this.hint = this.add.text(0, 0, 'Hold the street: they can only come two at a time.\nIn the open they will surround you.', {
+      fontFamily: FONT, fontSize: '13px', color: '#ffe9a8', stroke: '#000', strokeThickness: 4, align: 'center', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    this.tweens.add({ targets: this.intro, alpha: 0, delay: 3200, duration: 700 });
+    this.tweens.add({ targets: this.hint, alpha: 0, delay: 5500, duration: 700 });
 
     this.layout();
     this.scale.on('resize', this.layout, this);
@@ -72,17 +84,21 @@ export class HudScene extends Phaser.Scene {
   private layout() {
     const { width: w, height: h } = this.scale;
     const u = this.u = Phaser.Math.Clamp(Math.min(w, h) / 420, 0.8, 1.7);
+    const ins = safeInsets(this);
     const m = 14 * u;
+    const left = m + ins.left, top = m + ins.top;
     // HP bar top-left
-    this.hpBg.setPosition(m, m + 9 * u).setSize(190 * u, 18 * u);
-    this.hpFg.setPosition(m, m + 9 * u).setSize(190 * u, 18 * u);
-    this.hpText.setPosition(m + 6 * u, m + 9 * u).setFontSize(Math.round(11 * u));
-    this.goldText.setPosition(m, m + 24 * u).setFontSize(Math.round(16 * u));
-    this.infoText.setPosition(m, m + 46 * u).setFontSize(Math.round(11 * u));
-    // ability buttons bottom-right
+    this.hpBg.setPosition(left, top + 9 * u).setSize(190 * u, 18 * u);
+    this.hpFg.setPosition(left, top + 9 * u).setSize(190 * u, 18 * u);
+    this.hpText.setPosition(left + 6 * u, top + 9 * u).setFontSize(Math.round(11 * u));
+    this.goldText.setPosition(left, top + 24 * u).setFontSize(Math.round(16 * u));
+    this.infoText.setPosition(left, top + 46 * u).setFontSize(Math.round(11 * u)).setLineSpacing(2 * u);
+    this.intro.setPosition(w / 2, h * 0.2).setFontSize(Math.round(22 * u)).setWordWrapWidth(w - 4 * m);
+    this.hint.setPosition(w / 2, h * 0.2 + 52 * u).setFontSize(Math.round(13 * u)).setWordWrapWidth(w - 4 * m);
+    // ability buttons bottom-right, above the home indicator and clear of rounded corners
     const r = 40 * u;
-    const by = h - m - r - 6 * u;
-    this.charge.x = w - m - r - 6 * u; this.charge.y = by; this.charge.r = r;
+    const by = h - m - r - 6 * u - ins.bottom;
+    this.charge.x = w - m - r - 6 * u - ins.right; this.charge.y = by; this.charge.r = r;
     this.horn.x = this.charge.x - r * 2 - 22 * u; this.horn.y = by; this.horn.r = r;
     for (const b of [this.horn, this.charge]) {
       b.label.setPosition(b.x, b.y - 4 * u).setFontSize(Math.round(12 * u));
@@ -148,7 +164,7 @@ export class HudScene extends Phaser.Scene {
     this.hpFg.setFillStyle(frac > 0.5 ? 0x5ec26a : frac > 0.25 ? 0xe0b040 : 0xe0453a);
     this.hpText.setText(`${Math.ceil(m.heroHp)} / ${m.heroMaxHp}`);
     this.goldText.setText(`⬤ ${m.gold} gold`);
-    this.infoText.setText(`Raid ${m.raid}   ·   Troops ${m.troopsAlive}/${m.troopsTotal}   ·   Defenders left ${m.enemiesAlive}${m.boosted ? '   ·   RALLIED!' : ''}`);
+    this.infoText.setText(`Raid ${m.raid}  ·  Troops ${m.troopsAlive}/${m.troopsTotal}\nDefenders left ${m.enemiesAlive}${m.boosted ? '  ·  RALLIED!' : ''}`);
     this.drawBtn(this.horn, m.hornCd, m.hornMax);
     this.drawBtn(this.charge, m.chargeCd, m.chargeMax);
   }

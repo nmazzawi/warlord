@@ -76,7 +76,8 @@ export class Unit extends Phaser.Physics.Arcade.Sprite {
   }
 
   applyTint() {
-    if (this.baseTint === null) this.clearTint(); else this.setTint(this.baseTint);
+    // tintFill replaces the colour outright — a plain tint multiplies and is invisible on dark sprites
+    if (this.baseTint === null) this.clearTint(); else this.setTintFill(this.baseTint);
   }
 
   protected die() {
@@ -104,7 +105,7 @@ export class Unit extends Phaser.Physics.Arcade.Sprite {
   /** Push desired movement + knockback into the physics body. */
   applyVelocity(dt: number) {
     this.body.setVelocity(this.desired.x + this.knock.x, this.desired.y + this.knock.y);
-    this.knock.scale(Math.exp(-dt * 9));
+    this.knock.scale(Math.exp(-dt * 6));
     if (this.knock.lengthSq() < 4) this.knock.set(0, 0);
   }
 

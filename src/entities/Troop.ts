@@ -81,7 +81,8 @@ export class Troop extends Unit {
 
   /** Walk to my formation slot; if the hero is far, follow the flow field around huts first. */
   private goToSlot(hero: Hero, heading: number, spd: number, distHero: number) {
-    if (distHero > 120 && this.raid.flow.direction(this.x, this.y, this.tmp)) {
+    // beyond a cell or two, let the flow field steer around huts (straight lines walk into walls)
+    if (distHero > 48 && this.raid.flow.direction(this.x, this.y, this.tmp)) {
       this.desired.set(this.tmp.x * spd, this.tmp.y * spd);
       return;
     }

@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
 import { TROOP, WEAPONS } from '../config/balance';
 import { Sound } from '../systems/Sound';
-import { FONT, makeButton } from './ui';
+import { FONT, makeButton, uiUnit } from './ui';
 
 export class CampScene extends Phaser.Scene {
   constructor() { super('Camp'); }
@@ -19,7 +19,7 @@ export class CampScene extends Phaser.Scene {
   private build() {
     this.children.removeAll(true);
     const { width: w, height: h } = this.scale;
-    const u = Phaser.Math.Clamp(Math.min(w, h) / 420, 0.75, 1.6); // UI scale unit
+    const u = uiUnit(w, h); // UI scale unit
     const cx = w / 2;
     const colW = Math.min(w * 0.92, 420 * u);
     let y = 22 * u;
@@ -80,6 +80,14 @@ export class CampScene extends Phaser.Scene {
     });
     y += rh + 16 * u;
 
-    text('Move: drag anywhere on the left / WASD  ·  Q = War Horn  ·  E = Charge\nYou swing automatically at anything in reach. Fight in alleys, not in the open.', 11, '#a89a80');
+    text('Move: drag anywhere / WASD  ·  Q = War Horn  ·  E = Charge\nYou swing automatically at anything in reach. Fight in the street, not in the open.', 11, '#a89a80');
+
+    // start over (small, out of the way)
+    if (GameState.raidNumber > 1 || GameState.fallen.length > 0) {
+      makeButton(this, cx, Math.max(y + 22 * u, h - 30 * u), {
+        width: 150 * u, height: 32 * u, label: 'New warband', color: 0x444444, fontSize: Math.round(11 * u),
+        onPress: () => { GameState.reset(); this.build(); },
+      });
+    }
   }
 }

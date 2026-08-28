@@ -19,7 +19,6 @@ import { COLORS, TEX } from '../systems/Textures';
 import { buildVillage, HUTS, SPAWNS, WORLD } from '../world/Village';
 import type { HudModel } from './HudScene';
 import type { ResultData } from './ResultScene';
-import { FONT } from './ui';
 
 export class RaidScene extends Phaser.Scene {
   hero!: Hero;
@@ -64,7 +63,8 @@ export class RaidScene extends Phaser.Scene {
 
     // --- the warband
     this.hero = new Hero(this, SPAWNS.hero.x, SPAWNS.hero.y, GameState.weaponTier);
-    this.troopGroup = this.physics.add.group();
+    // (groups re-apply their defaults to every body added, so world-bounds collision must be set here)
+    this.troopGroup = this.physics.add.group({ collideWorldBounds: true });
     GameState.troops.forEach((rec, i) => {
       const t = new Troop(this, this.hero.x - 30 - i * 12, this.hero.y + (i % 2 ? 26 : -26), rec, i);
       this.troops.push(t);
@@ -72,13 +72,14 @@ export class RaidScene extends Phaser.Scene {
     });
 
     // --- the defenders
-    this.enemyGroup = this.physics.add.group();
+    this.enemyGroup = this.physics.add.group({ collideWorldBounds: true });
     const mult = { hp: cfg.hpMult, dmg: cfg.dmgMult, gold: cfg.goldMult };
     const spawn = (kind: EnemyKind, posts: Array<{ x: number; y: number }>, count: number) => {
       for (let i = 0; i < count; i++) {
         const p = posts[i % posts.length];
         const jitter = i >= posts.length ? 26 : 0;
-        const e = new Enemy(this, p.x + Phaser.Math.Between(-jitter, jitter), p.y + Phaser.Math.Between(-jitter, jitter), kind, mult);
+        const spot = this.clearOfHuts(p.x + Phaser.Math.Between(-jitter, jitter), p.y + Phaser.Math.Between(-jitter, jitter), ENEMIES[kind].radius);
+        const e = new Enemy(this, spot.x, spot.y, kind, mult);
         this.enemies.push(e);
         this.enemyGroup.add(e);
       }
@@ -124,21 +125,24 @@ export class RaidScene extends Phaser.Scene {
       this.scene.stop('Hud');
     });
 
-    // --- intro banner in the world, so it scales with everything else
-    const intro = this.add.text(this.hero.x + 60, this.hero.y - 110,
-      `RAID ${GameState.raidNumber}\nClear the village of its ${this.enemies.length} defenders →`, {
-        fontFamily: FONT, fontSize: '20px', color: '#fff8e7', stroke: '#000', strokeThickness: 5, align: 'center', fontStyle: 'bold',
-      }).setOrigin(0.5).setDepth(60);
-    this.add.text(this.hero.x + 60, this.hero.y - 60, 'Hold the street. Don\'t get surrounded in the open.', {
-      fontFamily: FONT, fontSize: '12px', color: '#ffe9a8', stroke: '#000', strokeThickness: 4, fontStyle: 'bold',
-    }).setOrigin(0.5).setDepth(60).setAlpha(0.95).setName('hint');
-    this.tweens.add({ targets: intro, alpha: 0, delay: 3000, duration: 800 });
-    this.tweens.add({ targets: this.children.getByName('hint'), alpha: 0, delay: 5000, duration: 800 });
   }
 
+  /** Nudge a spawn point out of any hut it overlaps, so layout edits can't bury a defender in a wall. */
+  private clearOfHuts(x: number, y: number, r: number) {
+    for (let tries = 0; tries < 8; tries++) {
+      const hit = HUTS.find(h => x + r > h.x - h.w / 2 && x - r < h.x + h.w / 2 && y + r > h.y - h.h / 2 && y - r < h.y + h.h / 2);
+      if (!hit) break;
+      const dx = x - hit.x, dy = y - hit.y;
+      const len = Math.hypot(dx, dy) || 1;
+      x += (dx / len) * 30; y += (dy / len) * 30;
+    }
+    return { x, y };
+  }
+
+  /** Show ~520 world px across the short screen axis — enough to see archers and militia coming. */
   private applyZoom() {
     const { width, height } = this.scale;
-    const zoom = Phaser.Math.Clamp(Math.min(width, height) / 440, 0.9, 2.0);
+    const zoom = Phaser.Math.Clamp(Math.min(width, height) / 520, 0.75, 2.2);
     this.cameras.main.setZoom(zoom);
   }
 
@@ -164,6 +168,7 @@ export class RaidScene extends Phaser.Scene {
 
     this.flow.update(dt, hero.x, hero.y);
     for (const t of this.troops) if (t.alive) t.update(dt, hero, this.formationHeading);
+    this.separateTroops();
 
     const hunters: Enemy[] = [];
     for (const e of this.enemies) if (e.alive && e.aggro && e.kind === 'militia' && e.target === hero) hunters.push(e);
@@ -178,6 +183,24 @@ export class RaidScene extends Phaser.Scene {
     this.syncHud();
 
     if (!this.over && this.enemies.length === 0) this.victory();
+  }
+
+  /** Troops don't collide with each other (so alleys stay passable) — nudge them apart instead. */
+  private separateTroops() {
+    const ts = this.troops;
+    for (let i = 0; i < ts.length; i++) {
+      for (let j = i + 1; j < ts.length; j++) {
+        const a = ts[i], b = ts[j];
+        if (!a.alive || !b.alive) continue;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d = Math.hypot(dx, dy);
+        const min = a.radius + b.radius + 3;
+        if (d >= min || d < 0.01) continue;
+        const push = ((min - d) / min) * 120;
+        a.body.velocity.x -= (dx / d) * push; a.body.velocity.y -= (dy / d) * push;
+        b.body.velocity.x += (dx / d) * push; b.body.velocity.y += (dy / d) * push;
+      }
+    }
   }
 
   private syncVisuals(now: number) {
@@ -217,7 +240,7 @@ export class RaidScene extends Phaser.Scene {
   chargeHit(e: Enemy) {
     dealDamage(this, e, ABILITIES.charge.damage, this.hero.x, this.hero.y, ABILITIES.charge.knockback, 'charge');
     this.juice.hitStop(50);
-    this.juice.shake(0.006, 80);
+    this.juice.shake(4, 80, true);
     Sound.chargeHit();
   }
 
@@ -287,7 +310,7 @@ export class RaidScene extends Phaser.Scene {
       if (this.over) return;
       this.over = true;
       this.juice.burst(u.x, u.y, COLORS.hero, 24);
-      this.juice.shake(0.012, 300);
+      this.juice.shake(10, 300, true);
       this.freeze(450);
       Sound.defeat();
       this.time.delayedCall(1400, () => this.showResult('defeat'));
@@ -301,7 +324,7 @@ export class RaidScene extends Phaser.Scene {
       this.spawnCoins(u.x, u.y, u.goldValue);
       Sound.enemyDie();
       if (u.kind === 'captain') {
-        this.juice.shake(0.01, 200);
+        this.juice.shake(8, 200, true);
         this.juice.hitStop(110);
         this.juice.banner(u.x, u.y - 30, 'CAPTAIN SLAIN', '#f5c542', 16);
       }
@@ -310,6 +333,20 @@ export class RaidScene extends Phaser.Scene {
 
   private victory() {
     this.over = true;
+    // sweep up every coin still on the ground — loot you fought for is yours
+    let swept = 0;
+    for (const c of this.coins.getChildren() as Coin[]) {
+      if (!c.active) continue;
+      swept += c.value;
+      this.goldEarned += c.value;
+      c.body.enable = false;
+      this.tweens.add({ targets: c, x: this.hero.x, y: this.hero.y, alpha: 0, duration: 500, ease: 'Quad.In',
+        onComplete: () => c.disableBody(true, true) });
+    }
+    if (swept > 0) {
+      Sound.gold();
+      this.juice.damageNumber(this.hero.x, this.hero.y - 30, `+${swept}`, COLORS.gold, 15);
+    }
     Sound.victory();
     this.juice.banner(this.hero.x, this.hero.y - 50, 'VILLAGE CLEARED', '#f5c542', 22);
     this.time.delayedCall(1100, () => this.showResult('victory'));

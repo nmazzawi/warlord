@@ -1,7 +1,7 @@
 // Textures.ts — placeholder art: every sprite is a colored shape drawn in code at boot,
 // then baked into a texture so it can be tinted (hit flash) and batched (fast on phones).
 import Phaser from 'phaser';
-import { WEAPONS } from '../config/balance';
+import { HERO, WEAPONS } from '../config/balance';
 
 export const TEX = {
   px: 'px',           // 1x1 white pixel — HP bars, overlays
@@ -107,7 +107,7 @@ export function generateTextures(scene: Phaser.Scene) {
 
   // slash wedges: one per weapon tier — bigger reach and wider arc as the tier goes up
   WEAPONS.forEach((w, i) => {
-    const r = w.reach + 6;
+    const r = w.reach + HERO.radius + 11; // edge-reach + hero radius + a militia radius = where hits actually land
     const size = r * 2 + 4;
     const c = size / 2;
     const half = Phaser.Math.DegToRad(w.arcDeg / 2);

@@ -1,4 +1,5 @@
-// main.ts — boots Phaser. Fills the whole browser window and re-lays out on rotation/resize.
+// main.ts — boots Phaser. Fills the whole browser window, renders at the device's real pixel
+// density (capped at 2x so mid-range phones stay smooth), and re-lays out on rotation/resize.
 import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
 import { CampScene } from './scenes/CampScene';
@@ -7,15 +8,20 @@ import { HudScene } from './scenes/HudScene';
 import { ResultScene } from './scenes/ResultScene';
 import { Sound } from './systems/Sound';
 
-new Phaser.Game({
+const dpr = Math.min(window.devicePixelRatio || 1, 2);
+const px = (css: number) => Math.max(1, Math.floor(css * dpr));
+
+const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
   backgroundColor: '#1a1410',
   scale: {
-    mode: Phaser.Scale.RESIZE,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: window.innerWidth,
-    height: window.innerHeight,
+    // NONE + zoom 1/dpr: the canvas has dpr× as many pixels as its CSS size, so shapes and text are crisp.
+    mode: Phaser.Scale.NONE,
+    autoCenter: Phaser.Scale.NO_CENTER,
+    width: px(window.innerWidth),
+    height: px(window.innerHeight),
+    zoom: 1 / dpr,
   },
   physics: { default: 'arcade', arcade: { gravity: { x: 0, y: 0 }, debug: false } },
   input: { activePointers: 3 }, // thumb on the joystick + a finger on a button at the same time
@@ -24,8 +30,23 @@ new Phaser.Game({
   scene: [BootScene, CampScene, RaidScene, HudScene, ResultScene],
 });
 
-// Browsers only allow audio after a real tap or key press — unlock on the first one.
+// Keep the canvas matched to the window (Phaser's own resize handling is off in NONE mode).
+let fitTimer = 0;
+const fit = () => {
+  const w = px(window.innerWidth), h = px(window.innerHeight);
+  if (game.scale.width !== w || game.scale.height !== h) game.scale.resize(w, h);
+};
+const fitSoon = () => { window.clearTimeout(fitTimer); fitTimer = window.setTimeout(fit, 60); };
+window.addEventListener('resize', fitSoon);
+window.addEventListener('orientationchange', fitSoon);
+window.visualViewport?.addEventListener('resize', fitSoon);
+
+// Debug handle so automated smoke tests (and curious developers) can poke at scenes from the console.
+(window as unknown as { __warlord: Phaser.Game }).__warlord = game;
+
+// Browsers only allow audio after a real tap or key press — unlock on the first one (and again after
+// iOS interrupts the audio for a call or an app switch).
 const unlock = () => Sound.unlock();
-window.addEventListener('pointerdown', unlock, { passive: true });
-window.addEventListener('keydown', unlock);
-window.addEventListener('touchstart', unlock, { passive: true });
+for (const ev of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'click', 'keydown']) {
+  window.addEventListener(ev, unlock, { passive: true });
+}

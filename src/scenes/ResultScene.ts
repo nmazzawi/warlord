@@ -1,7 +1,7 @@
 // ResultScene.ts — the overlay after a raid: victory summary, or defeat with retry.
 import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
-import { FONT, makeButton } from './ui';
+import { FONT, makeButton, uiUnit } from './ui';
 
 export interface ResultData {
   outcome: 'victory' | 'defeat';
@@ -25,12 +25,12 @@ export class ResultScene extends Phaser.Scene {
   private build() {
     this.children.removeAll(true);
     const { width: w, height: h } = this.scale;
-    const u = Phaser.Math.Clamp(Math.min(w, h) / 420, 0.75, 1.6);
+    const u = uiUnit(w, h);
     const d = this.result;
     const win = d.outcome === 'victory';
     this.add.rectangle(0, 0, w, h, 0x000000, 0.72).setOrigin(0);
     const cx = w / 2;
-    let y = h * 0.2;
+    let y = h * 0.14;
     const text = (str: string, size: number, color: string) => {
       const t = this.add.text(cx, y, str, { fontFamily: FONT, fontSize: `${Math.round(size * u)}px`, color, fontStyle: 'bold',
         align: 'center', wordWrap: { width: Math.min(w * 0.9, 440 * u) } }).setOrigin(0.5, 0);

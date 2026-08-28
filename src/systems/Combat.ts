@@ -25,7 +25,7 @@ export function dealDamage(raid: RaidScene, target: Unit, amount: number, srcX: 
   raid.juice.damageNumber(target.x, target.y - target.radius - 10, String(amt), color, big ? 19 : 13);
   raid.juice.burst(target.x, target.y, isPlayer ? 0xff6a6a : 0xffd9a0, big ? 8 : 4);
 
-  if (isHero) { Sound.heroHurt(); raid.juice.shake(0.004, 90); }
+  if (isHero) { Sound.heroHurt(); raid.juice.shake(3, 90); }
   else if (isPlayer) Sound.troopHurt();
   else if (source === 'troop') Sound.troopHit();
   return killed;

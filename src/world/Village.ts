@@ -1,5 +1,6 @@
-// Village.ts — the raid map. A dirt street walled by huts (the funnel) leads from your start in
-// the open south-west field into a plaza ringed by more huts, with alleys between them.
+// Village.ts — the raid map. You start in a dead-end street walled by huts (the funnel: defenders
+// can only come at you two abreast from the east). It opens onto a plaza ringed by more huts with
+// alleys between them, and open fields to the north-west where you can be surrounded.
 import Phaser from 'phaser';
 import type { RaidScene } from '../scenes/RaidScene';
 import { TEX } from '../systems/Textures';
@@ -11,7 +12,8 @@ export interface HutDef { x: number; y: number; w: number; h: number; }
 
 /** Hut centers and sizes. Sizes must exist in HUT_SIZES (Textures.ts). */
 export const HUTS: HutDef[] = [
-  // the street: two solid rows with a 56px lane between them (y 752..808)
+  // the street: two solid rows with a 56px lane between them (y 752..808), sealed at the west end
+  { x: 130, y: 780, w: 64, h: 80 },
   { x: 220, y: 722, w: 100, h: 60 }, { x: 330, y: 722, w: 100, h: 60 }, { x: 440, y: 722, w: 100, h: 60 }, { x: 550, y: 722, w: 100, h: 60 },
   { x: 220, y: 838, w: 100, h: 60 }, { x: 330, y: 838, w: 100, h: 60 }, { x: 440, y: 838, w: 100, h: 60 }, { x: 550, y: 838, w: 100, h: 60 },
   // the plaza ring (alleys of 60-85px between neighbours)
@@ -26,16 +28,16 @@ export const HUTS: HutDef[] = [
 export const PLAZA = { x: 880, y: 480, r: 200 };
 
 export const SPAWNS = {
-  hero: { x: 100, y: 780 },
+  hero: { x: 205, y: 780 },
   militia: [
     { x: 830, y: 430 }, { x: 930, y: 440 }, { x: 880, y: 520 }, { x: 800, y: 560 }, { x: 960, y: 560 }, { x: 760, y: 420 },
     { x: 1000, y: 440 }, { x: 880, y: 380 }, { x: 720, y: 560 }, { x: 1020, y: 600 }, { x: 640, y: 420 }, { x: 900, y: 620 },
     { x: 600, y: 620 }, { x: 760, y: 300 }, { x: 1000, y: 330 }, { x: 1160, y: 450 }, { x: 640, y: 560 }, { x: 1150, y: 620 },
   ],
   archers: [
-    { x: 880, y: 300 }, { x: 1040, y: 500 }, { x: 760, y: 690 }, { x: 1100, y: 290 }, { x: 640, y: 350 }, { x: 960, y: 770 },
+    { x: 880, y: 300 }, { x: 1040, y: 500 }, { x: 800, y: 710 }, { x: 1100, y: 290 }, { x: 640, y: 350 }, { x: 960, y: 770 },
   ],
-  captains: [{ x: 880, y: 470 }, { x: 700, y: 470 }, { x: 1060, y: 560 }],
+  captains: [{ x: 880, y: 470 }, { x: 780, y: 480 }, { x: 1060, y: 560 }],
 };
 
 /** Paints the ground once into a texture (grass, dirt plaza, the street) — one draw call per frame. */
