@@ -62,6 +62,14 @@ Phone-browser-first controls: one thumb plus a few buttons, resolution-independe
 
 Placeholder shape art until the loop is fun.
 
+## Settlements & Services
+Settlements are physical places, not menus. The player's home base is a walkable **BANDIT CAMP** with functional buildings:
+- **FORGE** — weapons, armor, shields, and bows. Armor and shields are new hero equipment slots adding **Defense**. A bow is an alternate weapon where the hero auto-fires at range for lighter damage.
+- **BARRACKS** — recruit troops.
+- **STABLES** — horses, e.g. a fast **Courser** vs. an armored **Destrier**; mounted = faster, bigger silhouette.
+
+Services are **conquest-gated**: you can only shop and recruit in settlements you control. When occupation arrives (Milestone 3), **OCCUPIED** settlements unlock their own forge/barracks/stables with local gear and local troops (the start of mixed armies), while **SACKED** settlements burn those services permanently.
+
 ## Milestone 1 — The Raid Loop (built 2026-08-28)
 
 **Designer-specified (from the M1 brief):** movement-only hero with auto-attack; War Horn (rally + speed boost) and Charge (dash + knockback) on Q/E and two big touch buttons; 3 starting troops in loose formation with permanent death; village of huts defended by ~8 militia, 2 kiting archers and 1 slow hard-hitting spearman captain; gold pickups; victory summary / defeat with retry; camp with 3 weapon tiers (bigger strike each tier) and recruiting up to 6 troops; Raid 2 is bigger and stronger; punchy feedback (hit-pause, knockback, damage numbers, hit flash, small shake); positioning must matter (real damage, surrounding, funnel between huts).
