@@ -2,11 +2,17 @@
 // density (capped at 2x so mid-range phones stay smooth), and re-lays out on rotation/resize.
 import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
+import { TitleScene } from './scenes/TitleScene';
+import { MapScene } from './scenes/MapScene';
+import { MapHudScene } from './scenes/MapHudScene';
 import { CampScene } from './scenes/CampScene';
+import { ShopScene } from './scenes/ShopScene';
 import { RaidScene } from './scenes/RaidScene';
 import { HudScene } from './scenes/HudScene';
 import { ResultScene } from './scenes/ResultScene';
 import { Sound } from './systems/Sound';
+import { GameState } from './state/GameState';
+import { NODES } from './world/WorldMap';
 
 const dpr = Math.min(window.devicePixelRatio || 1, 2);
 const px = (css: number) => Math.max(1, Math.floor(css * dpr));
@@ -27,7 +33,7 @@ const game = new Phaser.Game({
   input: { activePointers: 3 }, // thumb on the joystick + a finger on a button at the same time
   disableContextMenu: true,
   render: { antialias: true, pixelArt: false, powerPreference: 'high-performance' },
-  scene: [BootScene, CampScene, RaidScene, HudScene, ResultScene],
+  scene: [BootScene, TitleScene, MapScene, MapHudScene, CampScene, ShopScene, RaidScene, HudScene, ResultScene],
 });
 
 // Keep the canvas matched to the window (Phaser's own resize handling is off in NONE mode).
@@ -42,7 +48,13 @@ window.addEventListener('orientationchange', fitSoon);
 window.visualViewport?.addEventListener('resize', fitSoon);
 
 // Debug handle so automated smoke tests (and curious developers) can poke at scenes from the console.
-(window as unknown as { __warlord: Phaser.Game }).__warlord = game;
+(window as unknown as { __warlord: Phaser.Game; __GameState: typeof GameState; __NODES: typeof NODES }).__warlord = game;
+(window as unknown as { __GameState: typeof GameState }).__GameState = GameState;
+(window as unknown as { __NODES: typeof NODES }).__NODES = NODES;
+
+// Save when the tab is hidden or closed (belt and braces — the game also saves at every safe point).
+window.addEventListener('pagehide', () => GameState.save());
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') GameState.save(); });
 
 // Browsers only allow audio after a real tap or key press — unlock on the first one (and again after
 // iOS interrupts the audio for a call or an app switch).

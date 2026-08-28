@@ -74,6 +74,10 @@ class SoundSystem {
   troopDie()    { this.tone('sawtooth', 220, 60, 0.35, 0.35); this.noise(0.2, 0.3, 700, 100); }
   gold()        { this.tone('sine', 880, 880, 0.07, 0.35); this.tone('sine', 1320, 1320, 0.1, 0.35, 0.06); }
   arrow()       { this.noise(0.09, 0.25, 3000, 1200); }
+  bow()         { this.noise(0.07, 0.3, 2600, 900); this.tone('triangle', 520, 180, 0.09, 0.22); }
+  travel()      { this.tone('sine', 330, 330, 0.08, 0.15); this.tone('sine', 440, 440, 0.1, 0.15, 0.09); }
+  patrol()      { this.tone('sawtooth', 140, 90, 0.4, 0.4); this.tone('square', 220, 220, 0.12, 0.25, 0.3); this.tone('square', 220, 220, 0.12, 0.25, 0.5); }
+  door()        { this.noise(0.12, 0.25, 500, 150); }
   warHorn() {
     this.tone('sawtooth', 110, 165, 0.55, 0.5);
     this.tone('sawtooth', 165, 220, 0.45, 0.4, 0.25);

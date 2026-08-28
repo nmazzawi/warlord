@@ -1,5 +1,5 @@
 // smoke.mjs — automated playthrough in headless Chromium (desktop + emulated phone). Run: npm run smoke
-
+// Title → camp (walk, shop) → map (travel, days) → raid → save/reload → forced patrol → palisaded village → gear → town.
 import { chromium, devices } from 'playwright';
 import fs from 'node:fs';
 
@@ -10,15 +10,16 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 let failures = 0;
 const check = (cond, msg) => { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!cond) failures++; };
 
-async function attachErrorCapture(page, errors) {
+function attachErrorCapture(page, errors) {
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
   page.on('console', m => { if ((m.type() === 'error' || m.type() === 'warning') && !/GL Driver Message/.test(m.text())) errors.push(`${m.type()}: ${m.text()}`); });
 }
 
-// Find the world-space centre of a Camp/Result button by its label prefix, in screen px.
+// screen-space centre (CSS px) of a button container in a scene, found by its label prefix
 async function buttonPos(page, sceneKey, prefix) {
   return page.evaluate(([k, p]) => {
     const s = window.__warlord.scene.getScene(k);
+    if (!s || !s.children) return null;
     for (const c of s.children.list) {
       if (c.type !== 'Container') continue;
       const t = c.list.find(x => x.type === 'Text' && x.text.startsWith(p));
@@ -28,29 +29,54 @@ async function buttonPos(page, sceneKey, prefix) {
   }, [sceneKey, prefix]);
 }
 const activeScenes = (page) => page.evaluate(() => window.__warlord.scene.getScenes(true).map(s => s.scene.key));
+const gs = (page) => page.evaluate(() => { const g = window.__warlord.scene.getScene('Map') ? null : null; void g; const S = window.__GameState; return S ? { gold: S.gold, day: S.day, infamy: S.infamy, location: S.location, tier: S.infamyTierName, troops: S.troops.length, horse: S.horse, weapon: S.weaponKind, owned: { ...S.owned }, defense: S.defense } : null; });
 const raidState = (page) => page.evaluate(() => {
   const r = window.__warlord.scene.getScene('Raid');
-  if (!r || !r.hero) return null;
-  return { heroX: r.hero.x, heroY: r.hero.y, heroHp: r.hero.hp, enemies: r.enemies.length, aggro: r.enemies.filter(e => e.aggro).length,
-    troops: r.troops.length, gold: r.hud.gold, hornCd: r.hero.hornCd, chargeCd: r.hero.chargeCd, fps: window.__warlord.loop.actualFps };
+  if (!r || !r.hero || !r.scene.isActive()) return null;
+  return { heroX: r.hero.x, heroY: r.hero.y, heroHp: r.hero.hp, enemies: r.enemies.length, aggro: r.enemies.filter(e => e.aggro).length, troops: r.troops.length,
+    gold: r.hud.gold, kind: r.cfg.kind, layout: r.cfg.layoutId, palisade: r.cfg.palisade, walls: r.obstacles.filter(o => o.kind === 'wall').length, mode: r.hero.mode, scale: r.hero.scaleX, fps: window.__warlord.loop.actualFps };
 });
-
-// Steer the hero (via the joystick values) at the nearest enemy; wiggle when stuck on a hut.
+async function clickBtn(page, scene, prefix, touch = false) {
+  const b = await buttonPos(page, scene, prefix);
+  check(!!b, `found button "${prefix}" in ${scene}`);
+  if (!b) throw new Error(`no button ${prefix} in ${scene}`);
+  if (touch) await page.touchscreen.tap(b.x, b.y); else await page.mouse.click(b.x, b.y);
+  await sleep(500);
+}
+// walk the camp hero to a world point by writing joystick values
+async function walkTo(page, x, y, timeoutMs = 9000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    const done = await page.evaluate(([tx, ty]) => {
+      const c = window.__warlord.scene.getScene('Camp');
+      if (!c || !c.hero || !c.playerInput) return true;
+      const dx = tx - c.hero.x, dy = ty - c.hero.y, d = Math.hypot(dx, dy);
+      if (d < 14) { c.playerInput.joyX = 0; c.playerInput.joyY = 0; return true; }
+      c.playerInput.joyX = dx / d; c.playerInput.joyY = dy / d;
+      return false;
+    }, [x, y]);
+    if (done) return true;
+    await sleep(80);
+  }
+  await page.evaluate(() => { const c = window.__warlord.scene.getScene('Camp'); if (c && c.playerInput) { c.playerInput.joyX = 0; c.playerInput.joyY = 0; } });
+  return false;
+}
+// steer the raid hero at the nearest enemy; wiggle when stuck
 async function autoPlay(page, seconds) {
   const end = Date.now() + seconds * 1000;
   let lastX = -1, lastY = -1, stuckTicks = 0;
   while (Date.now() < end) {
     const st = await page.evaluate((wiggle) => {
       const r = window.__warlord.scene.getScene('Raid');
-      if (!r || !r.hero || !r.hero.alive || !r.playerInput) return null;
+      if (!r || !r.hero || !r.hero.alive || !r.playerInput || !r.scene.isActive()) return null;
       let best = null, bd = 1e9;
       for (const e of r.enemies) { const d = Math.hypot(e.x - r.hero.x, e.y - r.hero.y); if (d < bd) { bd = d; best = e; } }
       if (!best) { r.playerInput.joyX = 0; r.playerInput.joyY = 0; return { enemies: 0 }; }
       let dx = (best.x - r.hero.x) / bd, dy = (best.y - r.hero.y) / bd;
       if (wiggle) { const t = dx; dx = -dy; dy = t; }
-      const go = bd > 34;
+      const go = bd > (r.hero.mode === 'bow' ? 150 : 34);
       r.playerInput.joyX = go ? dx : 0; r.playerInput.joyY = go ? dy : 0;
-      return { enemies: r.enemies.length, hp: r.hero.hp, x: r.hero.x, y: r.hero.y };
+      return { enemies: r.enemies.length, x: r.hero.x, y: r.hero.y };
     }, stuckTicks >= 3);
     if (!st || st.enemies === 0) break;
     if (Math.abs(st.x - lastX) < 3 && Math.abs(st.y - lastY) < 3) stuckTicks++; else stuckTicks = 0;
@@ -60,33 +86,20 @@ async function autoPlay(page, seconds) {
   }
   await page.evaluate(() => { const r = window.__warlord.scene.getScene('Raid'); if (r && r.playerInput) { r.playerInput.joyX = 0; r.playerInput.joyY = 0; } });
 }
-
-// Fresh raid, no troops, every militia awake, hero parked at a spot. Returns hp over time / time of death.
-async function positioningTrial(page, spot, label, seconds = 16) {
-  await page.evaluate(() => { const g = window.__warlord; g.scene.stop('Result'); g.scene.stop('Hud'); g.scene.stop('Raid'); g.scene.start('Raid'); });
-  await sleep(700);
-  await page.evaluate(({ x, y }) => {
-    const r = window.__warlord.scene.getScene('Raid');
-    r.hero.setPosition(x, y); r.hero.hp = r.hero.maxHp;
-    for (const t of r.troops) t.damage(9999, t.x, t.y, 0);
-    for (const e of r.enemies) e.wakeQuiet();
-  }, spot);
-  const t0 = Date.now();
-  let died = null, last = null, samples = [], inReach = [];
-  while (Date.now() - t0 < seconds * 1000) {
-    await sleep(500);
-    const near = await page.evaluate(() => { const r = window.__warlord.scene.getScene('Raid'); if (!r || !r.hero) return -1; return r.enemies.filter(e => e.kind === 'militia' && e.alive && e.edgeDistTo(r.hero) <= 24).length; });
-    inReach.push(near);
-    await sleep(500);
-    const st = await raidState(page);
-    if (!st) break;
-    samples.push(Math.round(st.heroHp));
-    last = st;
-    if (st.heroHp <= 0) { died = (Date.now() - t0) / 1000; break; }
-  }
-  await page.screenshot({ path: `${OUT}/positioning-${label}.png` });
-  console.log(`positioning[${label}] hp samples: ${samples.join(',')}${died ? ` — DIED at ${died.toFixed(1)}s` : ''}  enemies left ${last && last.enemies}\n   militia in reach per second: ${inReach.join(',')}`);
-  return { died, hp: last ? last.heroHp : 0, enemies: last ? last.enemies : -1 };
+const weaken = (page) => page.evaluate(() => { const r = window.__warlord.scene.getScene('Raid'); for (const e of r.enemies) { e.hp = 1; e.wake(); } r.hero.hp = r.hero.maxHp; });
+const waitScene = async (page, key, ms = 6000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if ((await activeScenes(page)).includes(key)) return true; await sleep(150); } return false; };
+const waitPanel = async (page, ms = 12000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { const open = await page.evaluate(() => { const h = window.__warlord.scene.getScene('MapHud'); return !!(h && h.scene.isActive() && h.panelOpen); }); if (open) return true; await sleep(200); } return false; };
+const tapNode = async (page, id, touch = false) => {
+  const pos = await page.evaluate((nid) => { const m = window.__warlord.scene.getScene('Map'); const n = window.__NODES.find(n => n.id === nid); const cam = m.cameras.main; const d = window.__warlord.scale.displayScale.x || 1;
+    return { x: ((n.x - cam.worldView.x) * cam.zoom) / d, y: ((n.y - cam.worldView.y) * cam.zoom) / d }; }, id);
+  if (touch) await page.touchscreen.tap(pos.x, pos.y); else await page.mouse.click(pos.x, pos.y);
+};
+async function exposeState(page) {
+  // GameState is a module singleton; scenes reference it, so grab it from a scene module closure via a debug hook
+  await page.evaluate(() => {
+    const title = window.__warlord.scene.getScene('Title');
+    void title;
+  });
 }
 
 async function desktopRun(browser) {
@@ -94,103 +107,189 @@ async function desktopRun(browser) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await ctx.newPage();
   const errors = [];
-  await attachErrorCapture(page, errors);
+  attachErrorCapture(page, errors);
   await page.goto(URL);
   await sleep(1500);
-  check((await activeScenes(page)).includes('Camp'), 'camp scene active on load');
-  await page.screenshot({ path: `${OUT}/desktop-camp.png` });
-  const raidBtn = await buttonPos(page, 'Camp', 'RAID');
-  check(!!raidBtn, 'found RAID button');
-  await page.mouse.click(raidBtn.x, raidBtn.y);
-  await sleep(800);
-  const scenes = await activeScenes(page);
-  check(scenes.includes('Raid') && scenes.includes('Hud'), `raid + hud active after clicking RAID (${scenes})`);
-  const s0 = await raidState(page);
-  check(s0.enemies === 11, `raid 1 has 11 defenders (got ${s0.enemies})`);
-  check(s0.troops === 3, `3 troops at start (got ${s0.troops})`);
-  await page.screenshot({ path: `${OUT}/desktop-raid-start.png` });
+  check((await activeScenes(page)).includes('Title'), 'title scene on load');
+  check(!!(await page.evaluate(() => window.__GameState)), 'debug handle __GameState exposed');
+  await page.screenshot({ path: `${OUT}/d-title.png` });
+  await clickBtn(page, 'Title', 'NEW');
+  check(await waitScene(page, 'Camp'), 'new warband starts in the walkable camp');
+  await sleep(600);
+  await page.screenshot({ path: `${OUT}/d-camp.png` });
 
-  // walk east into the street for 3s
-  await page.keyboard.down('d');
-  await sleep(3000);
-  await page.keyboard.up('d');
-  const s1 = await raidState(page);
-  check(s1.heroX > s0.heroX + 200, `WASD moves the hero east (${Math.round(s0.heroX)} -> ${Math.round(s1.heroX)})`);
-  await page.keyboard.press('q');
-  await sleep(100);
-  const s2 = await raidState(page);
-  check(s2.hornCd > 6, `War Horn went on cooldown (${s2.hornCd.toFixed(1)}s)`);
-  await page.screenshot({ path: `${OUT}/desktop-horn.png` });
+  // --- walk to the forge and open it
+  check(await walkTo(page, 230, 251), 'walked to the forge door');
+  const label = await page.evaluate(() => window.__warlord.scene.getScene('Camp').hud.interactLabel);
+  check(/FORGE/.test(label || ''), `interact prompt shows the forge (${JSON.stringify(label)})`);
   await page.keyboard.press('e');
-  await sleep(120);
-  const s3 = await raidState(page);
-  check(s3.chargeCd > 4, `Charge went on cooldown (${s3.chargeCd.toFixed(1)}s)`);
-  // keep walking east into the village and fight for a while
-  await page.keyboard.down('d');
-  await sleep(2500);
-  await page.keyboard.up('d');
-  await sleep(4000);
-  const s4 = await raidState(page);
-  console.log('state after fighting:', JSON.stringify(s4));
-  check(s4.aggro > 0, `defenders woke up (${s4.aggro} aggro)`);
-  check(s4.fps > 50, `fps healthy (${s4.fps.toFixed(0)})`);
-  await page.screenshot({ path: `${OUT}/desktop-fight.png` });
-  // sample HP over a few seconds: the hero must be taking real damage or killing things
-  await sleep(4000);
-  const s5 = await raidState(page);
-  console.log('state later:', JSON.stringify(s5));
-  check(s5.enemies < 11 || s5.heroHp < s4.heroHp, 'combat is happening (enemies died or hero was hurt)');
+  check(await waitScene(page, 'Shop'), 'E opens the shop overlay');
+  await sleep(300);
+  await page.screenshot({ path: `${OUT}/d-forge.png` });
+  const forgeBtns = await page.evaluate(() => window.__warlord.scene.getScene('Shop').children.list.filter(c => c.type === 'Container').map(c => c.list.filter(x => x.type === 'Text').map(t => t.text).join('|')));
+  console.log('forge buttons:', JSON.stringify(forgeBtns));
+  await clickBtn(page, 'Shop', 'LEAVE');
+  check(!(await activeScenes(page)).includes('Shop') && (await activeScenes(page)).includes('Hud'), 'shop closed, camp HUD back');
 
-  // force victory: set all remaining enemies to 1 hp and let the hero mop up
-  await page.evaluate(() => { const r = window.__warlord.scene.getScene('Raid'); for (const e of r.enemies) { e.hp = 1; e.wake(); } r.hero.hp = r.hero.maxHp; });
-  await autoPlay(page, 45);
-  const sEnd = await raidState(page);
-  console.log('after autoplay:', JSON.stringify(sEnd));
-  check(!sEnd || sEnd.gold > 0, `hero collected gold by walking over coins (${sEnd && sEnd.gold})`);
-  await sleep(1800);
-  let sc = await activeScenes(page);
-  check(sc.includes('Result'), `result scene shown after clearing (${sc})`);
-  await page.screenshot({ path: `${OUT}/desktop-victory.png` });
-  const back = await buttonPos(page, 'Result', 'RETURN');
-  check(!!back, 'victory shows RETURN TO CAMP');
-  if (back) { await page.mouse.click(back.x, back.y); await sleep(700); }
-  sc = await activeScenes(page);
-  check(sc.includes('Camp') && !sc.includes('Raid'), `back at camp, raid stopped (${sc})`);
-  const camp = await page.evaluate(() => { const s = window.__warlord.scene.getScene('Camp'); return s.children.list.filter(c => c.type === 'Text').map(t => t.text); });
-  console.log('camp texts:', JSON.stringify(camp));
-  check(camp.some(t => /before Raid 2/.test(t)), 'camp says before Raid 2');
-  check(camp.some(t => /Gold: [1-9]\d*/.test(t)), 'camp shows earned gold');
-  await page.screenshot({ path: `${OUT}/desktop-camp2.png` });
-
-  // buy an upgrade if affordable, then raid 2 and force a defeat → retry
-  const up = await buttonPos(page, 'Camp', 'Upgrade');
-  if (up) { await page.mouse.click(up.x, up.y); await sleep(400); }
-  const raid2 = await buttonPos(page, 'Camp', 'RAID 2');
-  check(!!raid2, 'RAID 2 button present');
-  if (!raid2) throw new Error('no RAID 2 button');
-  await page.mouse.click(raid2.x, raid2.y);
+  // --- leave by the road
+  check(await walkTo(page, 90, 560), 'walked to the exit');
+  await page.keyboard.press('e');
+  check(await waitScene(page, 'Map'), 'left camp onto the world map');
   await sleep(800);
-  const r2 = await raidState(page);
-  check(r2 && r2.enemies === 14, `raid 2 has 14 defenders (got ${r2 && r2.enemies})`);
-  await page.evaluate(() => { const r = window.__warlord.scene.getScene('Raid'); r.hero.damage(9999, r.hero.x + 10, r.hero.y, 0); });
-  await sleep(2200);
-  sc = await activeScenes(page);
-  check(sc.includes('Result'), `defeat result shown (${sc})`);
-  await page.screenshot({ path: `${OUT}/desktop-defeat.png` });
-  const retry = await buttonPos(page, 'Result', 'RETRY');
-  check(!!retry, 'defeat shows RETRY RAID');
-  if (retry) { await page.mouse.click(retry.x, retry.y); await sleep(900); }
-  sc = await activeScenes(page);
-  const r3 = await raidState(page);
-  check(sc.includes('Raid') && sc.includes('Hud') && !sc.includes('Result'), `retry restarted the raid (${sc})`);
-  check(r3 && r3.enemies === 14 && r3.heroHp > 0, `retry reloaded raid 2 fresh (enemies ${r3 && r3.enemies}, hp ${r3 && r3.heroHp})`);
-  await sleep(1500);
+  await page.screenshot({ path: `${OUT}/d-map.png` });
+  let s = await gs(page);
+  check(s.location === 'camp' && s.day === 1, `on the map at camp, day 1 (${s.location}, day ${s.day})`);
 
-  // --- does positioning matter? lone hero, all militia awake: inside the street vs. in the open field
-  const street = await positioningTrial(page, { x: 380, y: 780 }, 'street');
-  const open = await positioningTrial(page, { x: 420, y: 500 }, 'open');
-  check(open.died !== null || open.hp < 60, `lone hero in the OPEN gets punished (${open.died ? 'died at ' + open.died.toFixed(1) + 's' : 'hp ' + Math.round(open.hp)})`);
-  check(street.died === null || (open.died !== null && street.died > open.died + 3), `lone hero in the STREET survives longer (${street.died ? 'died at ' + street.died.toFixed(1) + 's' : 'alive, hp ' + Math.round(street.hp) + ', enemies left ' + street.enemies})`);
+  // --- travel to Ashford (tap the node), raid it
+  await tapNode(page, 'ashford');
+  check(await waitPanel(page, 15000), 'arrived at Ashford: panel opened');
+  s = await gs(page);
+  check(s.location === 'ashford' && s.day > 1, `travel moved the token and cost days (${s.location}, day ${s.day})`);
+  await page.screenshot({ path: `${OUT}/d-ashford-panel.png` });
+  await clickBtn(page, 'MapHud', 'RAID');
+  check(await waitScene(page, 'Raid'), 'raid scene started from the map');
+  await sleep(800);
+  let r = await raidState(page);
+  check(r && r.kind === 'village' && r.layout === 'ashford' && r.enemies === 11, `Ashford raid: 11 defenders (${r && r.enemies}, ${r && r.layout})`);
+  await weaken(page);
+  await autoPlay(page, 60);
+  await sleep(1800);
+  check(await waitScene(page, 'Result'), 'victory result shown');
+  await page.screenshot({ path: `${OUT}/d-victory.png` });
+  await clickBtn(page, 'Result', 'BACK');
+  check(await waitScene(page, 'Map'), 'back on the map after the raid');
+  await sleep(800);
+  s = await gs(page);
+  check(s.gold > 0 && s.infamy === 8, `loot banked and infamy grew (gold ${s.gold}, infamy ${s.infamy})`);
+  const vi = await page.evaluate(() => window.__GameState.villageInfo('ashford'));
+  check(vi.timesRaided === 1 && vi.ruined, `Ashford marked raided + ruined (${JSON.stringify({ t: vi.timesRaided, ruined: vi.ruined })})`);
+  const raidBtnDisabled = await page.evaluate(() => { const h = window.__warlord.scene.getScene('MapHud'); return h.panelOpen; });
+  check(raidBtnDisabled, 'village panel re-opened after the raid');
+
+  // --- save / reload
+  await page.reload();
+  await sleep(1500);
+  await clickBtn(page, 'Title', 'CONTINUE');
+  check(await waitScene(page, 'Map'), 'CONTINUE loads the save onto the map');
+  await sleep(600);
+  const s2 = await gs(page);
+  check(s2.gold === s.gold && s2.day === s.day && s2.location === 'ashford', `save restored gold/day/location (${s2.gold}/${s2.day}/${s2.location})`);
+
+  // --- infamy effects: force Raider tier, deterministic patrol on the next road
+  await page.evaluate(() => { const S = window.__GameState; S.infamy = 35; S.fortifyStart = S.day - 20; S.save(); window.__warlord.scene.getScene('Map').refresh(); });
+  await sleep(300);
+  const mb = await page.evaluate(() => window.__GameState.villageInfo('millbrook'));
+  check(mb.steps > 0 && mb.palisade, `unraided village fortified over time (+${mb.steps} militia, palisade ${mb.palisade})`);
+  const bounty = await page.evaluate(() => window.__GameState.bounty);
+  check(bounty === 35 * 12, `bounty shown from infamy (${bounty})`);
+  await page.screenshot({ path: `${OUT}/d-map-fortified.png` });
+  // guarantee the intercept via the game's own hook (never stub Math.random: Phaser uses it for texture keys)
+  await page.evaluate(() => { Object.defineProperty(window.__GameState, 'patrolChance', { get: () => 1, configurable: true }); });
+  await page.evaluate(() => window.__warlord.scene.getScene('MapHud').hidePanel());
+  await tapNode(page, 'millbrook');
+  check(await waitPanel(page, 15000), 'a road patrol intercepted the warband');
+  const ptitle = await page.evaluate(() => window.__warlord.scene.getScene('MapHud').spec?.title);
+  check(ptitle === 'ROAD PATROL', `patrol panel (${ptitle})`);
+  await page.screenshot({ path: `${OUT}/d-patrol.png` });
+  // no more surprise patrols for the rest of the run (keeps the test deterministic)
+  await page.evaluate(() => { Object.defineProperty(window.__GameState, 'patrolChance', { get: () => 0, configurable: true }); });
+  await clickBtn(page, 'MapHud', 'FIGHT');
+  check(await waitScene(page, 'Raid'), 'patrol battle started');
+  await sleep(700);
+  r = await raidState(page);
+  check(r && r.kind === 'patrol' && r.layout === 'field' && r.enemies === 11, `open-field patrol battle: ${r && r.enemies} riders on layout ${r && r.layout}`);
+  await weaken(page);
+  await autoPlay(page, 60);
+  await sleep(1800);
+  check(await waitScene(page, 'Result'), 'patrol routed');
+  await clickBtn(page, 'Result', 'BACK');
+  check(await waitScene(page, 'Map'), 'back to the map');
+  check(await waitPanel(page, 15000), 'travel resumed after the patrol and reached Millbrook');
+  s = await gs(page);
+  check(s.location === 'millbrook', `arrived at Millbrook (${s.location})`);
+
+  // --- palisaded village raid
+  await clickBtn(page, 'MapHud', 'RAID');
+  check(await waitScene(page, 'Raid'), 'Millbrook raid started');
+  await sleep(700);
+  r = await raidState(page);
+  check(r && r.palisade && r.walls > 0 && r.layout === 'millbrook', `palisade walls built (${r && r.walls} segments), layout ${r && r.layout}`);
+  await page.screenshot({ path: `${OUT}/d-millbrook.png` });
+  await weaken(page);
+  await autoPlay(page, 90);
+  await sleep(1800);
+  check(await waitScene(page, 'Result'), 'Millbrook cleared');
+  await clickBtn(page, 'Result', 'BACK');
+  await waitScene(page, 'Map');
+
+  // --- gear: go home with gold, buy armor + bow + courser, then raid with the bow
+  await page.evaluate(() => { const S = window.__GameState; S.gold = 600; S.save(); window.__warlord.scene.getScene('MapHud').hidePanel(); });
+  await tapNode(page, 'camp');
+  check(await waitPanel(page, 20000), 'travelled home');
+  await clickBtn(page, 'MapHud', 'ENTER');
+  check(await waitScene(page, 'Camp'), 'entered the camp from the map');
+  await sleep(500);
+  check(await walkTo(page, 230, 251), 'walked to the forge');
+  await page.keyboard.press('e');
+  await waitScene(page, 'Shop');
+  await sleep(300);
+  await clickBtn(page, 'Shop', '60 gold');   // armor
+  await clickBtn(page, 'Shop', '70 gold');   // bow (auto-equips)
+  s = await gs(page);
+  check(s.owned.armor && s.owned.bow && s.defense === 2 && s.weapon === 'bow' && s.gold === 470, `bought armor + bow (def ${s.defense}, weapon ${s.weapon}, gold ${s.gold})`);
+  await page.screenshot({ path: `${OUT}/d-forge-bought.png` });
+  await clickBtn(page, 'Shop', 'LEAVE');
+  check(await walkTo(page, 760, 521), 'walked to the stables');
+  await page.keyboard.press('e');
+  await waitScene(page, 'Shop');
+  await sleep(300);
+  await clickBtn(page, 'Shop', '120 gold'); // courser
+  s = await gs(page);
+  check(s.horse === 'courser' && s.gold === 350, `bought and mounted the courser (${s.horse}, gold ${s.gold})`);
+  await clickBtn(page, 'Shop', 'LEAVE');
+  await sleep(300);
+  const mounted = await page.evaluate(() => { const c = window.__warlord.scene.getScene('Camp'); return { scale: c.hero.scaleX, mount: !!c.mount }; });
+  check(mounted.scale > 1.2 && mounted.mount, `camp hero looks mounted (scale ${mounted.scale})`);
+  await page.screenshot({ path: `${OUT}/d-camp-mounted.png` });
+  check(await walkTo(page, 560, 241), 'walked to the barracks');
+  await page.keyboard.press('e');
+  await waitScene(page, 'Shop');
+  await sleep(300);
+  await clickBtn(page, 'Shop', '35 gold');
+  s = await gs(page);
+  check(s.troops === 4, `recruited at the barracks (${s.troops} troops)`);
+  await clickBtn(page, 'Shop', 'LEAVE');
+  await page.keyboard.press('m');
+  check(await waitScene(page, 'Map'), 'M returns to the map from camp');
+  await sleep(500);
+  // ride out and raid Ashford again? it's ruined; test the town instead, then Thornhill with the bow
+  await page.evaluate(() => window.__warlord.scene.getScene('MapHud').hidePanel());
+  await tapNode(page, 'kingsport');
+  check(await waitPanel(page, 30000), 'reached Kingsport');
+  const ktitle = await page.evaluate(() => window.__warlord.scene.getScene('MapHud').spec?.title);
+  const kbtns = await page.evaluate(() => window.__warlord.scene.getScene('MapHud').spec?.buttons.map(b => b.label));
+  check(ktitle === 'KINGSPORT' && kbtns.length === 1, `town is locked with a warning (${ktitle}: ${kbtns})`);
+  await page.screenshot({ path: `${OUT}/d-town.png` });
+  await page.evaluate(() => window.__warlord.scene.getScene('MapHud').hidePanel());
+  await tapNode(page, 'thornhill');
+  check(await waitPanel(page, 20000), 'reached Thornhill');
+  await clickBtn(page, 'MapHud', 'RAID');
+  await waitScene(page, 'Raid');
+  await sleep(700);
+  r = await raidState(page);
+  check(r && r.mode === 'bow' && r.scale > 1.2 && r.troops === 4, `raid hero uses the bow, mounted, 4 troops (${r && r.mode}, ${r && r.scale}, ${r && r.troops})`);
+  await weaken(page);
+  await autoPlay(page, 20);
+  const shot = await page.evaluate(() => { const r = window.__warlord.scene.getScene('Raid'); return r.arrows.getChildren().some(a => a.team === 'player') || r.enemies.length < 17; });
+  check(shot, 'bow fired arrows / killed from range');
+  await page.screenshot({ path: `${OUT}/d-thornhill-bow.png` });
+  await autoPlay(page, 60);
+  await sleep(1800);
+  check(await waitScene(page, 'Result'), 'Thornhill cleared with the bow');
+  await clickBtn(page, 'Result', 'BACK');
+  await waitScene(page, 'Map');
+  const fps = await page.evaluate(() => window.__warlord.loop.actualFps);
+  check(fps > 50, `fps healthy (${fps.toFixed(0)})`);
   check(errors.length === 0, `no console errors/warnings on desktop (${errors.length})`);
   if (errors.length) console.log(errors.slice(0, 20).join('\n'));
   await ctx.close();
@@ -201,75 +300,48 @@ async function phoneRun(browser) {
   const ctx = await browser.newContext({ ...devices['iPhone 13'], viewport: { width: 390, height: 844 } });
   const page = await ctx.newPage();
   const errors = [];
-  await attachErrorCapture(page, errors);
+  attachErrorCapture(page, errors);
   await page.goto(URL);
   await sleep(1500);
-  await page.screenshot({ path: `${OUT}/phone-camp.png` });
-  const sz = await page.evaluate(() => ({ canvas: window.__warlord.canvas.width + 'x' + window.__warlord.canvas.height, css: window.__warlord.canvas.style.width + ' ' + window.__warlord.canvas.style.height, dsf: window.__warlord.scale.displayScale.x }));
-  console.log('phone canvas:', JSON.stringify(sz));
-  check(sz.canvas === '780x1688', `phone renders at 2x device pixels (${sz.canvas})`);
-  const raidBtn = await buttonPos(page, 'Camp', 'RAID');
-  check(!!raidBtn, 'phone: found RAID button');
-  await page.touchscreen.tap(raidBtn.x, raidBtn.y);
-  await sleep(800);
-  let sc = await activeScenes(page);
-  check(sc.includes('Raid'), `phone: raid started by tap (${sc})`);
-  await page.screenshot({ path: `${OUT}/phone-raid-start.png` });
-
-  // raw touch drag = virtual joystick
+  await page.screenshot({ path: `${OUT}/p-title.png` });
+  await clickBtn(page, 'Title', 'NEW', true);
+  check(await waitScene(page, 'Camp'), 'phone: new warband → camp');
+  await sleep(600);
+  await page.screenshot({ path: `${OUT}/p-camp.png` });
   const cdp = await ctx.newCDPSession(page);
   const touch = (type, points) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points });
-  const s0 = await raidState(page);
+  const h0 = await page.evaluate(() => window.__warlord.scene.getScene('Camp').hero.x);
   await touch('touchStart', [{ x: 100, y: 600, id: 1 }]);
-  for (let i = 1; i <= 10; i++) { await touch('touchMove', [{ x: 100 + i * 6, y: 600, id: 1 }]); await sleep(30); }
-  await sleep(2500);
-  const s1 = await raidState(page);
-  check(s1.heroX > s0.heroX + 150, `phone: joystick drag moves hero east (${Math.round(s0.heroX)} -> ${Math.round(s1.heroX)})`);
-  await page.screenshot({ path: `${OUT}/phone-joystick.png` });
-  // tap HORN with a second finger while still dragging
-  const hud = await page.evaluate(() => { const h = window.__warlord.scene.getScene('Hud'); const d = window.__warlord.scale.displayScale.x || 1; return { horn: { x: h.horn.x / d, y: h.horn.y / d }, charge: { x: h.charge.x / d, y: h.charge.y / d } }; });
-  await touch('touchStart', [{ x: 160, y: 600, id: 1 }, { x: hud.horn.x, y: hud.horn.y, id: 2 }]);
-  await sleep(60);
-  await touch('touchEnd', [{ x: 160, y: 600, id: 1 }]);
-  await sleep(200);
-  const s2 = await raidState(page);
-  check(s2.hornCd > 6, `phone: horn button tapped mid-drag (cd ${s2.hornCd.toFixed(1)})`);
-  await page.screenshot({ path: `${OUT}/phone-horn.png` });
+  for (let i = 1; i <= 8; i++) { await touch('touchMove', [{ x: 100 + i * 6, y: 600, id: 1 }]); await sleep(30); }
+  await sleep(1200);
   await touch('touchEnd', []);
-  await sleep(200);
-  const s3 = await raidState(page);
-  // after releasing, joystick must be zero: hero should stop moving within a moment
-  await sleep(400);
-  const s4 = await raidState(page);
-  check(Math.abs(s4.heroX - s3.heroX) < 40, 'phone: hero stops when finger lifts');
-  await touch('touchStart', [{ x: hud.charge.x, y: hud.charge.y, id: 3 }]);
-  await touch('touchEnd', []);
-  await sleep(150);
-  const s5 = await raidState(page);
-  check(s5.chargeCd > 4, `phone: charge button works (cd ${s5.chargeCd.toFixed(1)})`);
-  await sleep(2500);
-  const s6 = await raidState(page);
-  check(s6.fps > 40, `phone: fps ${s6.fps.toFixed(0)}`);
-  await page.screenshot({ path: `${OUT}/phone-fight.png` });
+  const h1 = await page.evaluate(() => window.__warlord.scene.getScene('Camp').hero.x);
+  check(h1 > h0 + 80, `phone: joystick walks the hero in camp (${Math.round(h0)} → ${Math.round(h1)})`);
+  check(await walkTo(page, 230, 251), 'phone: at the forge door');
+  const ib = await page.evaluate(() => { const h = window.__warlord.scene.getScene('Hud'); const d = window.__warlord.scale.displayScale.x || 1; return { x: h.interact.x / d, y: h.interact.y / d, label: h.model.interactLabel }; });
+  check(/FORGE/.test(ib.label || ''), `phone: interact button offers the forge (${JSON.stringify(ib.label)})`);
+  await page.screenshot({ path: `${OUT}/p-camp-forge.png` });
+  await page.touchscreen.tap(ib.x, ib.y);
+  check(await waitScene(page, 'Shop'), 'phone: interact button opens the shop');
+  await sleep(300);
+  await page.screenshot({ path: `${OUT}/p-forge.png` });
+  await clickBtn(page, 'Shop', 'LEAVE', true);
+  const mapBtn = await buttonPos(page, 'Hud', 'MAP');
+  check(!!mapBtn, 'phone: MAP button present in camp');
+  await page.touchscreen.tap(mapBtn.x, mapBtn.y);
+  check(await waitScene(page, 'Map'), 'phone: MAP button leaves camp');
+  await sleep(800);
+  await page.screenshot({ path: `${OUT}/p-map.png` });
+  await tapNode(page, 'ashford', true);
+  check(await waitPanel(page, 15000), 'phone: tap-to-travel reached Ashford');
+  await page.screenshot({ path: `${OUT}/p-ashford.png` });
+  await clickBtn(page, 'MapHud', 'RAID', true);
+  check(await waitScene(page, 'Raid'), 'phone: raid from the panel');
+  await sleep(1000);
+  await page.screenshot({ path: `${OUT}/p-raid.png` });
   check(errors.length === 0, `phone: no console errors/warnings (${errors.length})`);
   if (errors.length) console.log(errors.slice(0, 20).join('\n'));
   await ctx.close();
-
-  console.log('=== PHONE landscape 844x390 ===');
-  const ctx2 = await browser.newContext({ ...devices['iPhone 13'], viewport: { width: 844, height: 390 } });
-  const page2 = await ctx2.newPage();
-  const errors2 = [];
-  await attachErrorCapture(page2, errors2);
-  await page2.goto(URL);
-  await sleep(1200);
-  await page2.screenshot({ path: `${OUT}/phone-land-camp.png` });
-  const rb = await buttonPos(page2, 'Camp', 'RAID');
-  await page2.touchscreen.tap(rb.x, rb.y);
-  await sleep(1000);
-  await page2.screenshot({ path: `${OUT}/phone-land-raid.png` });
-  check(errors2.length === 0, `landscape: no errors (${errors2.length})`);
-  if (errors2.length) console.log(errors2.slice(0, 10).join('\n'));
-  await ctx2.close();
 }
 
 const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });

@@ -4,9 +4,8 @@ const POOL = [
   'Aldo', 'Cato', 'Dag', 'Eryk', 'Finn', 'Geir', 'Hrolf', 'Jarl', 'Knut', 'Leif', 'Magn', 'Njal',
   'Orm', 'Pell', 'Ragn', 'Sigurd', 'Toke', 'Vali', 'Yngve', 'Askel', 'Brynj', 'Dyre', 'Einar', 'Frode',
 ];
-let cursor = 0;
-export function nextName(): string {
-  const n = POOL[cursor % POOL.length];
-  cursor++;
-  return n;
+export function nameAt(i: number): string {
+  const base = POOL[i % POOL.length];
+  const round = Math.floor(i / POOL.length);
+  return round === 0 ? base : `${base} ${'I'.repeat(Math.min(round + 1, 3))}`;
 }

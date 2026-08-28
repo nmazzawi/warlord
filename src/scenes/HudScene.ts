@@ -1,91 +1,93 @@
-// HudScene.ts — screen-space overlay on top of the raid: hero HP, gold, counters, the floating
-// virtual joystick, and the two big ability buttons with cooldown wedges.
+// HudScene.ts — screen-space overlay used by the raid (HP, gold, counters, War Horn / Charge buttons,
+// intro banner) and by the walkable camp (gold, date, a big INTERACT button, a MAP button).
+// The floating joystick lives here in both modes.
 import Phaser from 'phaser';
 import type { PlayerInput } from '../systems/PlayerInput';
-import { FONT, safeInsets } from './ui';
+import { Joystick } from '../systems/Joystick';
+import { FONT, makeButton, safeInsets } from './ui';
 
 export interface HudModel {
-  heroHp: number; heroMaxHp: number; gold: number; raid: number;
+  mode: 'raid' | 'camp';
+  title: string; hint: string; name: string;
+  heroHp: number; heroMaxHp: number; gold: number; day: string;
   troopsAlive: number; troopsTotal: number; enemiesAlive: number;
   hornCd: number; hornMax: number; chargeCd: number; chargeMax: number; boosted: boolean;
+  /** camp mode: what the big button does right now ("ENTER FORGE"), or null to hide it */
+  interactLabel: string | null;
+  defense: number;
 }
 
-interface Btn { x: number; y: number; r: number; g: Phaser.GameObjects.Graphics; label: Phaser.GameObjects.Text; key: Phaser.GameObjects.Text; pressedUntil: number; }
+interface Btn { x: number; y: number; r: number; g: Phaser.GameObjects.Graphics; label: Phaser.GameObjects.Text; key: Phaser.GameObjects.Text; pressedUntil: number; color: number; }
 
 export class HudScene extends Phaser.Scene {
   private input_!: PlayerInput;
   private model!: HudModel;
+  private onMap: (() => void) | null = null;
   private u = 1;
   private hpBg!: Phaser.GameObjects.Rectangle;
   private hpFg!: Phaser.GameObjects.Rectangle;
   private hpText!: Phaser.GameObjects.Text;
   private goldText!: Phaser.GameObjects.Text;
   private infoText!: Phaser.GameObjects.Text;
-  private joyBase!: Phaser.GameObjects.Arc;
-  private joyKnob!: Phaser.GameObjects.Arc;
-  private joyId = -1;
-  private joyOrigin = new Phaser.Math.Vector2();
-  private joyMax = 48;
+  private joystick!: Joystick;
   private horn!: Btn;
   private charge!: Btn;
+  private interact!: Btn;
   private intro!: Phaser.GameObjects.Text;
   private hint!: Phaser.GameObjects.Text;
+  private mapBtn: Phaser.GameObjects.Container | null = null;
 
   constructor() { super('Hud'); }
 
-  init(data: { input: PlayerInput; model: HudModel }) {
+  init(data: { input: PlayerInput; model: HudModel; onMap?: () => void }) {
     this.input_ = data.input;
     this.model = data.model;
+    this.onMap = data.onMap ?? null;
   }
 
   create() {
-    // the scene object is reused between raids: forget any finger that was down when the last raid ended
-    this.joyId = -1;
+    const raid = this.model.mode === 'raid';
     this.input_.joyX = 0; this.input_.joyY = 0;
-    this.hpBg = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.6).setOrigin(0, 0.5);
-    this.hpFg = this.add.rectangle(0, 0, 10, 10, 0x5ec26a, 1).setOrigin(0, 0.5);
-    this.hpText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: '#ffffff', stroke: '#000', strokeThickness: 3 }).setOrigin(0, 0.5);
+    this.hpBg = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.6).setOrigin(0, 0.5).setVisible(raid);
+    this.hpFg = this.add.rectangle(0, 0, 10, 10, 0x5ec26a, 1).setOrigin(0, 0.5).setVisible(raid);
+    this.hpText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: '#ffffff', stroke: '#000', strokeThickness: 3 }).setOrigin(0, 0.5).setVisible(raid);
     this.goldText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '16px', color: '#f5c542', stroke: '#000', strokeThickness: 4, fontStyle: 'bold' });
     this.infoText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: '#e8dcc0', stroke: '#000', strokeThickness: 3 });
 
-    this.joyBase = this.add.circle(0, 0, 50, 0xffffff, 0.12).setStrokeStyle(2, 0xffffff, 0.35).setVisible(false);
-    this.joyKnob = this.add.circle(0, 0, 22, 0xffffff, 0.35).setVisible(false);
-
     this.horn = this.makeBtn('HORN', 'Q', 0xd9a441);
     this.charge = this.makeBtn('CHARGE', 'E', 0x3fa9f5);
+    this.interact = this.makeBtn('ENTER', 'E', 0x3f7a3f);
+    this.joystick = new Joystick(this, this.input_, p => this.hitBtn(p) !== null || this.overMapBtn(p));
 
-    // intro banner (screen space, so it can never be clipped by the map edge)
-    this.intro = this.add.text(0, 0, `RAID ${this.model.raid}\nClear the village of its ${this.model.enemiesAlive} defenders`, {
+    // banner + hint (screen space, so they can never be clipped by the map edge)
+    this.intro = this.add.text(0, 0, raid ? `${this.model.title}\nClear ${this.model.enemiesAlive} defenders` : this.model.title, {
       fontFamily: FONT, fontSize: '22px', color: '#fff8e7', stroke: '#000', strokeThickness: 5, align: 'center', fontStyle: 'bold',
     }).setOrigin(0.5);
-    this.hint = this.add.text(0, 0, 'Hold the street: they can only come two at a time.\nIn the open they will surround you.', {
+    this.hint = this.add.text(0, 0, this.model.hint, {
       fontFamily: FONT, fontSize: '13px', color: '#ffe9a8', stroke: '#000', strokeThickness: 4, align: 'center', fontStyle: 'bold',
     }).setOrigin(0.5);
     this.tweens.add({ targets: this.intro, alpha: 0, delay: 3200, duration: 700 });
-    this.tweens.add({ targets: this.hint, alpha: 0, delay: 5500, duration: 700 });
+    this.tweens.add({ targets: this.hint, alpha: 0, delay: raid ? 5500 : 4000, duration: 700 });
+
+    if (!raid && this.onMap) {
+      this.mapBtn = makeButton(this, 0, 0, { width: 90, height: 40, label: 'MAP', color: 0x2f6b8a, fontSize: 15, onPress: () => this.onMap?.() });
+    }
 
     this.layout();
     this.scale.on('resize', this.layout, this);
     this.events.once('shutdown', () => {
       this.scale.off('resize', this.layout, this);
-      this.joyId = -1;
       this.input_.joyX = 0; this.input_.joyY = 0;
     });
 
     this.input.on('pointerdown', this.onDown, this);
-    this.input.on('pointermove', this.onMove, this);
-    this.input.on('pointerup', this.onUp, this);
-    this.input.on('pointerupoutside', this.onUp, this);
-    this.input.on('gameout', () => this.releaseJoy());
   }
 
   private makeBtn(label: string, key: string, color: number): Btn {
     const g = this.add.graphics();
-    const l = this.add.text(0, 0, label, { fontFamily: FONT, fontSize: '13px', color: '#ffffff', stroke: '#000', strokeThickness: 3, fontStyle: 'bold' }).setOrigin(0.5);
+    const l = this.add.text(0, 0, label, { fontFamily: FONT, fontSize: '13px', color: '#ffffff', stroke: '#000', strokeThickness: 3, fontStyle: 'bold', align: 'center' }).setOrigin(0.5);
     const k = this.add.text(0, 0, key, { fontFamily: FONT, fontSize: '11px', color: '#ffffff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
-    const b: Btn = { x: 0, y: 0, r: 40, g, label: l, key: k, pressedUntil: 0 };
-    (b as unknown as { color: number }).color = color;
-    return b;
+    return { x: 0, y: 0, r: 40, g, label: l, key: k, pressedUntil: 0, color };
   }
 
   private layout() {
@@ -94,30 +96,37 @@ export class HudScene extends Phaser.Scene {
     const ins = safeInsets(this);
     const m = 14 * u;
     const left = m + ins.left, top = m + ins.top;
-    // HP bar top-left
+    const raid = this.model.mode === 'raid';
     this.hpBg.setPosition(left, top + 9 * u).setSize(190 * u, 18 * u);
     this.hpFg.setPosition(left, top + 9 * u).setSize(190 * u, 18 * u);
     this.hpText.setPosition(left + 6 * u, top + 9 * u).setFontSize(Math.round(11 * u));
-    this.goldText.setPosition(left, top + 24 * u).setFontSize(Math.round(16 * u));
-    this.infoText.setPosition(left, top + 46 * u).setFontSize(Math.round(11 * u)).setLineSpacing(2 * u);
+    this.goldText.setPosition(left, top + (raid ? 24 : 0) * u).setFontSize(Math.round(16 * u));
+    this.infoText.setPosition(left, top + (raid ? 46 : 22) * u).setFontSize(Math.round(11 * u)).setLineSpacing(2 * u);
     this.intro.setPosition(w / 2, h * 0.2).setFontSize(Math.round(22 * u)).setWordWrapWidth(w - 4 * m);
     this.hint.setPosition(w / 2, h * 0.2 + 52 * u).setFontSize(Math.round(13 * u)).setWordWrapWidth(w - 4 * m);
-    // ability buttons bottom-right, above the home indicator and clear of rounded corners
+    // buttons bottom-right, above the home indicator and clear of rounded corners
     const r = 40 * u;
     const by = h - m - r - 6 * u - ins.bottom;
     this.charge.x = w - m - r - 6 * u - ins.right; this.charge.y = by; this.charge.r = r;
     this.horn.x = this.charge.x - r * 2 - 22 * u; this.horn.y = by; this.horn.r = r;
-    for (const b of [this.horn, this.charge]) {
+    this.interact.x = this.charge.x - 6 * u; this.interact.y = by - 6 * u; this.interact.r = r * 1.15;
+    for (const b of [this.horn, this.charge, this.interact]) {
       b.label.setPosition(b.x, b.y - 4 * u).setFontSize(Math.round(12 * u));
       b.key.setPosition(b.x, b.y + 12 * u).setFontSize(Math.round(10 * u));
     }
-    this.joyMax = 48 * u;
-    this.joyBase.setRadius(52 * u);
-    this.joyKnob.setRadius(22 * u);
+    this.joystick.layout(u);
+    if (this.mapBtn) this.mapBtn.setPosition(w - m - ins.right - 45 * u, top + 20 * u).setScale(u);
+  }
+
+  private overMapBtn(p: Phaser.Input.Pointer) {
+    if (!this.mapBtn) return false;
+    return Math.abs(p.x - this.mapBtn.x) < 55 * this.u && Math.abs(p.y - this.mapBtn.y) < 30 * this.u;
   }
 
   private hitBtn(p: Phaser.Input.Pointer): Btn | null {
-    for (const b of [this.horn, this.charge]) {
+    const raid = this.model.mode === 'raid';
+    const list = raid ? [this.horn, this.charge] : (this.model.interactLabel ? [this.interact] : []);
+    for (const b of list) {
       if (Phaser.Math.Distance.Between(p.x, p.y, b.x, b.y) <= b.r * 1.25) return b;
     }
     return null;
@@ -125,66 +134,46 @@ export class HudScene extends Phaser.Scene {
 
   private onDown(p: Phaser.Input.Pointer) {
     const b = this.hitBtn(p);
-    if (b) {
-      b.pressedUntil = this.time.now + 120;
-      if (b === this.horn) this.input_.pressHorn(); else this.input_.pressCharge();
-      return;
-    }
-    if (this.joyId !== -1) return;
-    // anywhere else on screen starts a joystick where the thumb landed
-    this.joyId = p.id;
-    this.joyOrigin.set(p.x, p.y);
-    this.joyBase.setPosition(p.x, p.y).setVisible(true);
-    this.joyKnob.setPosition(p.x, p.y).setVisible(true);
-    this.input_.joyX = 0; this.input_.joyY = 0;
-  }
-
-  private onMove(p: Phaser.Input.Pointer) {
-    if (p.id !== this.joyId) return;
-    let dx = p.x - this.joyOrigin.x, dy = p.y - this.joyOrigin.y;
-    const d = Math.hypot(dx, dy);
-    if (d > this.joyMax) { dx = (dx / d) * this.joyMax; dy = (dy / d) * this.joyMax; }
-    // small dead zone so a resting thumb doesn't drift
-    const mag = Math.min(1, d / this.joyMax);
-    const scaled = mag < 0.12 ? 0 : (mag - 0.12) / 0.88;
-    const len = Math.hypot(dx, dy) || 1;
-    this.input_.joyX = (dx / len) * scaled;
-    this.input_.joyY = (dy / len) * scaled;
-    this.joyKnob.setPosition(this.joyOrigin.x + dx, this.joyOrigin.y + dy);
-  }
-
-  private onUp(p: Phaser.Input.Pointer) {
-    if (p.id === this.joyId) this.releaseJoy();
-  }
-
-  private releaseJoy() {
-    this.joyId = -1;
-    this.input_.joyX = 0; this.input_.joyY = 0;
-    this.joyBase.setVisible(false);
-    this.joyKnob.setVisible(false);
+    if (!b) return;
+    b.pressedUntil = this.time.now + 120;
+    if (b === this.horn) this.input_.pressHorn();
+    else if (b === this.charge) this.input_.pressCharge();
+    else this.input_.pressInteract();
   }
 
   update() {
     const m = this.model, u = this.u;
-    const frac = Phaser.Math.Clamp(m.heroHp / m.heroMaxHp, 0, 1);
-    this.hpFg.width = 190 * u * frac;
-    this.hpFg.setFillStyle(frac > 0.5 ? 0x5ec26a : frac > 0.25 ? 0xe0b040 : 0xe0453a);
-    this.hpText.setText(`${Math.ceil(m.heroHp)} / ${m.heroMaxHp}`);
+    const raid = m.mode === 'raid';
+    if (raid) {
+      const frac = Phaser.Math.Clamp(m.heroHp / m.heroMaxHp, 0, 1);
+      this.hpFg.width = 190 * u * frac;
+      this.hpFg.setFillStyle(frac > 0.5 ? 0x5ec26a : frac > 0.25 ? 0xe0b040 : 0xe0453a);
+      this.hpText.setText(`${Math.ceil(m.heroHp)} / ${m.heroMaxHp}${m.defense ? `   ·   DEF ${m.defense}` : ''}`);
+      this.infoText.setText(`${m.name}  ·  Troops ${m.troopsAlive}/${m.troopsTotal}\nDefenders left ${m.enemiesAlive}${m.boosted ? '  ·  RALLIED!' : ''}`);
+      this.drawBtn(this.horn, m.hornCd, m.hornMax, true);
+      this.drawBtn(this.charge, m.chargeCd, m.chargeMax, true);
+      this.drawBtn(this.interact, 0, 1, false);
+    } else {
+      this.infoText.setText(`${m.day}\nTroops ${m.troopsTotal}`);
+      this.drawBtn(this.horn, 0, 1, false);
+      this.drawBtn(this.charge, 0, 1, false);
+      if (m.interactLabel) this.interact.label.setText(m.interactLabel);
+      this.drawBtn(this.interact, 0, 1, !!m.interactLabel);
+    }
     this.goldText.setText(`⬤ ${m.gold} gold`);
-    this.infoText.setText(`Raid ${m.raid}  ·  Troops ${m.troopsAlive}/${m.troopsTotal}\nDefenders left ${m.enemiesAlive}${m.boosted ? '  ·  RALLIED!' : ''}`);
-    this.drawBtn(this.horn, m.hornCd, m.hornMax);
-    this.drawBtn(this.charge, m.chargeCd, m.chargeMax);
   }
 
-  private drawBtn(b: Btn, cd: number, max: number) {
-    const color = (b as unknown as { color: number }).color;
+  private drawBtn(b: Btn, cd: number, max: number, visible: boolean) {
+    b.g.clear();
+    b.label.setVisible(visible);
+    b.key.setVisible(visible);
+    if (!visible) return;
     const ready = cd <= 0;
     const pressed = this.time.now < b.pressedUntil;
     const r = b.r * (pressed ? 0.9 : 1);
     const g = b.g;
-    g.clear();
     g.fillStyle(0x000000, 0.45).fillCircle(b.x + 2, b.y + 3, r);
-    g.fillStyle(color, ready ? 1 : 0.45).fillCircle(b.x, b.y, r);
+    g.fillStyle(b.color, ready ? 1 : 0.45).fillCircle(b.x, b.y, r);
     g.lineStyle(3, 0xffffff, ready ? 0.9 : 0.35).strokeCircle(b.x, b.y, r);
     if (!ready) {
       // dark wedge shrinks clockwise as the cooldown runs out

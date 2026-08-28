@@ -86,3 +86,19 @@ Services are **conquest-gated**: you can only shop and recruit in settlements yo
 - **Raid scaling:** each raid adds 2 militia, an archer every other raid, a captain every third; +25% HP, +10% damage, +15% gold per raid.
 - **Sound:** generated blips only (no audio files).
 - **Nothing is saved between page reloads yet** — save/load is Milestone 2.
+
+## Milestone 2 — The Overworld, Infamy, and a Real Home (built 2026-08-28)
+
+**Designer-specified (from the M2 brief):** a world map with the warband as a token moving along roads by tap, travel costing in-game days with the date shown; four villages and one locked town (approaching warns the garrison is far too strong); entering a village launches the raid with varied layouts and defender mixes; the camp menu replaced by a walkable Bandit Camp with Forge (3 sword tiers, basic armor, a shield, a hunting bow), Barracks (recruit, max 6) and Stables (a fast Courser and an armored Destrier); an infamy meter with tiers Nobody → Bandit → Raider that adds road patrols (interception → open-field battle), fortification of unraided villages (extra defenders, palisades) and a bounty shown on the map; single-slot save/load in browser storage.
+
+**Working assumptions made by the build — overrule any of these by feel:**
+- **Travel:** each road costs 2–3 days depending on its length (shown on the road). You pass through places on the way without stopping. A new warband starts inside the camp.
+- **Villages:** Ashford (tier 1, ~11 defenders, the M1 map), Millbrook (tier 2, three lanes + longhouse), Thornhill (tier 3, a warren of one-wide alleys), Greywater (tier 4, a huge open plaza). After a raid a village is **ruined for 8 days** (nothing to take); then it rebuilds with +2 militia, +15% stats and +10% loot per previous raid.
+- **Infamy:** +6 plus +2 per village tier for a raid; +2 for routing a patrol. Tiers at 0 / 10 / 30. **Patrols:** 25% per road at Bandit, 45% at Raider, never twice within 3 days; a Bandit-tier patrol is 5 militia + 1 archer, Raider-tier is 8 militia + 2 archers + a captain, fought on an open field with a few boulders. Losing to a patrol: fight again, or fall back to the place you came from.
+- **Fortification:** from the day you become a Bandit, villages you have never raided hire +1 militia every 4 days (every 3 as a Raider), up to +6; at +2 they raise a **palisade** (walls with gates at the lane mouths), at +4 an extra archer arrives. The map shows "fortified +N" and a palisade ring.
+- **Bounty** = 12 gold × infamy. Display only until bounty hunters arrive (M6).
+- **Gear:** Leather Armor 60g (+2 defense), Round Shield 50g (+2), Hunting Bow 70g (9 damage, range 230, shoots every 0.7 s; buying it equips it — switch sword/bow at the forge). Defense takes that many points off every hit you take, never below 35% of the hit.
+- **Horses:** Courser 120g (+45% speed), Destrier 180g (+20% speed, +3 defense, +30 HP). Mounted, the hero is drawn 1.25× / 1.4× bigger with a horse under him; choose what to ride at the stables.
+- **Saving:** one slot, per browser/device, written at every safe point (arrival, purchase, battle result). The title screen offers Continue / New warband (which erases the save).
+- **The town** (Kingsport) only warns you off until Milestone 3.
+- Services are conquest-gated by design; for now only the camp has any.

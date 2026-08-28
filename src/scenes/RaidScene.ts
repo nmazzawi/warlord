@@ -1,8 +1,9 @@
-// RaidScene.ts — the battle. Builds the village, spawns everyone, runs the per-frame loop
-// (input → hero → troops → enemies → pickups), applies hit-pause, and decides victory/defeat.
+// RaidScene.ts — a battle. Builds the map from a BattleConfig (village or road patrol), spawns
+// everyone, runs the per-frame loop (input → hero → troops → enemies → pickups), applies hit-pause,
+// and decides victory/defeat.
 import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
-import { ABILITIES, ENEMIES, raidConfig } from '../config/balance';
+import { ABILITIES, ENEMIES, EQUIPMENT } from '../config/balance';
 import { Hero } from '../entities/Hero';
 import { Troop } from '../entities/Troop';
 import { Enemy, type EnemyKind } from '../entities/Enemy';
@@ -14,9 +15,11 @@ import { PlayerInput } from '../systems/PlayerInput';
 import { SurroundManager } from '../systems/Surround';
 import { FlowField } from '../systems/FlowField';
 import { dealDamage } from '../systems/Combat';
+import { setLineOfSightObstacles } from '../systems/LineOfSight';
 import { Sound } from '../systems/Sound';
 import { COLORS, TEX } from '../systems/Textures';
-import { buildVillage, HUTS, SPAWNS, WORLD } from '../world/Village';
+import { buildLayout, clearOf, LAYOUTS, palisadeFor, type Obstacle } from '../world/Layouts';
+import type { BattleConfig } from '../world/Battles';
 import type { HudModel } from './HudScene';
 import type { ResultData } from './ResultScene';
 
@@ -26,6 +29,8 @@ export class RaidScene extends Phaser.Scene {
   enemies: Enemy[] = [];
   juice!: Juice;
   flow!: FlowField;
+  cfg!: BattleConfig;
+  private obstacles: Obstacle[] = [];
   private surround = new SurroundManager();
   private playerInput!: PlayerInput;
   private hud!: HudModel;
@@ -43,8 +48,10 @@ export class RaidScene extends Phaser.Scene {
 
   constructor() { super('Raid'); }
 
+  init(data: BattleConfig) { this.cfg = data; }
+
   create() {
-    // Scene objects are reused between raids, so reset everything here.
+    // Scene objects are reused between battles, so reset everything here.
     this.troops = [];
     this.enemies = [];
     this.freezeUntil = 0;
@@ -55,41 +62,47 @@ export class RaidScene extends Phaser.Scene {
     this.surround = new SurroundManager();
     this.tweens.timeScale = 1;
     GameState.takeSnapshot();
-    const cfg = raidConfig(GameState.raidNumber);
 
-    this.physics.world.setBounds(0, 0, WORLD.w, WORLD.h);
-    this.huts = buildVillage(this);
-    this.flow = new FlowField(WORLD.w, WORLD.h, HUTS);
+    const cfg = this.cfg;
+    const layout = LAYOUTS[cfg.layoutId];
+    this.obstacles = [...layout.obstacles, ...(cfg.palisade ? palisadeFor(layout) : [])];
+    setLineOfSightObstacles(this.obstacles);
+    this.physics.world.setBounds(0, 0, layout.w, layout.h);
+    this.huts = buildLayout(this, layout, this.obstacles);
+    this.flow = new FlowField(layout.w, layout.h, this.obstacles);
     this.juice = new Juice(this);
 
     // --- the warband
-    this.hero = new Hero(this, SPAWNS.hero.x, SPAWNS.hero.y, GameState.weaponTier);
+    const start = clearOf(this.obstacles, layout.heroStart.x, layout.heroStart.y, 14);
+    this.hero = new Hero(this, start.x, start.y);
     // (groups re-apply their defaults to every body added, so world-bounds collision must be set here)
     this.troopGroup = this.physics.add.group({ collideWorldBounds: true });
     GameState.troops.forEach((rec, i) => {
-      const t = new Troop(this, this.hero.x - 30 - i * 12, this.hero.y + (i % 2 ? 26 : -26), rec, i);
+      const p = clearOf(this.obstacles, this.hero.x - 30 - i * 12, this.hero.y + (i % 2 ? 26 : -26), 11);
+      const t = new Troop(this, p.x, p.y, rec, i);
       this.troops.push(t);
       this.troopGroup.add(t);
     });
 
     // --- the defenders
     this.enemyGroup = this.physics.add.group({ collideWorldBounds: true });
-    const mult = { hp: cfg.hpMult, dmg: cfg.dmgMult, gold: cfg.goldMult };
+    const d = cfg.defenders;
+    const mult = { hp: d.statMult, dmg: 1 + (d.statMult - 1) * 0.5, gold: d.goldMult };
     const spawn = (kind: EnemyKind, posts: Array<{ x: number; y: number }>, count: number) => {
       for (let i = 0; i < count; i++) {
         const p = posts[i % posts.length];
         const jitter = i >= posts.length ? 26 : 0;
-        const spot = this.clearOfHuts(p.x + Phaser.Math.Between(-jitter, jitter), p.y + Phaser.Math.Between(-jitter, jitter), ENEMIES[kind].radius);
+        const spot = clearOf(this.obstacles, p.x + Phaser.Math.Between(-jitter, jitter), p.y + Phaser.Math.Between(-jitter, jitter), ENEMIES[kind].radius);
         const e = new Enemy(this, spot.x, spot.y, kind, mult);
         this.enemies.push(e);
         this.enemyGroup.add(e);
       }
     };
-    spawn('militia', SPAWNS.militia, cfg.militia);
-    spawn('archer', SPAWNS.archers, cfg.archers);
-    spawn('captain', SPAWNS.captains, cfg.captains);
+    spawn('militia', layout.posts.militia, d.militia);
+    spawn('archer', layout.posts.archers, d.archers);
+    spawn('captain', layout.posts.captains, d.captains);
 
-    this.arrows = this.physics.add.group({ classType: Arrow, maxSize: 40, runChildUpdate: false });
+    this.arrows = this.physics.add.group({ classType: Arrow, maxSize: 60, runChildUpdate: false });
     this.coins = this.physics.add.group({ classType: Coin, maxSize: 60, runChildUpdate: false, collideWorldBounds: true });
 
     // --- who bumps into what. Your own troops never block you (so alleys stay usable).
@@ -103,21 +116,24 @@ export class RaidScene extends Phaser.Scene {
     this.physics.add.overlap(this.hero, this.coins, (a, b) => this.collectCoin(a instanceof Coin ? a : (b as Coin)));
     this.physics.add.overlap(this.arrows, this.hero, (a, b) => this.arrowHit(a, b));
     this.physics.add.overlap(this.arrows, this.troopGroup, (a, b) => this.arrowHit(a, b));
+    this.physics.add.overlap(this.arrows, this.enemyGroup, (a, b) => this.arrowHit(a, b));
     this.physics.add.collider(this.arrows, this.huts, (a, b) => { const arrow = a instanceof Arrow ? a : (b as Arrow); arrow.kill(); });
 
     // --- camera
-    this.cameras.main.setBounds(0, 0, WORLD.w, WORLD.h);
+    this.cameras.main.setBounds(0, 0, layout.w, layout.h);
     this.cameras.main.startFollow(this.hero, true, 0.1, 0.1);
     this.applyZoom();
     this.scale.on('resize', this.applyZoom, this);
 
     // --- input + HUD
     this.playerInput = new PlayerInput();
-    this.playerInput.attachKeyboard(this);
+    this.playerInput.attachKeyboard(this, 'raid');
     this.hud = {
-      heroHp: this.hero.hp, heroMaxHp: this.hero.maxHp, gold: GameState.gold, raid: GameState.raidNumber,
+      mode: 'raid', title: cfg.title, hint: cfg.hint, name: cfg.name,
+      heroHp: this.hero.hp, heroMaxHp: this.hero.maxHp, gold: GameState.gold, day: GameState.dateLabel,
       troopsAlive: this.troops.length, troopsTotal: this.troops.length, enemiesAlive: this.enemies.length,
       hornCd: 0, hornMax: ABILITIES.horn.cooldown, chargeCd: 0, chargeMax: ABILITIES.charge.cooldown, boosted: false,
+      interactLabel: null, defense: GameState.defense,
     };
     this.scene.launch('Hud', { input: this.playerInput, model: this.hud });
 
@@ -125,19 +141,6 @@ export class RaidScene extends Phaser.Scene {
       this.scale.off('resize', this.applyZoom, this);
       this.scene.stop('Hud');
     });
-
-  }
-
-  /** Nudge a spawn point out of any hut it overlaps, so layout edits can't bury a defender in a wall. */
-  private clearOfHuts(x: number, y: number, r: number) {
-    for (let tries = 0; tries < 8; tries++) {
-      const hit = HUTS.find(h => x + r > h.x - h.w / 2 && x - r < h.x + h.w / 2 && y + r > h.y - h.h / 2 && y - r < h.y + h.h / 2);
-      if (!hit) break;
-      const dx = x - hit.x, dy = y - hit.y;
-      const len = Math.hypot(dx, dy) || 1;
-      x += (dx / len) * 30; y += (dy / len) * 30;
-    }
-    return { x, y };
   }
 
   /** Show ~520 world px across the short screen axis — enough to see archers and militia coming. */
@@ -274,17 +277,32 @@ export class RaidScene extends Phaser.Scene {
     const x = from.x + this.tmp.x * (from.radius + 8), y = from.y + this.tmp.y * (from.radius + 8);
     const arrow = this.arrows.get(x, y, TEX.arrow) as Arrow | null;
     if (!arrow) return;
-    arrow.fire(x, y, this.tmp.x * s.arrowSpeed, this.tmp.y * s.arrowSpeed, from.damageAmount, s.arrowLife);
+    arrow.fire(x, y, this.tmp.x * s.arrowSpeed, this.tmp.y * s.arrowSpeed, from.damageAmount, s.arrowLife, 'enemy');
     Sound.arrow();
+  }
+
+  /** The hero's bow. */
+  fireHeroArrow(x: number, y: number, dir: Phaser.Math.Vector2, damage: number) {
+    const arrow = this.arrows.get(x, y, TEX.arrow) as Arrow | null;
+    if (!arrow) return;
+    const s = EQUIPMENT.bow;
+    arrow.fire(x, y, dir.x * s.arrowSpeed, dir.y * s.arrowSpeed, damage, s.range / s.arrowSpeed + 0.2, 'player');
   }
 
   private arrowHit(a: unknown, b: unknown) {
     const arrow = (a instanceof Arrow ? a : b) as Arrow;
     const unit = (a instanceof Arrow ? b : a) as Unit;
-    if (!arrow.active || !unit.alive) return;
+    if (!arrow.active || !unit.alive || arrow.team === unit.team) return;
     const vx = arrow.body.velocity.x, vy = arrow.body.velocity.y;
     arrow.kill();
-    dealDamage(this, unit, arrow.damageAmount, unit.x - vx, unit.y - vy, 80, 'enemy');
+    if (arrow.team === 'player') {
+      dealDamage(this, unit, arrow.damageAmount, unit.x - vx, unit.y - vy, 110, 'hero');
+      this.juice.hitStop(EQUIPMENT.bow.hitStop);
+      this.juice.shake(EQUIPMENT.bow.shake, 60, true);
+      Sound.heroHit(1);
+    } else {
+      dealDamage(this, unit, arrow.damageAmount, unit.x - vx, unit.y - vy, 80, 'enemy');
+    }
   }
 
   private collectCoin(coin: Coin) {
@@ -351,15 +369,18 @@ export class RaidScene extends Phaser.Scene {
       this.juice.damageNumber(this.hero.x, this.hero.y - 30, `+${swept}`, COLORS.gold, 15);
     }
     Sound.victory();
-    this.juice.banner(this.hero.x, this.hero.y - 50, 'VILLAGE CLEARED', '#f5c542', 22);
+    this.juice.banner(this.hero.x, this.hero.y - 50, this.cfg.kind === 'patrol' ? 'PATROL ROUTED' : 'VILLAGE CLEARED', '#f5c542', 22);
     this.time.delayedCall(1100, () => this.showResult('victory'));
   }
 
   private showResult(outcome: 'victory' | 'defeat') {
     this.scene.stop('Hud');
     const fallen = GameState.troops.filter(t => this.deadTroopIds.includes(t.id)).map(t => t.name);
-    const data: ResultData = { outcome, goldEarned: this.goldEarned, fallen, raidNumber: GameState.raidNumber };
-    if (outcome === 'victory') GameState.commitVictory(this.goldEarned, this.deadTroopIds);
+    const infamyBefore = GameState.infamy;
+    if (outcome === 'victory') {
+      GameState.commitVictory(this.goldEarned, this.deadTroopIds, { kind: this.cfg.kind, villageId: this.cfg.villageId, tier: this.cfg.tier, name: this.cfg.name });
+    }
+    const data: ResultData = { outcome, goldEarned: this.goldEarned, fallen, battle: this.cfg, infamyGain: GameState.infamy - infamyBefore };
     this.scene.launch('Result', data);
     this.scene.pause();
   }

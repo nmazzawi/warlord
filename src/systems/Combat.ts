@@ -5,6 +5,7 @@ import type { Unit } from '../entities/Unit';
 import { Hero } from '../entities/Hero';
 import { COLORS } from './Textures';
 import { Sound } from './Sound';
+import { GameState } from '../state/GameState';
 
 export type DamageSource = 'hero' | 'charge' | 'troop' | 'enemy';
 
@@ -15,9 +16,10 @@ export function dealDamage(raid: RaidScene, target: Unit, amount: number, srcX: 
     raid.juice.damageNumber(target.x, target.y - 24, 'dodge', 0xffffff, 12);
     return false;
   }
-  const amt = Math.max(1, Math.round(amount));
   const isPlayer = target.team === 'player';
   const isHero = target instanceof Hero;
+  // armor, shield and a warhorse soak part of every blow the hero takes
+  const amt = Math.max(1, Math.round(isHero ? GameState.applyDefense(Math.round(amount)) : amount));
   const killed = target.damage(amt, srcX, srcY, knockback);
 
   const color = isHero ? COLORS.hurt : isPlayer ? COLORS.troopHurt : 0xffffff;

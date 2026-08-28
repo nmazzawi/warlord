@@ -8,6 +8,8 @@ export type Team = 'player' | 'enemy';
 
 export interface UnitOpts {
   hp: number; speed: number; radius: number; team: Team; barColor: number; barWidth?: number; depth?: number;
+  /** Visual + collision scale (a mounted hero is bigger). Radius is given unscaled. */
+  scale?: number;
 }
 
 export class Unit extends Phaser.Physics.Arcade.Sprite {
@@ -35,13 +37,15 @@ export class Unit extends Phaser.Physics.Arcade.Sprite {
     super(scene, x, y, texture);
     this.raid = scene;
     this.team = opts.team;
-    this.radius = opts.radius;
+    const scale = opts.scale ?? 1;
+    this.radius = opts.radius * scale;
     this.hp = opts.hp;
     this.maxHp = opts.hp;
     this.speed = opts.speed;
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setCircle(opts.radius, this.width / 2 - opts.radius, this.height / 2 - opts.radius);
+    if (scale !== 1) this.setScale(scale);
     this.setCollideWorldBounds(true);
     this.setDepth(opts.depth ?? 20);
     this.barW = opts.barWidth ?? 24;
