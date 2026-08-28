@@ -23,7 +23,7 @@ export class ResultScene extends Phaser.Scene {
   }
 
   private build() {
-    this.children.removeAll(true);
+    for (const c of this.children.list.slice()) c.destroy();
     const { width: w, height: h } = this.scale;
     const u = uiUnit(w, h);
     const d = this.result;

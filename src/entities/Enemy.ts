@@ -10,6 +10,7 @@ import type { RaidScene } from '../scenes/RaidScene';
 import { ENEMIES, SURROUND } from '../config/balance';
 import { TEX } from '../systems/Textures';
 import { dealDamage } from '../systems/Combat';
+import { hasLineOfSight } from '../systems/LineOfSight';
 
 export type EnemyKind = 'militia' | 'archer' | 'captain';
 
@@ -79,7 +80,8 @@ export class Enemy extends Unit {
       return;
     }
 
-    if (this.retargetTimer <= 0 || !this.target || !this.target.alive) {
+    // never change target mid-swing: the telegraph must land where it was aimed
+    if (!this.windingUp && (this.retargetTimer <= 0 || !this.target || !this.target.alive)) {
       this.retargetTimer = 0.3;
       this.target = this.pickTarget(hero, troops);
     }
@@ -119,17 +121,22 @@ export class Enemy extends Unit {
     for (const t of troops) if (t.alive && this.distTo(t) < this.stats.aggro * 0.8) { this.wake(); return; }
   }
 
-  /** Nearest player unit, with a preference for the hero. */
+  /** Nearest player unit, with a preference for the hero. Sticks with the current target unless clearly better. */
   private pickTarget(hero: Hero, troops: Troop[]): Unit | null {
-    let best: Unit | null = null, bestScore = Infinity;
     const heroBias = this.kind === 'archer' ? 0.6 : 0.75;
-    if (hero.alive) { best = hero; bestScore = this.distTo(hero) * heroBias; }
+    const score = (u: Unit) => {
+      const d = this.distTo(u);
+      if (u === hero) return d * heroBias;
+      return this.edgeDistTo(u) < 18 ? d * 0.5 : d; // a troop pressed against me is in my way
+    };
+    let best: Unit | null = null, bestScore = Infinity;
+    if (hero.alive) { best = hero; bestScore = score(hero); }
     for (const t of troops) {
       if (!t.alive) continue;
-      const d = this.distTo(t);
-      const score = this.edgeDistTo(t) < 18 ? d * 0.5 : d; // a troop pressed against me is in my way
-      if (score < bestScore) { best = t; bestScore = score; }
+      const s = score(t);
+      if (s < bestScore) { best = t; bestScore = s; }
     }
+    if (this.target && this.target.alive && this.target !== best && bestScore > score(this.target) * 0.8) return this.target;
     return best;
   }
 
@@ -141,12 +148,7 @@ export class Enemy extends Unit {
       if (this.attackTimer <= 0) this.beginWindup();
       return;
     }
-    const now = this.raid.time.now;
-    const far = this.distTo(t) > 110;
-    if ((far || now < this.detourUntil) && this.raid.flow.direction(this.x, this.y, this.tmp) && t === hero) {
-      this.desired.set(this.tmp.x * this.stats.speed, this.tmp.y * this.stats.speed);
-      return;
-    }
+    if (this.followFlow(t === hero && this.distTo(t) > 110)) return;
     if (t === hero && this.slotAngle !== null) {
       const R = hero.radius + this.radius + SURROUND.slotPadding;
       const a0 = Math.atan2(this.y - hero.y, this.x - hero.x);
@@ -163,17 +165,31 @@ export class Enemy extends Unit {
     }
   }
 
+  /** Steer along the flow field (which leads to the hero) when far away or when detouring round a hut. */
+  private followFlow(far: boolean): boolean {
+    const t = this.target!;
+    const useFlow = (far && t === this.raid.hero) || this.raid.time.now < this.detourUntil;
+    if (useFlow && this.raid.flow.direction(this.x, this.y, this.tmp)) {
+      this.desired.set(this.tmp.x * this.stats.speed, this.tmp.y * this.stats.speed);
+      return true;
+    }
+    return false;
+  }
+
   private archer() {
     const t = this.target!;
     const s = ENEMIES.archer;
     const d = this.distTo(t);
-    if (this.attackTimer <= 0 && d <= s.maxDist + 20) { this.beginWindup(); return; }
-    if (d < s.minDist) {
+    const los = hasLineOfSight(this.x, this.y, t.x, t.y);
+    if (this.attackTimer <= 0 && los && d <= s.maxDist + 20) { this.beginWindup(); return; }
+    if (this.followFlow(d > s.maxDist)) return;
+    if (!los) {
+      this.moveToward(t.x, t.y, this.stats.speed); // step round the hut for a clean shot
+    } else if (d < s.minDist) {
       // back away, keeping the target in front
       this.moveToward(this.x - (t.x - this.x), this.y - (t.y - this.y), this.stats.speed);
     } else if (d > s.maxDist) {
-      if (this.raid.flow.direction(this.x, this.y, this.tmp)) this.desired.set(this.tmp.x * this.stats.speed, this.tmp.y * this.stats.speed);
-      else this.moveToward(t.x, t.y, this.stats.speed);
+      this.moveToward(t.x, t.y, this.stats.speed);
     } else {
       this.desired.set(0, 0);
     }
@@ -187,11 +203,8 @@ export class Enemy extends Unit {
       if (this.attackTimer <= 0) this.beginWindup();
       return;
     }
-    if (this.distTo(t) > 100 && this.raid.flow.direction(this.x, this.y, this.tmp)) {
-      this.desired.set(this.tmp.x * this.stats.speed, this.tmp.y * this.stats.speed);
-    } else {
-      this.moveToward(t.x, t.y, this.stats.speed);
-    }
+    if (this.followFlow(this.distTo(t) > 100)) return;
+    this.moveToward(t.x, t.y, this.stats.speed);
   }
 
   /** Pushing against a hut for a while? Take the long way round for a moment. */

@@ -53,6 +53,7 @@ export class RaidScene extends Phaser.Scene {
     this.over = false;
     this.formationHeading = 0;
     this.surround = new SurroundManager();
+    this.tweens.timeScale = 1;
     GameState.takeSnapshot();
     const cfg = raidConfig(GameState.raidNumber);
 
@@ -89,7 +90,7 @@ export class RaidScene extends Phaser.Scene {
     spawn('captain', SPAWNS.captains, cfg.captains);
 
     this.arrows = this.physics.add.group({ classType: Arrow, maxSize: 40, runChildUpdate: false });
-    this.coins = this.physics.add.group({ classType: Coin, maxSize: 60, runChildUpdate: false });
+    this.coins = this.physics.add.group({ classType: Coin, maxSize: 60, runChildUpdate: false, collideWorldBounds: true });
 
     // --- who bumps into what. Your own troops never block you (so alleys stay usable).
     this.physics.add.collider(this.hero, this.huts);
@@ -150,6 +151,7 @@ export class RaidScene extends Phaser.Scene {
   freeze(ms: number) {
     this.freezeUntil = Math.max(this.freezeUntil, this.time.now + ms);
     this.physics.world.pause();
+    this.tweens.timeScale = 0; // slashes and numbers hold on their impact frame too
   }
 
   update(time: number, delta: number) {
@@ -157,6 +159,7 @@ export class RaidScene extends Phaser.Scene {
     if (this.physics.world.isPaused) {
       if (time < this.freezeUntil) { this.syncVisuals(time); return; }
       this.physics.world.resume();
+      this.tweens.timeScale = 1;
     }
 
     const hero = this.hero;

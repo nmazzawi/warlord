@@ -35,7 +35,8 @@ export class Juice {
     const cam = this.scene.cameras.main;
     const dpr = this.scene.scale.displayScale.x || 1;
     const intensity = (px * dpr) / (cam.width * cam.zoom * cam.zoom);
-    cam.shake(duration, intensity, force);
+    const fx = cam.shakeEffect;
+    cam.shake(duration, intensity, force || !fx.isRunning || intensity >= fx.intensity.x);
   }
 
   burst(x: number, y: number, tint: number, count: number) {

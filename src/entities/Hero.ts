@@ -8,6 +8,7 @@ import type { PlayerInput } from '../systems/PlayerInput';
 import { ABILITIES, HERO, WEAPONS } from '../config/balance';
 import { TEX } from '../systems/Textures';
 import { Sound } from '../systems/Sound';
+import { hasLineOfSight } from '../systems/LineOfSight';
 
 export class Hero extends Unit {
   facing = new Phaser.Math.Vector2(1, 0);
@@ -81,7 +82,7 @@ export class Hero extends Unit {
     for (const e of enemies) {
       if (!e.alive) continue;
       const d = this.edgeDistTo(e);
-      if (d <= this.weapon.reach && d < bestD) { best = e; bestD = d; }
+      if (d <= this.weapon.reach && d < bestD && hasLineOfSight(this.x, this.y, e.x, e.y)) { best = e; bestD = d; }
     }
     if (!best) return;
     this.attackTimer = HERO.attackCooldown;
@@ -91,7 +92,7 @@ export class Hero extends Unit {
     const half = Phaser.Math.DegToRad(this.weapon.arcDeg / 2) + 0.12;
     let hits = 0;
     for (const e of enemies) {
-      if (!e.alive || this.edgeDistTo(e) > this.weapon.reach) continue;
+      if (!e.alive || this.edgeDistTo(e) > this.weapon.reach || !hasLineOfSight(this.x, this.y, e.x, e.y)) continue;
       const a = Math.atan2(e.y - this.y, e.x - this.x);
       if (Math.abs(Phaser.Math.Angle.Wrap(a - angle)) <= half) {
         this.raid.heroHit(e, this.weapon.damage, this.weapon.knockback);

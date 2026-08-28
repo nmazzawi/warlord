@@ -17,7 +17,7 @@ export class CampScene extends Phaser.Scene {
 
   /** Lays the whole screen out from scratch — called on every resize so it fits any phone. */
   private build() {
-    this.children.removeAll(true);
+    for (const c of this.children.list.slice()) c.destroy(); // (removeAll does not destroy — leaks textures + ghost buttons)
     const { width: w, height: h } = this.scale;
     const u = uiUnit(w, h); // UI scale unit
     const cx = w / 2;

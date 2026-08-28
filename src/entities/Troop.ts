@@ -10,6 +10,7 @@ import { ABILITIES, TROOP } from '../config/balance';
 import { TEX } from '../systems/Textures';
 import { formationSlot } from '../systems/Formation';
 import { dealDamage } from '../systems/Combat';
+import { hasLineOfSight } from '../systems/LineOfSight';
 
 export type TroopState = 'follow' | 'engage' | 'rally';
 
@@ -24,11 +25,14 @@ export class Troop extends Unit {
   private boostTimer = 0;
   private label: Phaser.GameObjects.Text;
   private tmp = new Phaser.Math.Vector2();
+  private lastPos: Phaser.Math.Vector2;
+  private stuckTimer = 0;
 
   constructor(scene: RaidScene, x: number, y: number, record: TroopRecord, slot: number) {
     super(scene, x, y, TEX.troop, { hp: TROOP.hp, speed: TROOP.speed, radius: TROOP.radius, team: 'player', barColor: 0x5ec26a });
     this.record = record;
     this.slot = slot;
+    this.lastPos = new Phaser.Math.Vector2(x, y);
     this.label = scene.add.text(x, y, record.name, {
       fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '9px', color: '#d8ffd8', stroke: '#000000', strokeThickness: 2,
     }).setOrigin(0.5, 1).setDepth(42).setAlpha(0.9);
@@ -49,8 +53,12 @@ export class Troop extends Unit {
     this.retargetTimer -= dt;
     this.rallyTimer -= dt;
     this.boostTimer -= dt;
-    const spd = this.speed * (this.boostTimer > 0 ? ABILITIES.horn.boostMult : 1);
     const distHero = this.distTo(hero);
+    // troops are a little slower than the hero, so they get a burst of pace when they fall behind
+    const catchUp = this.state !== 'engage' && distHero > 80 ? 1.3 : 1;
+    const spd = this.speed * (this.boostTimer > 0 ? ABILITIES.horn.boostMult : 1) * catchUp;
+    const moved = Phaser.Math.Distance.Between(this.x, this.y, this.lastPos.x, this.lastPos.y) / Math.max(dt, 1e-3);
+    this.lastPos.set(this.x, this.y);
 
     if (this.rallyTimer > 0) {
       this.state = 'rally';
@@ -70,6 +78,9 @@ export class Troop extends Unit {
           if (this.attackTimer <= 0) this.strike(this.target);
         } else {
           this.moveToward(this.target.x, this.target.y, spd);
+          // wedged against a hut while chasing? give up on that target for a moment and regroup
+          if (moved < 8) this.stuckTimer += dt; else this.stuckTimer = 0;
+          if (this.stuckTimer > 0.6) { this.stuckTimer = 0; this.target = null; this.retargetTimer = 0.8; }
         }
       } else {
         this.state = 'follow';
@@ -97,6 +108,7 @@ export class Troop extends Unit {
       if (!e.alive) continue;
       const d = this.distTo(e);
       if (d > TROOP.engageRadius || e.distTo(hero) > TROOP.leash) continue;
+      if (!hasLineOfSight(this.x, this.y, e.x, e.y)) continue;
       if (d < bestD) { best = e; bestD = d; }
     }
     return best;

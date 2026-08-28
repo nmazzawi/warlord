@@ -39,6 +39,9 @@ export class HudScene extends Phaser.Scene {
   }
 
   create() {
+    // the scene object is reused between raids: forget any finger that was down when the last raid ended
+    this.joyId = -1;
+    this.input_.joyX = 0; this.input_.joyY = 0;
     this.hpBg = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.6).setOrigin(0, 0.5);
     this.hpFg = this.add.rectangle(0, 0, 10, 10, 0x5ec26a, 1).setOrigin(0, 0.5);
     this.hpText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: '#ffffff', stroke: '#000', strokeThickness: 3 }).setOrigin(0, 0.5);
@@ -63,7 +66,11 @@ export class HudScene extends Phaser.Scene {
 
     this.layout();
     this.scale.on('resize', this.layout, this);
-    this.events.once('shutdown', () => this.scale.off('resize', this.layout, this));
+    this.events.once('shutdown', () => {
+      this.scale.off('resize', this.layout, this);
+      this.joyId = -1;
+      this.input_.joyX = 0; this.input_.joyY = 0;
+    });
 
     this.input.on('pointerdown', this.onDown, this);
     this.input.on('pointermove', this.onMove, this);

@@ -15,6 +15,8 @@ export class FlowField {
   private lastX = -9999;
   private lastY = -9999;
   private timer = 0;
+  private tx = 0;
+  private ty = 0;
 
   constructor(worldW: number, worldH: number, obstacles: Rect[], inflate = 13) {
     this.cols = Math.ceil(worldW / this.cell);
@@ -54,6 +56,7 @@ export class FlowField {
   private compute(tx: number, ty: number) {
     const dist = this.dist, blocked = this.blocked, cols = this.cols, rows = this.rows, q = this.queue;
     dist.fill(-1);
+    this.tx = tx; this.ty = ty;
     let head = 0, tail = 0;
     const start = this.idx(tx, ty);
     dist[start] = 0;
@@ -88,16 +91,19 @@ export class FlowField {
     const r = Phaser.Math.Clamp(Math.floor(y / this.cell), 0, rows - 1);
     const own = dist[r * cols + c];
     if (own === 0) return false;
-    let best = own === -1 ? Infinity : own, br = -1, bc = -1;
+    let best = own === -1 ? Infinity : own, br = -1, bc = -1, bestFar = Infinity;
     for (let dr = -1; dr <= 1; dr++) {
       for (let dc = -1; dc <= 1; dc++) {
         if (dr === 0 && dc === 0) continue;
         const nr = r + dr, nc = c + dc;
         if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
         const d = dist[nr * cols + nc];
-        if (d === -1) continue;
+        if (d === -1 || d > best) continue;
         if (dr !== 0 && dc !== 0 && (this.blocked[r * cols + nc] || this.blocked[nr * cols + c])) continue;
-        if (d < best) { best = d; br = nr; bc = nc; }
+        // many neighbours tie on grid distance; prefer the one nearest the target as the crow flies
+        const cx = nc * this.cell + this.cell / 2 - this.tx, cy = nr * this.cell + this.cell / 2 - this.ty;
+        const far = cx * cx + cy * cy;
+        if (d < best || far < bestFar) { best = d; br = nr; bc = nc; bestFar = far; }
       }
     }
     if (br === -1) return false;
