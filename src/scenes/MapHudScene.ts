@@ -58,18 +58,19 @@ export class MapHudScene extends Phaser.Scene {
     this.goldText.setPosition(left, top + 24 * u).setFontSize(Math.round(16 * u));
     this.troopText.setPosition(left, top + 44 * u).setFontSize(Math.round(11 * u));
     const ix = Math.min(w * 0.5, left + 230 * u);
-    this.infamyLabel.setPosition(ix, top + 6 * u).setFontSize(Math.round(11 * u));
-    this.infamyBg.setPosition(ix, top + 30 * u).setSize(150 * u, 12 * u);
-    this.infamyFg.setPosition(ix, top + 30 * u).setSize(150 * u, 12 * u);
-    this.bountyText.setPosition(ix, top + 40 * u).setFontSize(Math.round(11 * u));
-    this.titleBtn.setPosition(w - m - ins.right - 48 * u, top + 24 * u).setScale(u);
+    const btnW = 96 * u;
+    const colW = Math.max(120 * u, w - ix - btnW - 2 * m - ins.right);
+    this.infamyLabel.setPosition(ix, top + 6 * u).setFontSize(Math.round(11 * u)).setWordWrapWidth(colW);
+    this.infamyBg.setPosition(ix, top + 30 * u).setSize(Math.min(150 * u, colW), 12 * u);
+    this.infamyFg.setPosition(ix, top + 30 * u).setSize(Math.min(150 * u, colW), 12 * u);
+    this.bountyText.setPosition(ix, top + 40 * u).setFontSize(Math.round(11 * u)).setWordWrapWidth(colW);
+    this.titleBtn.setPosition(w - m - ins.right - btnW / 2, top + 24 * u).setScale(u);
     if (this.spec) this.showPanel(this.spec);
     void h;
   }
 
   /** Re-read the game state (called by the map after every arrival / purchase). */
   refresh() {
-    const u = this.u;
     this.dateText.setText(GameState.dateLabel);
     this.goldText.setText(`⬤ ${GameState.gold} gold`);
     this.troopText.setText(`Troops ${GameState.troops.length}   ·   ${GameState.weaponKind === 'bow' ? 'Bow' : ['Rusty Sword', 'Iron Sword', 'Warlord Blade'][GameState.weaponTier - 1]}${GameState.horse !== 'none' ? '  ·  mounted' : ''}${GameState.defense ? `  ·  DEF ${GameState.defense}` : ''}`);
@@ -78,8 +79,8 @@ export class MapHudScene extends Phaser.Scene {
     const cur = INFAMY.tiers[tier].min;
     const frac = next === null ? 1 : Phaser.Math.Clamp((GameState.infamy - cur) / (next - cur), 0, 1);
     this.infamyLabel.setText(`INFAMY ${GameState.infamy}  ·  ${GameState.infamyTierName.toUpperCase()}${next !== null ? `  (${INFAMY.tiers[tier + 1].name} at ${next})` : ''}`);
-    this.infamyFg.width = 150 * u * frac;
-    this.bountyText.setText(GameState.bounty > 0 ? `Bounty on your head: ${GameState.bounty} gold` : 'No bounty yet — nobody knows your name.');
+    this.infamyFg.width = this.infamyBg.width * frac;
+    this.bountyText.setText(GameState.bounty > 0 ? `Bounty: ${GameState.bounty} gold` : 'No bounty yet');
   }
 
   get panelOpen() { return this.spec !== null; }
