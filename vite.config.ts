@@ -8,5 +8,6 @@ export default defineConfig({
   build: {
     target: 'es2022',
     sourcemap: false,
+    chunkSizeWarningLimit: 1600, // Phaser itself is ~1.2 MB; that is expected
   },
 });
