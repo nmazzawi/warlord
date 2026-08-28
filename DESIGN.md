@@ -71,7 +71,7 @@ Placeholder shape art until the loop is fun.
 - **Start:** 0 gold, Rusty Sword, three named recruits. Hero and troops heal fully at camp.
 - **Prices:** Iron Sword 80, Warlord Blade 200, recruit 35, max 6 troops. Raid 1 pays roughly 100 gold.
 - **Hero recovery:** after 4 seconds without being hit, the hero slowly regains HP (4/s) — pulling back to breathe is a real tactic.
-- **Swinging plants your feet** for a fraction of a second, so you cannot back-pedal forever while auto-attacking; militia are only slightly slower than you.
+- **Swinging plants your feet** for a fraction of a second, and militia lunge after you mid-swing, so you cannot back-pedal forever while auto-attacking. The captain stays planted during his wind-up so you can step out of it.
 - **Charge makes you untouchable for its 0.2 s** — it is also a dodge.
 - **The War Horn is loud:** it wakes defenders within earshot.
 - **Map:** you start in a dead-end street (huts on three sides) — defenders can only reach you two at a time. The plaza and the fields north-west of the street are open ground where they surround you. Defenders wake in waves as you approach (a woken defender alerts friends nearby, one hop).

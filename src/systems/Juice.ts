@@ -36,7 +36,8 @@ export class Juice {
     const dpr = this.scene.scale.displayScale.x || 1;
     const intensity = (px * dpr) / (cam.width * cam.zoom * cam.zoom);
     const fx = cam.shakeEffect;
-    cam.shake(duration, intensity, force || !fx.isRunning || intensity >= fx.intensity.x);
+    if (fx.isRunning && intensity < fx.intensity.x) return; // a stronger shake is already running — keep it
+    cam.shake(duration, intensity, force || fx.isRunning);
   }
 
   burst(x: number, y: number, tint: number, count: number) {

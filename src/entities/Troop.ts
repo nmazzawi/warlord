@@ -90,10 +90,11 @@ export class Troop extends Unit {
     this.applyVelocity(dt);
   }
 
-  /** Walk to my formation slot; if the hero is far, follow the flow field around huts first. */
+  /** Walk to my formation slot; if the hero is far or a hut is in the way, follow the flow field round it first. */
   private goToSlot(hero: Hero, heading: number, spd: number, distHero: number) {
-    // beyond a cell or two, let the flow field steer around huts (straight lines walk into walls)
-    if (distHero > 48 && this.raid.flow.direction(this.x, this.y, this.tmp)) {
+    formationSlot(hero.x, hero.y, heading, this.slot, this.tmp);
+    const blocked = !hasLineOfSight(this.x, this.y, this.tmp.x, this.tmp.y);
+    if ((distHero > 120 || blocked) && this.raid.flow.direction(this.x, this.y, this.tmp)) {
       this.desired.set(this.tmp.x * spd, this.tmp.y * spd);
       return;
     }

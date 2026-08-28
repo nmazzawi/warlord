@@ -89,7 +89,12 @@ export class Enemy extends Unit {
 
     if (this.windingUp) {
       this.windupTimer -= dt;
-      this.desired.set(0, 0);
+      // militia lunge after you mid-swing (so you can't just stroll backwards); captain and archer stay planted
+      if (this.kind === 'militia' && this.target.alive && this.edgeDistTo(this.target) > 2) {
+        this.moveToward(this.target.x, this.target.y, this.stats.speed * 0.7);
+      } else {
+        this.desired.set(0, 0);
+      }
       // swell up as the blow approaches; snapping back to normal size IS the strike
       const p = 1 - Math.max(0, this.windupTimer) / this.stats.windup;
       const grow = this.kind === 'captain' ? 1.4 : 1.22;
@@ -182,8 +187,9 @@ export class Enemy extends Unit {
     const d = this.distTo(t);
     const los = hasLineOfSight(this.x, this.y, t.x, t.y);
     if (this.attackTimer <= 0 && los && d <= s.maxDist + 20) { this.beginWindup(); return; }
-    if (this.followFlow(d > s.maxDist)) return;
-    if (!los) {
+    // no clean shot, or too far: walk the flow field round the huts (it leads to the hero)
+    if (this.followFlow(d > s.maxDist || !los)) return;
+    if (!los || d > s.maxDist) {
       this.moveToward(t.x, t.y, this.stats.speed); // step round the hut for a clean shot
     } else if (d < s.minDist) {
       // back away, keeping the target in front
