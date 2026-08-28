@@ -1,71 +1,99 @@
 // GameState.ts — the whole run: gold, day, infamy, gear, horse, your named troops, where you are on
-// the map, and what state each village is in. Saved to browser storage (single slot).
-import { DEFENSE_MIN_FRACTION, EQUIPMENT, HERO, HORSES, INFAMY, PATROLS, RERAID, TROOP, VILLAGE_TIERS } from '../config/balance';
+// the map, what state each settlement is in, who garrisons what, and the daily ledger (wages in,
+// tribute out). Saved to browser storage (single slot).
+import { CONQUEST, DEFENSE_SOFTCAP, EQUIPMENT, HERO, HORSES, INFAMY, PATROLS, RERAID, SIEGE, TRIBUTE, TROOP, UPKEEP, VILLAGE_TIERS } from '../config/balance';
 import { nameAt } from '../utils/names';
-import { nodeById } from '../world/WorldMap';
+import { NODES, nodeById } from '../world/WorldMap';
 
-export interface TroopRecord { id: number; name: string; }
+export type TroopKind = 'raider' | 'levy' | 'guard';
+export interface TroopRecord { id: number; name: string; kind: TroopKind; }
 export interface FallenRecord { name: string; raid: number; where: string; }
-export type WeaponKind = 'sword' | 'bow';
+export type WeaponKind = 'sword' | 'bow' | 'halberd';
+export type ArmorKind = 'none' | 'leather' | 'plate';
+export type ShieldKind = 'none' | 'round' | 'kite';
 export type HorseKind = 'none' | 'courser' | 'destrier';
-export interface Owned { armor: boolean; shield: boolean; bow: boolean; courser: boolean; destrier: boolean; }
-export interface VillageState { timesRaided: number; lastRaidDay: number | null; }
+export interface Owned { leather: boolean; plate: boolean; round: boolean; kite: boolean; bow: boolean; halberd: boolean; courser: boolean; destrier: boolean; }
+export interface SettlementState { timesRaided: number; lastRaidDay: number | null; occupied: boolean; sacked: boolean; }
 export interface TravelResume { from: string; to: string; }
+export type Conquest = 'sack' | 'occupy' | 'leave';
+export interface DayEvent { kind: 'unpaid' | 'desert'; text: string; }
 
 /** Everything the map and the raid need to know about a village right now. */
 export interface VillageInfo {
-  tier: number; timesRaided: number; ruined: boolean; daysToRecover: number;
+  tier: number; timesRaided: number; ruined: boolean; daysToRecover: number; occupied: boolean; sacked: boolean;
   steps: number; palisade: boolean;
   militia: number; archers: number; captains: number; statMult: number; goldMult: number; total: number;
 }
 
-export interface BattleOutcome { kind: 'village' | 'patrol'; villageId?: string; tier?: number; name: string; }
+export interface BattleOutcome { kind: 'village' | 'patrol' | 'siege'; villageId?: string; tier?: number; name: string; }
 
-const SAVE_KEY = 'warlord.save.v2';
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;
+const SAVE_KEY = `warlord.save.v${SAVE_VERSION}`;
 
 interface SaveData {
   version: number; gold: number; day: number; infamy: number; weaponTier: number; equippedWeapon: WeaponKind; horse: HorseKind;
-  owned: Owned; troops: TroopRecord[]; fallen: FallenRecord[]; nextId: number; nameCursor: number; raidsDone: number;
-  location: string; pendingPath: string[]; resumeTravel: TravelResume | null;
-  villages: Record<string, VillageState>; fortifyStart: number | null; lastPatrolDay: number;
+  armor: ArmorKind; shield: ShieldKind; owned: Owned; troops: TroopRecord[]; fallen: FallenRecord[]; deserted: string[];
+  nextId: number; nameCursor: number; raidsDone: number;
+  location: string; pendingPath: string[]; resumeTravel: TravelResume | null; patrolPending: boolean;
+  settlements: Record<string, SettlementState>; garrisons: Record<string, TroopRecord[]>;
+  fortifyStepsDone: number; fortifyCarry: number; lastPatrolDay: number; unpaidDays: number; seenMapHint: boolean;
 }
 
 class GameStateStore {
   gold = 0;
   day = 1;
   infamy = 0;
-  weaponTier = 1;          // 1..3
+  weaponTier = 1;          // 1..3 bought at forges; the halberd is tier 4, equipped separately
   equippedWeapon: WeaponKind = 'sword';
   horse: HorseKind = 'none';
-  owned: Owned = { armor: false, shield: false, bow: false, courser: false, destrier: false };
+  armor: ArmorKind = 'none';
+  shield: ShieldKind = 'none';
+  owned: Owned = { leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false };
   troops: TroopRecord[] = [];
   fallen: FallenRecord[] = [];
+  deserted: string[] = [];
   raidsDone = 0;
   location = 'camp';
   pendingPath: string[] = [];
   resumeTravel: TravelResume | null = null;
-  villages: Record<string, VillageState> = {};
-  fortifyStart: number | null = null;
+  patrolPending = false;
+  settlements: Record<string, SettlementState> = {};
+  garrisons: Record<string, TroopRecord[]> = {};
+  fortifyStepsDone = 0;
+  fortifyCarry = 0;
   lastPatrolDay = -99;
+  unpaidDays = 0;
+  seenMapHint = false;
   private nextId = 1;
   private nameCursor = 0;
   private snapshot: SaveData | null = null;
+  /** Only a run that was started or loaded on purpose may be written to storage (the title screen must never clobber a save). */
+  private persistable = false;
 
   constructor() { this.reset(); }
 
   /** Fresh run: no gold, rusty sword, three recruits, standing in camp on day 1. */
   reset() {
     this.gold = 0; this.day = 1; this.infamy = 0; this.weaponTier = 1; this.equippedWeapon = 'sword'; this.horse = 'none';
-    this.owned = { armor: false, shield: false, bow: false, courser: false, destrier: false };
-    this.troops = []; this.fallen = []; this.raidsDone = 0; this.location = 'camp'; this.pendingPath = []; this.resumeTravel = null;
-    this.villages = {}; this.fortifyStart = null; this.lastPatrolDay = -99;
+    this.armor = 'none'; this.shield = 'none';
+    this.owned = { leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false };
+    this.troops = []; this.fallen = []; this.deserted = []; this.raidsDone = 0; this.location = 'camp'; this.pendingPath = []; this.resumeTravel = null;
+    this.patrolPending = false; this.settlements = {}; this.garrisons = {}; this.fortifyStepsDone = 0; this.fortifyCarry = 0; this.lastPatrolDay = -99;
+    this.unpaidDays = 0; this.seenMapHint = false;
     this.nextId = 1; this.nameCursor = 0; this.snapshot = null;
-    for (let i = 0; i < TROOP.starting; i++) this.recruit();
+    for (let i = 0; i < TROOP.starting; i++) this.recruit('raider');
   }
 
-  recruit(): TroopRecord {
-    const t = { id: this.nextId++, name: nameAt(this.nameCursor++) };
+  /** Start a brand-new warband on purpose (erases the old save). */
+  newRun() {
+    this.reset();
+    this.wipe();
+    this.persistable = true;
+    this.save();
+  }
+
+  recruit(kind: TroopKind): TroopRecord {
+    const t = { id: this.nextId++, name: nameAt(this.nameCursor++), kind };
     this.troops.push(t);
     return t;
   }
@@ -73,65 +101,115 @@ class GameStateStore {
   // ------------------------------------------------------------ hero stats from gear
   get defense() {
     let d = 0;
-    if (this.owned.armor) d += EQUIPMENT.armor.defense;
-    if (this.owned.shield) d += EQUIPMENT.shield.defense;
+    if (this.armor !== 'none') d += EQUIPMENT[this.armor].defense;
+    if (this.shield !== 'none') d += EQUIPMENT[this.shield].defense;
     if (this.horse !== 'none') d += HORSES[this.horse].defense;
     return d;
   }
   get maxHp() { return HERO.hp + (this.horse !== 'none' ? HORSES[this.horse].hp : 0); }
   get speedMult() { return this.horse === 'none' ? 1 : HORSES[this.horse].speedMult; }
   get heroScale() { return this.horse === 'none' ? 1 : HORSES[this.horse].scale; }
-  get weaponKind(): WeaponKind { return this.equippedWeapon === 'bow' && this.owned.bow ? 'bow' : 'sword'; }
-  /** Damage after defense — never below a fraction of the hit, so big blows always hurt. */
+  get weaponKind(): WeaponKind {
+    if (this.equippedWeapon === 'bow' && this.owned.bow) return 'bow';
+    if (this.equippedWeapon === 'halberd' && this.owned.halberd) return 'halberd';
+    return 'sword';
+  }
+  /** Damage after defense: a share is shaved off, more with more defense, never all of it. */
   applyDefense(amount: number) {
-    return Math.max(Math.ceil(amount * DEFENSE_MIN_FRACTION), amount - this.defense);
+    const d = this.defense;
+    return Math.max(1, Math.round(amount * (1 - d / (d + DEFENSE_SOFTCAP))));
   }
 
   // ------------------------------------------------------------ infamy
   get infamyTier() { let t = 0; INFAMY.tiers.forEach((tier, i) => { if (this.infamy >= tier.min) t = i; }); return t; }
   get infamyTierName() { return INFAMY.tiers[this.infamyTier].name; }
+  get infamyTierDesc() { return INFAMY.tiers[this.infamyTier].desc; }
   get infamyNextMin(): number | null { return INFAMY.tiers[this.infamyTier + 1]?.min ?? null; }
   get bounty() { return this.infamy * INFAMY.bountyPerInfamy; }
-  addInfamy(n: number) {
-    this.infamy += n;
-    if (this.infamyTier >= 1 && this.fortifyStart === null) this.fortifyStart = this.day;
-  }
+  addInfamy(n: number) { this.infamy += n; }
   get patrolChance() { return INFAMY.interceptChance[this.infamyTier] ?? 0; }
   patrolConfig() { return PATROLS[this.infamyTier]; }
+  get siegeUnlocked() { return this.infamyTier >= SIEGE.unlockTier; }
 
-  // ------------------------------------------------------------ time
-  advanceDays(n: number) { this.day += n; }
+  // ------------------------------------------------------------ the ledger
+  get wagesPerDay() { return this.troops.length * UPKEEP.wage; }
+  get tributePerDay() {
+    let t = 0;
+    for (const n of NODES) {
+      if (!this.settlements[n.id]?.occupied) continue;
+      t += n.kind === 'town' ? TRIBUTE.town : TRIBUTE.villageBase + TRIBUTE.villagePerTier * (n.tier ?? 1);
+    }
+    return t;
+  }
+  get netPerDay() { return this.tributePerDay - this.wagesPerDay; }
+
+  /**
+   * Time passes: tribute comes in, wages go out, unraided villages fortify. If the men can't be
+   * paid there is one day of grumbling, then they desert one by one. Returns what happened.
+   */
+  advanceDays(n: number): DayEvent[] {
+    const events: DayEvent[] = [];
+    for (let i = 0; i < n; i++) {
+      this.day += 1;
+      this.bankFortification();
+      this.gold += this.tributePerDay;
+      const wages = this.wagesPerDay;
+      if (this.gold >= wages) {
+        this.gold -= wages;
+        this.unpaidDays = 0;
+      } else {
+        this.gold = 0;
+        this.unpaidDays += 1;
+        if (this.unpaidDays <= UPKEEP.graceDays) {
+          events.push({ kind: 'unpaid', text: `Day ${this.day}: the men were not paid. They grumble — pay them tomorrow or they walk.` });
+        } else if (this.troops.length > 0) {
+          const idx = Math.floor(Math.random() * this.troops.length);
+          const [gone] = this.troops.splice(idx, 1);
+          this.deserted.push(gone.name);
+          events.push({ kind: 'desert', text: `Day ${this.day}: ${gone.name} deserted — unpaid for ${this.unpaidDays} days.` });
+        }
+      }
+    }
+    return events;
+  }
+  /** One day of fortification progress at the current tier's pace (progress is banked, never recomputed). */
+  private bankFortification() {
+    const per = INFAMY.fortifyDays[this.infamyTier] ?? 0;
+    if (!per || this.fortifyStepsDone >= INFAMY.fortifyMax) return;
+    this.fortifyCarry += 1;
+    if (this.fortifyCarry >= per) { this.fortifyCarry = 0; this.fortifyStepsDone += 1; }
+  }
+  fortifySteps() { return Math.min(INFAMY.fortifyMax, this.fortifyStepsDone); }
+
   get dateLabel() {
     const season = ['Spring', 'Summer', 'Autumn', 'Winter'][Math.floor((this.day - 1) / 30) % 4];
     const year = 1 + Math.floor((this.day - 1) / 120);
     return `Day ${this.day}  ·  ${season}, Year ${year}`;
   }
 
-  // ------------------------------------------------------------ villages
-  village(id: string): VillageState {
-    if (!this.villages[id]) this.villages[id] = { timesRaided: 0, lastRaidDay: null };
-    return this.villages[id];
+  // ------------------------------------------------------------ settlements
+  settlement(id: string): SettlementState {
+    if (!this.settlements[id]) this.settlements[id] = { timesRaided: 0, lastRaidDay: null, occupied: false, sacked: false };
+    return this.settlements[id];
   }
-  /** How many fortification steps unraided villages have taken since the world started fearing you. */
-  fortifySteps() {
-    if (this.fortifyStart === null) return 0;
-    const per = INFAMY.fortifyDays[this.infamyTier] ?? 0;
-    if (!per) return 0;
-    return Math.min(INFAMY.fortifyMax, Math.floor((this.day - this.fortifyStart) / per));
-  }
+  /** Can you shop here? Only your camp and places you occupy. */
+  controls(id: string) { return id === 'camp' || !!this.settlements[id]?.occupied; }
+  get controlledIds() { return ['camp', ...NODES.filter(n => this.settlements[n.id]?.occupied).map(n => n.id)]; }
+
   villageInfo(id: string): VillageInfo {
     const node = nodeById(id);
     const tier = node.tier ?? 1;
     const base = VILLAGE_TIERS[tier - 1];
-    const vs = this.village(id);
+    const vs = this.settlement(id);
     const steps = vs.timesRaided === 0 ? this.fortifySteps() : 0;
     const sinceRaid = vs.lastRaidDay === null ? Infinity : this.day - vs.lastRaidDay;
-    const ruined = sinceRaid < RERAID.recoverDays;
+    const ruined = vs.sacked || sinceRaid < RERAID.recoverDays;
     const militia = base.militia + steps + vs.timesRaided * RERAID.militiaPerRaid;
     const archers = base.archers + (steps >= INFAMY.archerAt ? 1 : 0);
     const captains = base.captains;
     return {
-      tier, timesRaided: vs.timesRaided, ruined, daysToRecover: ruined ? RERAID.recoverDays - sinceRaid : 0,
+      tier, timesRaided: vs.timesRaided, ruined, daysToRecover: vs.sacked ? Infinity : ruined ? RERAID.recoverDays - sinceRaid : 0,
+      occupied: vs.occupied, sacked: vs.sacked,
       steps, palisade: steps >= INFAMY.palisadeAt,
       militia, archers, captains,
       statMult: base.statMult + vs.timesRaided * RERAID.statPerRaid,
@@ -144,8 +222,8 @@ class GameStateStore {
   takeSnapshot() { this.snapshot = this.toJSON(); }
   restoreSnapshot() { if (this.snapshot) this.fromJSON(this.snapshot); }
 
-  /** Victory: bank the loot, bury the dead, mark the village, grow infamous. */
-  commitVictory(goldEarned: number, deadTroopIds: number[], battle: BattleOutcome) {
+  /** Victory: bank the loot, bury the dead, and apply the conquest choice. Returns a short summary line. */
+  commitVictory(goldEarned: number, deadTroopIds: number[], battle: BattleOutcome, choice: Conquest): string {
     this.gold += goldEarned;
     for (const id of deadTroopIds) {
       const t = this.troops.find(x => x.id === id);
@@ -153,53 +231,92 @@ class GameStateStore {
     }
     this.troops = this.troops.filter(t => !deadTroopIds.includes(t.id));
     this.raidsDone += 1;
-    if (battle.kind === 'village' && battle.villageId) {
-      const vs = this.village(battle.villageId);
-      vs.timesRaided += 1;
-      vs.lastRaidDay = this.day;
-      this.addInfamy(INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1));
-    } else {
+    let summary = `+${goldEarned} gold`;
+    if (battle.kind === 'patrol') {
       this.addInfamy(INFAMY.perPatrol);
+      this.patrolPending = false;
+    } else if (battle.villageId) {
+      const id = battle.villageId;
+      const node = nodeById(id);
+      const town = node.kind === 'town';
+      const vs = this.settlement(id);
+      if (battle.kind === 'siege') { this.owned.halberd = true; this.equippedWeapon = 'halberd'; }
+      if (choice === 'sack') {
+        const extra = town ? CONQUEST.sackTownGold : CONQUEST.sackVillageGold + CONQUEST.sackVillagePerTier * (battle.tier ?? 1);
+        this.gold += extra;
+        vs.sacked = true; vs.occupied = false;
+        this.addInfamy(town ? CONQUEST.sackTownInfamy : CONQUEST.sackVillageInfamy);
+        summary = `Sacked ${node.name}: +${goldEarned + extra} gold. It burns; nothing will ever come from it again.`;
+      } else if (choice === 'occupy') {
+        vs.occupied = true; vs.sacked = false;
+        const garrison = this.troops.slice(0, CONQUEST.garrison);
+        this.troops = this.troops.slice(CONQUEST.garrison);
+        this.garrisons[id] = garrison;
+        this.addInfamy(INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1));
+        summary = `Occupied ${node.name}: +${goldEarned} gold now, tribute every day. ${garrison.map(g => g.name).join(' and ')} stay as the garrison.`;
+      } else {
+        vs.timesRaided += 1;
+        vs.lastRaidDay = this.day;
+        this.addInfamy(INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1));
+        summary = `Raided ${node.name}: +${goldEarned} gold. It lies ruined for ${RERAID.recoverDays} days.`;
+      }
     }
     this.snapshot = null;
     this.save();
+    return summary;
   }
+
+  /** Can you leave a garrison right now? */
+  get canOccupy() { return this.troops.length >= CONQUEST.garrison; }
 
   // ------------------------------------------------------------ save / load (browser storage, one slot)
   toJSON(): SaveData {
     return {
       version: SAVE_VERSION, gold: this.gold, day: this.day, infamy: this.infamy, weaponTier: this.weaponTier,
-      equippedWeapon: this.equippedWeapon, horse: this.horse, owned: { ...this.owned },
-      troops: this.troops.map(t => ({ ...t })), fallen: this.fallen.map(f => ({ ...f })),
+      equippedWeapon: this.equippedWeapon, horse: this.horse, armor: this.armor, shield: this.shield, owned: { ...this.owned },
+      troops: this.troops.map(t => ({ ...t })), fallen: this.fallen.map(f => ({ ...f })), deserted: [...this.deserted],
       nextId: this.nextId, nameCursor: this.nameCursor, raidsDone: this.raidsDone,
       location: this.location, pendingPath: [...this.pendingPath], resumeTravel: this.resumeTravel ? { ...this.resumeTravel } : null,
-      villages: JSON.parse(JSON.stringify(this.villages)), fortifyStart: this.fortifyStart, lastPatrolDay: this.lastPatrolDay,
+      patrolPending: this.patrolPending,
+      settlements: JSON.parse(JSON.stringify(this.settlements)), garrisons: JSON.parse(JSON.stringify(this.garrisons)),
+      fortifyStepsDone: this.fortifyStepsDone, fortifyCarry: this.fortifyCarry, lastPatrolDay: this.lastPatrolDay,
+      unpaidDays: this.unpaidDays, seenMapHint: this.seenMapHint,
     };
   }
   fromJSON(d: SaveData) {
     this.gold = d.gold; this.day = d.day; this.infamy = d.infamy; this.weaponTier = d.weaponTier;
-    this.equippedWeapon = d.equippedWeapon; this.horse = d.horse; this.owned = { ...d.owned };
-    this.troops = d.troops.map(t => ({ ...t })); this.fallen = d.fallen.map(f => ({ ...f }));
+    this.equippedWeapon = d.equippedWeapon; this.horse = d.horse; this.armor = d.armor ?? 'none'; this.shield = d.shield ?? 'none';
+    this.owned = Object.assign({ leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false }, d.owned);
+    this.troops = d.troops.map(t => ({ ...t, kind: t.kind ?? 'raider' })); this.fallen = d.fallen.map(f => ({ ...f })); this.deserted = [...(d.deserted ?? [])];
     this.nextId = d.nextId; this.nameCursor = d.nameCursor; this.raidsDone = d.raidsDone;
     this.location = d.location; this.pendingPath = [...(d.pendingPath ?? [])]; this.resumeTravel = d.resumeTravel ? { ...d.resumeTravel } : null;
-    this.villages = JSON.parse(JSON.stringify(d.villages ?? {})); this.fortifyStart = d.fortifyStart; this.lastPatrolDay = d.lastPatrolDay ?? -99;
+    this.patrolPending = d.patrolPending ?? false;
+    this.settlements = JSON.parse(JSON.stringify(d.settlements ?? {})); this.garrisons = JSON.parse(JSON.stringify(d.garrisons ?? {}));
+    this.fortifyStepsDone = d.fortifyStepsDone ?? 0; this.fortifyCarry = d.fortifyCarry ?? 0; this.lastPatrolDay = d.lastPatrolDay ?? -99;
+    this.unpaidDays = d.unpaidDays ?? 0; this.seenMapHint = d.seenMapHint ?? false;
   }
-  save() {
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.toJSON())); } catch { /* private mode etc. — play on without saving */ }
-  }
-  hasSave() {
-    try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; }
-  }
-  load(): boolean {
+  /** Parse and sanity-check the stored save without touching the live state. */
+  private peek(): SaveData | null {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
-      if (!raw) return false;
+      if (!raw) return null;
       const d = JSON.parse(raw) as SaveData;
-      if (d.version !== SAVE_VERSION) return false;
-      this.fromJSON(d);
-      this.snapshot = null;
-      return true;
-    } catch { return false; }
+      if (!d || d.version !== SAVE_VERSION || !Array.isArray(d.troops) || typeof d.gold !== 'number' || typeof d.location !== 'string') return null;
+      return d;
+    } catch { return null; }
+  }
+  save() {
+    if (!this.persistable) return;
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.toJSON())); } catch { /* private mode etc. — play on without saving */ }
+  }
+  hasSave() { return this.peek() !== null; }
+  load(): boolean {
+    const d = this.peek();
+    if (!d) return false;
+    try { this.fromJSON(d); } catch { return false; }
+    this.snapshot = null;
+    this.persistable = true;
+    return true;
   }
   wipe() {
     try { localStorage.removeItem(SAVE_KEY); } catch { /* ignore */ }

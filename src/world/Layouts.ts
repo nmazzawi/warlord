@@ -4,7 +4,7 @@ import Phaser from 'phaser';
 import { obstacleTexture } from '../systems/Textures';
 import { mulberry32 } from '../utils/rng';
 
-export type ObstacleKind = 'hut' | 'rock' | 'wall';
+export type ObstacleKind = 'hut' | 'rock' | 'wall' | 'stone' | 'gate';
 export interface Obstacle { x: number; y: number; w: number; h: number; kind: ObstacleKind; }
 export interface Post { x: number; y: number; }
 export interface GroundSpec {
@@ -17,7 +17,7 @@ export interface PalisadeSpec { x0: number; y0: number; x1: number; y1: number; 
 export interface LayoutDef {
   id: string; w: number; h: number; heroStart: Post;
   obstacles: Obstacle[];
-  posts: { militia: Post[]; archers: Post[]; captains: Post[] };
+  posts: { militia: Post[]; archers: Post[]; captains: Post[]; wall?: Post[]; wallInner?: Post[]; guards?: Post[]; boss?: Post[] };
   ground: GroundSpec;
   palisade?: PalisadeSpec;
   hint: string;
@@ -25,6 +25,8 @@ export interface LayoutDef {
 
 const hut = (x: number, y: number, w: number, h: number): Obstacle => ({ x, y, w, h, kind: 'hut' });
 const rock = (x: number, y: number, w: number, h: number): Obstacle => ({ x, y, w, h, kind: 'rock' });
+const stone = (x: number, y: number, w: number, h: number): Obstacle => ({ x, y, w, h, kind: 'stone' });
+const gate = (x: number, y: number, w: number, h: number): Obstacle => ({ x, y, w, h, kind: 'gate' });
 const P = (x: number, y: number): Post => ({ x, y });
 
 export const LAYOUTS: Record<string, LayoutDef> = {
@@ -51,7 +53,8 @@ export const LAYOUTS: Record<string, LayoutDef> = {
       rects: [{ x: 120, y: 752, w: 560, h: 56 }],
       paths: [{ pts: [[620, 780], [700, 700], [760, 600]], width: 44 }],
     },
-    palisade: { x0: 610, y0: 190, x1: 1180, y1: 800, gaps: [{ side: 'w', from: 730, to: 820 }, { side: 'n', from: 780, to: 860 }] },
+    // the south wall sits below the street's exit so the lane stays connected to the plaza
+    palisade: { x0: 610, y0: 190, x1: 1180, y1: 900, gaps: [{ side: 'w', from: 730, to: 820 }, { side: 'n', from: 780, to: 860 }] },
     hint: 'Hold the street: they can only come two at a time.\nIn the open they will surround you.',
   },
 
@@ -65,14 +68,14 @@ export const LAYOUTS: Record<string, LayoutDef> = {
       hut(500, 668, 100, 60), hut(610, 668, 100, 60), hut(720, 668, 100, 60),
       hut(1000, 500, 90, 70), hut(300, 280, 90, 70), hut(880, 180, 80, 64), hut(1080, 760, 90, 70),
       rock(250, 700, 80, 56), rock(400, 820, 60, 44), rock(1160, 300, 50, 50),
-      // a low wall makes the start a pocket open only to the east
-      hut(140, 410, 64, 80), hut(140, 580, 64, 80),
+      // three huts make the start a pocket open only to the east
+      hut(140, 410, 64, 80), hut(140, 580, 64, 80), hut(76, 494, 64, 80),
     ],
     posts: {
       militia: [P(900, 420), P(1000, 420), P(900, 580), P(1000, 580), P(860, 500), P(1060, 440), P(1060, 560), P(940, 340), P(940, 660),
         P(820, 380), P(820, 620), P(1120, 500), P(880, 470), P(1020, 530), P(760, 500), P(1100, 380), P(1100, 620), P(960, 720)],
       archers: [P(960, 330), P(1080, 470), P(880, 640), P(1120, 560), P(840, 360), P(1000, 700)],
-      captains: [P(940, 500), P(1040, 500), P(900, 560)],
+      captains: [P(915, 500), P(1060, 440), P(900, 560)],
     },
     ground: {
       base: 0x536338, plazas: [{ x: 960, y: 500, r: 170 }],
@@ -106,7 +109,7 @@ export const LAYOUTS: Record<string, LayoutDef> = {
       rects: [],
       paths: [{ pts: [[640, 900], [640, 420]], width: 40 }, { pts: [[445, 600], [835, 600]], width: 36 }, { pts: [[445, 470], [835, 470]], width: 30 }],
     },
-    palisade: { x0: 290, y0: 110, x1: 990, y1: 810, gaps: [{ side: 's', from: 580, to: 700 }, { side: 'e', from: 560, to: 640 }, { side: 'w', from: 560, to: 640 }] },
+    palisade: { x0: 260, y0: 110, x1: 1020, y1: 810, gaps: [{ side: 's', from: 580, to: 700 }, { side: 'e', from: 540, to: 660 }, { side: 'w', from: 540, to: 660 }] },
     hint: 'The alleys are one-wide. Bait them in and\nnever fight on the plaza.',
   },
 
@@ -130,8 +133,32 @@ export const LAYOUTS: Record<string, LayoutDef> = {
       rects: [],
       paths: [{ pts: [[200, 880], [400, 700], [500, 600]], width: 40 }],
     },
-    palisade: { x0: 250, y0: 90, x1: 1030, y1: 860, gaps: [{ side: 's', from: 560, to: 720 }, { side: 'w', from: 560, to: 700 }] },
+    palisade: { x0: 250, y0: 90, x1: 1030, y1: 880, gaps: [{ side: 's', from: 440, to: 560 }, { side: 'w', from: 560, to: 700 }] },
     hint: 'Nowhere to hide. Use the rocks and the huts\nat the edge — the plaza is a killing ground.',
+  },
+
+  // ---- Kingsport: a stone wall with one gate; archers on the wall, the guard and the keep behind it
+  kingsport: {
+    id: 'kingsport', w: 1280, h: 960, heroStart: P(150, 480),
+    obstacles: [
+      stone(620, 210, 40, 420), stone(620, 750, 40, 420), gate(620, 480, 40, 120),
+      stone(1110, 480, 160, 120),
+      hut(800, 250, 90, 70), hut(960, 200, 100, 60), hut(820, 720, 80, 64), hut(980, 760, 90, 70),
+      rock(380, 320, 80, 56), rock(400, 640, 80, 56), rock(250, 480, 50, 50), rock(470, 480, 44, 60),
+    ],
+    posts: {
+      militia: [], archers: [P(880, 320), P(880, 640)], captains: [],
+      wall: [P(620, 300), P(620, 660), P(620, 160), P(620, 800), P(620, 380), P(620, 580)],
+      wallInner: [P(700, 300), P(700, 660), P(700, 200), P(700, 760), P(700, 400), P(700, 560)],
+      guards: [P(820, 400), P(820, 560), P(900, 340), P(900, 620), P(960, 480), P(860, 480), P(1000, 380), P(1000, 580), P(760, 480), P(920, 420), P(920, 540), P(1040, 480)],
+      boss: [P(1000, 480), P(960, 420), P(960, 540), P(1040, 420)],
+    },
+    ground: {
+      base: 0x56663d, plazas: [{ x: 900, y: 480, r: 220 }],
+      rects: [{ x: 0, y: 450, w: 620, h: 60 }, { x: 640, y: 450, w: 300, h: 60 }],
+      paths: [],
+    },
+    hint: 'Batter the gate while their archers shoot from the wall —\nuse the rocks. When it falls, the guard comes out.',
   },
 
   // ---- The open road: a patrol battle with a few boulders for cover
@@ -216,7 +243,8 @@ export function buildLayout(scene: Phaser.Scene, l: LayoutDef, obstacles: Obstac
   const group = scene.physics.add.staticGroup();
   for (const o of obstacles) {
     const img = group.create(o.x, o.y, obstacleTexture(scene, o.kind, o.w, o.h)) as Phaser.Physics.Arcade.Sprite;
-    img.setDepth(o.kind === 'wall' ? 11 : 10);
+    img.setDepth(o.kind === 'wall' || o.kind === 'stone' || o.kind === 'gate' ? 11 : 10);
+    img.setData('obstacle', o);
   }
   return group;
 }

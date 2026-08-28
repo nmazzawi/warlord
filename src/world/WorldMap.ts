@@ -21,7 +21,7 @@ export const NODES: MapNode[] = [
   { id: 'millbrook', name: 'Millbrook', kind: 'village', x: 600, y: 330, tier: 2, layout: 'millbrook', blurb: 'Lanes and a longhouse by the mill.' },
   { id: 'thornhill', name: 'Thornhill', kind: 'village', x: 920, y: 660, tier: 3, layout: 'thornhill', blurb: 'A warren of alleys under the hill.' },
   { id: 'greywater', name: 'Greywater', kind: 'village', x: 1010, y: 300, tier: 4, layout: 'greywater', blurb: 'Rich, proud, and wide open.' },
-  { id: 'kingsport', name: 'Kingsport', kind: 'town', x: 1240, y: 520, blurb: 'A walled town with a standing garrison.' },
+  { id: 'kingsport', name: 'Kingsport', kind: 'town', x: 1240, y: 520, layout: 'kingsport', blurb: 'A walled town with a standing garrison.' },
 ];
 
 function dist(a: MapNode, b: MapNode) { return Math.hypot(a.x - b.x, a.y - b.y); }

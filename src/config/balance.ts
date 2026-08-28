@@ -20,20 +20,27 @@ export const WEAPONS = [
   { name: 'Rusty Sword',   damage: 10, reach: 54, arcDeg: 80,  knockback: 130, hitStop: 45, shake: 2,   cost: 0,   bladeLen: 12, tint: 0xffffff },
   { name: 'Iron Sword',    damage: 16, reach: 68, arcDeg: 120, knockback: 190, hitStop: 60, shake: 3.5, cost: 80,  bladeLen: 18, tint: 0xfff2a8 },
   { name: 'Warlord Blade', damage: 28, reach: 86, arcDeg: 180, knockback: 280, hitStop: 80, shake: 5,   cost: 200, bladeLen: 26, tint: 0xffb347 },
+  // tier 4 is never sold: the garrison captain of Kingsport drops it
+  { name: 'Kingsport Halberd', damage: 34, reach: 100, arcDeg: 200, knockback: 320, hitStop: 90, shake: 6, cost: 0, bladeLen: 32, tint: 0x9fd8ff },
 ];
+export const HALBERD_TIER = 4;
 
-/** Forge gear beyond swords. Defense knocks points off every hit you take (never below 35% of the hit). */
+/** Forge gear beyond swords. Defense shaves a share off every hit: def / (def + 12) — 4 ≈ 25%, 7 ≈ 37%, 11 ≈ 48%. */
 export const EQUIPMENT = {
-  armor:  { name: 'Leather Armor', cost: 60, defense: 2, desc: 'Defense +2. Every hit you take does 2 less.' },
-  shield: { name: 'Round Shield',  cost: 50, defense: 2, desc: 'Defense +2. Stacks with armor.' },
-  bow:    { name: 'Hunting Bow',   cost: 70, damage: 9, range: 230, cooldown: 0.7, arrowSpeed: 380, hitStop: 25, shake: 1.5,
-            desc: 'Alternate weapon: you shoot the nearest enemy from range. Lighter hits — keep your distance.' },
+  leather: { name: 'Leather Armor', cost: 60,  defense: 2, slot: 'armor' as const,  desc: 'Defense +2.' },
+  plate:   { name: 'Steel Plate',   cost: 150, defense: 4, slot: 'armor' as const,  desc: 'Defense +4. Replaces leather.' },
+  round:   { name: 'Round Shield',  cost: 50,  defense: 2, slot: 'shield' as const, desc: 'Defense +2. Stacks with armor.' },
+  kite:    { name: 'Kite Shield',   cost: 120, defense: 3, slot: 'shield' as const, desc: 'Defense +3. Replaces the round shield.' },
+  bow:     { name: 'Hunting Bow',   cost: 70,  damage: 9, range: 230, cooldown: 0.7, arrowSpeed: 380, hitStop: 25, shake: 1.5,
+             desc: 'Alternate weapon: shoots the nearest enemy from range. You must stand (nearly) still to shoot.' },
 };
-export const DEFENSE_MIN_FRACTION = 0.35;
+export const DEFENSE_SOFTCAP = 12;
+/** The ranged rule: bows fire only when (nearly) stopped; a horse slows to a walk to shoot. */
+export const RANGED = { walkFraction: 0.35 };
 
 /** Stables. Mounted = faster and a bigger silhouette. */
 export const HORSES = {
-  courser:  { name: 'Courser',  cost: 120, speedMult: 1.45, defense: 0, hp: 0,  scale: 1.25, desc: 'Fast and light. Outrun anything, kite with the bow.' },
+  courser:  { name: 'Courser',  cost: 120, speedMult: 1.35, defense: 0, hp: 0,  scale: 1.25, desc: 'Fast and light. Outrun anything on the road.' },
   destrier: { name: 'Destrier', cost: 180, speedMult: 1.2,  defense: 3, hp: 30, scale: 1.4,  desc: 'Armored warhorse. Defense +3, HP +30, still quicker than on foot.' },
 };
 
@@ -43,19 +50,32 @@ export const ABILITIES = {
   charge: { cooldown: 5, duration: 0.2, speed: 820, damage: 8, knockback: 380 },
 };
 
-/** Your troops. Death is permanent. */
+/** Your troops. Death is permanent. Per-kind stats (HP, damage, price) are in TROOP_KINDS. */
 export const TROOP = {
-  hp: 55,
   speed: 150,
-  damage: 8,
   cooldown: 0.8,
   reach: 10,          // edge-to-edge distance needed to hit
   radius: 11,
   engageRadius: 110,  // how far a troop will wander from its slot to pick a fight
   leash: 230,         // farther than this from the hero -> troop breaks off and returns
-  cost: 35,
   max: 6,
   starting: 3,
+};
+/** Where you recruit decides who you get: camp raiders, village levies, Kingsport's town guard. */
+export const TROOP_KINDS = {
+  raider: { label: 'Raider',     hp: 55, damage: 8,  cost: 35, tint: 0xffffff, desc: 'Your own kind. Steady.' },
+  levy:   { label: 'Levy',       hp: 45, damage: 7,  cost: 25, tint: 0xc8ffb0, desc: 'Cheap village lads with pitchforks.' },
+  guard:  { label: 'Town guard', hp: 75, damage: 10, cost: 60, tint: 0x9fd8ff, desc: 'Drilled, armored, expensive.' },
+};
+/** Armies eat: wages per troop per day while you travel. */
+export const UPKEEP = { wage: 2, graceDays: 1 };
+/** Daily tribute from an occupied settlement (villages by tier; the town flat). */
+export const TRIBUTE = { villageBase: 4, villagePerTier: 1, town: 15 };
+/** Conquest choices. */
+export const CONQUEST = {
+  sackVillageGold: 50, sackVillagePerTier: 30, sackVillageInfamy: 10,
+  sackTownGold: 350, sackTownInfamy: 25,
+  garrison: 2,
 };
 
 /** Defenders (base stats; villages and patrols multiply them). */
@@ -69,7 +89,13 @@ export const ENEMIES = {
              minDist: 130, maxDist: 220, arrowSpeed: 270, arrowLife: 1.6 },
   // the captain's spear out-reaches your tier-1 sword: you must step out of the (long, obvious) wind-up
   captain: { hp: 110, speed: 88,  damage: 22, cooldown: 1.6, windup: 0.55, reach: 38, radius: 15, aggro: 240, gold: [30, 40] as const, knockback: 260 },
+  // Kingsport's town guard: a tier above militia
+  guard:   { hp: 60,  speed: 122, damage: 9,  cooldown: 0.9, windup: 0.35, reach: 12, radius: 12, aggro: 260, gold: [12, 16] as const },
+  // the garrison captain: a mini-boss with a ring telegraph, drops the halberd
+  boss:    { hp: 320, speed: 96,  damage: 28, cooldown: 1.3, windup: 0.5,  reach: 42, radius: 17, aggro: 400, gold: [110, 130] as const, knockback: 300 },
 };
+/** The siege of Kingsport. */
+export const SIEGE = { gateHp: 300, wallArchers: 4, guards: 8, escort: 3, unlockTier: 1 };
 
 /** Village strength by tier (index = tier - 1). */
 export const VILLAGE_TIERS = [
@@ -84,14 +110,18 @@ export const RERAID = { recoverDays: 8, militiaPerRaid: 2, statPerRaid: 0.15, go
 
 /** Infamy: how the world reacts to you. */
 export const INFAMY = {
-  tiers: [{ name: 'Nobody', min: 0 }, { name: 'Bandit', min: 10 }, { name: 'Raider', min: 30 }],
-  perRaidBase: 6,          // infamy for raiding a village...
+  tiers: [
+    { name: 'Nobody', min: 0,  desc: 'No one has heard of you yet.' },
+    { name: 'Bandit', min: 15, desc: 'Patrols roam the roads (1 stretch in 4). Villages you have not raided hire guards and raise palisades.' },
+    { name: 'Raider', min: 45, desc: 'Bigger patrols (1 stretch in 3), villages fortify faster.' },
+  ],
+  perRaidBase: 5,          // infamy for raiding a village...
   perRaidPerTier: 2,       // ...plus this per village tier
   perPatrol: 2,            // for cutting down a road patrol
-  interceptChance: [0, 0.25, 0.45], // chance a patrol stops you on a road, by tier
+  interceptChance: [0, 0.25, 0.30], // chance a patrol stops you on a road, by tier
   patrolCooldownDays: 3,   // at least this many days between patrols
   fortifyDays: [0, 4, 3],  // days per fortification step for unraided villages, by tier (0 = never)
-  fortifyMax: 6,           // steps (each step = +1 militia)
+  fortifyMax: 4,           // steps (each step = +1 militia)
   palisadeAt: 2,           // steps at which a palisade goes up
   archerAt: 4,             // steps at which an extra archer arrives
   bountyPerInfamy: 12,     // gold on your head per infamy point (shown on the map; hunters come later)
@@ -101,7 +131,7 @@ export const INFAMY = {
 export const PATROLS = [
   null,
   { militia: 5, archers: 1, captains: 0, statMult: 1.1, goldMult: 0.8 },
-  { militia: 8, archers: 2, captains: 1, statMult: 1.4, goldMult: 1.0 },
+  { militia: 6, archers: 2, captains: 1, statMult: 1.3, goldMult: 1.0 },
 ];
 
 /** Overworld travel. */

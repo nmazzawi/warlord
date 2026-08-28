@@ -10,6 +10,8 @@ export const TEX = {
   militia: 'militia',
   archer: 'archer',
   captain: 'captain',
+  guard: 'guard',
+  boss: 'boss',
   arrow: 'arrow',
   coin: 'coin',
   ring: 'ring',
@@ -68,6 +70,8 @@ export function generateTextures(scene: Phaser.Scene) {
   roundedUnit(scene, TEX.troop, 22, COLORS.troop, 0x2b6b35, 5);
   roundedUnit(scene, TEX.militia, 22, COLORS.militia, 0x6b1f18, 3);
   roundedUnit(scene, TEX.captain, 30, COLORS.captain, 0xf5c542, 4);
+  roundedUnit(scene, TEX.guard, 24, 0x5a6a8a, 0xd9c26a, 3);
+  roundedUnit(scene, TEX.boss, 34, 0x7a1414, 0xffd166, 5);
 
   // archers are circles so they read differently at a glance
   gr = g(scene);
@@ -156,7 +160,7 @@ export function generateTextures(scene: Phaser.Scene) {
 }
 
 /** Huts, rocks and palisade walls of any size, baked on first use. */
-export function obstacleTexture(scene: Phaser.Scene, kind: 'hut' | 'rock' | 'wall', w: number, h: number): string {
+export function obstacleTexture(scene: Phaser.Scene, kind: 'hut' | 'rock' | 'wall' | 'stone' | 'gate', w: number, h: number): string {
   const key = `${kind}_${w}x${h}`;
   if (scene.textures.exists(key)) return key;
   const s = g(scene);
@@ -169,6 +173,24 @@ export function obstacleTexture(scene: Phaser.Scene, kind: 'hut' | 'rock' | 'wal
     s.fillStyle(0x2e302c, 1).fillEllipse(w / 2, h / 2 + 2, w, h - 2);
     s.fillStyle(0x6f726b, 1).fillEllipse(w / 2, h / 2, w - 4, h - 6);
     s.fillStyle(0x9a9d94, 0.7).fillEllipse(w / 2 - w * 0.15, h / 2 - h * 0.18, w * 0.4, h * 0.28);
+  } else if (kind === 'stone') {
+    // town wall / keep: grey blocks with mortar lines and a battlement strip
+    s.fillStyle(0x2a2a2e, 1).fillRect(0, 0, w, h);
+    s.fillStyle(0x7d7f88, 1).fillRect(2, 2, w - 4, h - 4);
+    s.fillStyle(0x5f6169, 1);
+    for (let y = 8; y < h; y += 16) s.fillRect(2, y, w - 4, 2);
+    for (let y = 0; y < h; y += 16) for (let x = (y / 16) % 2 ? 12 : 2; x < w; x += 20) s.fillRect(x, y + 2, 2, 6);
+    s.fillStyle(0x9a9ca6, 1);
+    if (w < h) { for (let y = 4; y < h; y += 14) s.fillRect(w / 2 - 6, y, 12, 7); }
+    else { for (let x = 4; x < w; x += 14) s.fillRect(x, h / 2 - 6, 7, 12); }
+  } else if (kind === 'gate') {
+    // the gate: planks with iron bands
+    s.fillStyle(0x2b1c10, 1).fillRect(0, 0, w, h);
+    s.fillStyle(0x8a5e34, 1).fillRect(2, 2, w - 4, h - 4);
+    s.fillStyle(0x5a3c1e, 1);
+    for (let y = 6; y < h; y += 12) s.fillRect(2, y, w - 4, 2);
+    s.fillStyle(0x3b3f46, 1).fillRect(2, h * 0.3, w - 4, 6).fillRect(2, h * 0.7, w - 4, 6);
+    s.fillStyle(0xb0b4bc, 1).fillCircle(w / 2, h * 0.3 + 3, 3).fillCircle(w / 2, h * 0.7 + 3, 3);
   } else {
     // palisade: sharpened logs, stripes across the short axis
     s.fillStyle(0x2b1c10, 1).fillRect(0, 0, w, h);

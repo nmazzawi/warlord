@@ -1,24 +1,27 @@
-// MapHudScene.ts — screen-space overlay for the world map: date, gold, troops, the infamy meter,
-// your bounty, and the pop-up panel for whatever place you're standing at.
+// MapHudScene.ts — screen-space overlay for the world map: the ledger (gold, wages, tribute), date,
+// the infamy meter and bounty, pop-up panels for places, and toasts for things that happened on the road.
 import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
 import { INFAMY } from '../config/balance';
-import { FONT, makeButton, safeInsets, uiUnit } from './ui';
+import { dprOf, FONT, makeButton, safeInsets, uiUnit } from './ui';
 
 export interface PanelButton { label: string; color?: number; enabled?: boolean; onPress: () => void; }
-export interface PanelSpec { title: string; lines: string[]; buttons: PanelButton[]; }
+export interface PanelSpec { title: string; lines: string[]; buttons: PanelButton[]; modal?: boolean; }
 
 export class MapHudScene extends Phaser.Scene {
   private u = 1;
+  private barBottom = 0;
   private bar!: Phaser.GameObjects.Rectangle;
   private dateText!: Phaser.GameObjects.Text;
   private goldText!: Phaser.GameObjects.Text;
-  private troopText!: Phaser.GameObjects.Text;
+  private ledgerText!: Phaser.GameObjects.Text;
   private infamyLabel!: Phaser.GameObjects.Text;
   private infamyBg!: Phaser.GameObjects.Rectangle;
   private infamyFg!: Phaser.GameObjects.Rectangle;
   private bountyText!: Phaser.GameObjects.Text;
   private titleBtn!: Phaser.GameObjects.Container;
+  private hintText: Phaser.GameObjects.Text | null = null;
+  private toastText: Phaser.GameObjects.Text | null = null;
   private panelObjects: Phaser.GameObjects.GameObject[] = [];
   private panelRect: Phaser.Geom.Rectangle | null = null;
   private spec: PanelSpec | null = null;
@@ -29,62 +32,94 @@ export class MapHudScene extends Phaser.Scene {
     this.panelObjects = [];
     this.panelRect = null;
     this.spec = null;
+    this.toastText = null;
+    this.hintText = null;
     this.bar = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.55).setOrigin(0);
     const t = (size: number, color: string) => this.add.text(0, 0, '', { fontFamily: FONT, fontSize: `${size}px`, color, stroke: '#000', strokeThickness: 3, fontStyle: 'bold' });
-    this.dateText = t(14, '#fff8e7');
+    this.dateText = t(13, '#fff8e7');
     this.goldText = t(16, '#f5c542');
-    this.troopText = t(12, '#c8f0c8');
-    this.infamyLabel = t(12, '#ffb0b0');
+    this.ledgerText = t(11, '#c8f0c8');
+    this.infamyLabel = t(11, '#ffb0b0');
     this.infamyBg = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.6).setOrigin(0, 0.5);
     this.infamyFg = this.add.rectangle(0, 0, 10, 10, 0xc03030, 1).setOrigin(0, 0.5);
-    this.bountyText = t(12, '#e0b0b0');
+    this.bountyText = t(11, '#e0b0b0');
     this.titleBtn = makeButton(this, 0, 0, { width: 96, height: 36, label: 'SAVE & QUIT', color: 0x444444, fontSize: 11,
       onPress: () => { GameState.save(); this.scene.stop('Map'); this.scene.start('Title'); } });
+    if (!GameState.seenMapHint) {
+      this.hintText = this.add.text(0, 0, 'Tap a place to travel there. Drag to look around the map.', {
+        fontFamily: FONT, fontSize: '14px', color: '#ffe9a8', stroke: '#000', strokeThickness: 4, fontStyle: 'bold', align: 'center',
+      }).setOrigin(0.5, 0).setDepth(30);
+      this.tweens.add({ targets: this.hintText, alpha: 0, delay: 6000, duration: 700, onComplete: () => { this.hintText?.destroy(); this.hintText = null; } });
+      GameState.seenMapHint = true;
+    }
     this.layout();
-    this.refresh();
     this.scale.on('resize', this.layout, this);
     this.events.once('shutdown', () => this.scale.off('resize', this.layout, this));
   }
 
   private layout() {
     const { width: w, height: h } = this.scale;
-    const u = this.u = uiUnit(w, h);
+    const u = this.u = uiUnit(w, h, dprOf(this));
     const ins = safeInsets(this);
     const m = 10 * u;
     const top = ins.top;
     const left = m + ins.left;
-    this.bar.setPosition(0, 0).setSize(w, top + 62 * u);
-    this.dateText.setPosition(left, top + 6 * u).setFontSize(Math.round(13 * u));
-    this.goldText.setPosition(left, top + 24 * u).setFontSize(Math.round(16 * u));
-    this.troopText.setPosition(left, top + 44 * u).setFontSize(Math.round(11 * u));
-    const ix = Math.min(w * 0.5, left + 230 * u);
+    const portrait = h > w * 1.1;
+    const barH = (portrait ? 96 : 64) * u;
+    this.barBottom = top + barH;
+    this.bar.setPosition(0, 0).setSize(w, this.barBottom);
+    this.dateText.setPosition(left, top + 6 * u).setFontSize(Math.round(12 * u));
+    this.goldText.setPosition(left, top + 22 * u).setFontSize(Math.round(16 * u));
+    this.ledgerText.setPosition(left, top + 44 * u).setFontSize(Math.round(10 * u));
     const btnW = 96 * u;
-    const colW = Math.max(120 * u, w - ix - btnW - 2 * m - ins.right);
-    this.infamyLabel.setPosition(ix, top + 6 * u).setFontSize(Math.round(11 * u)).setWordWrapWidth(colW);
-    this.infamyBg.setPosition(ix, top + 30 * u).setSize(Math.min(150 * u, colW), 12 * u);
-    this.infamyFg.setPosition(ix, top + 30 * u).setSize(Math.min(150 * u, colW), 12 * u);
-    this.bountyText.setPosition(ix, top + 40 * u).setFontSize(Math.round(11 * u)).setWordWrapWidth(colW);
-    this.titleBtn.setPosition(w - m - ins.right - btnW / 2, top + 24 * u).setScale(u);
+    this.titleBtn.setPosition(w - m - ins.right - btnW / 2, top + 20 * u).setScale(u);
+    this.titleBtn.setData('baseScale', u);
+    // the infamy column: on portrait phones it drops to a second row
+    const ix = portrait ? left : Math.min(w * 0.5, left + 230 * u);
+    const iy = portrait ? top + 62 * u : top + 4 * u;
+    const colW = portrait ? w - left - m - ins.right : Math.max(120 * u, w - ix - btnW - 2 * m - ins.right);
+    this.infamyLabel.setPosition(ix, iy).setFontSize(Math.round(10 * u)).setWordWrapWidth(0, false);
+    this.infamyBg.setPosition(ix, iy + 22 * u).setSize(Math.min(150 * u, colW), 10 * u);
+    this.infamyFg.setPosition(ix, iy + 22 * u).setSize(Math.min(150 * u, colW), 10 * u);
+    this.bountyText.setPosition(ix + Math.min(150 * u, colW) + 8 * u, iy + 22 * u).setOrigin(0, 0.5).setFontSize(Math.round(10 * u));
+    this.hintText?.setPosition(w / 2, this.barBottom + 10 * u).setFontSize(Math.round(14 * u)).setWordWrapWidth(w - 4 * m);
     if (this.spec) this.showPanel(this.spec);
-    void h;
+    this.refresh();
   }
 
-  /** Re-read the game state (called by the map after every arrival / purchase). */
+  /** Re-read the game state (called by the map after every arrival / purchase / resize). */
   refresh() {
     this.dateText.setText(GameState.dateLabel);
     this.goldText.setText(`⬤ ${GameState.gold} gold`);
-    this.troopText.setText(`Troops ${GameState.troops.length}   ·   ${GameState.weaponKind === 'bow' ? 'Bow' : ['Rusty Sword', 'Iron Sword', 'Warlord Blade'][GameState.weaponTier - 1]}${GameState.horse !== 'none' ? '  ·  mounted' : ''}${GameState.defense ? `  ·  DEF ${GameState.defense}` : ''}`);
+    const wages = GameState.wagesPerDay, tribute = GameState.tributePerDay, net = tribute - wages;
+    const unpaid = GameState.unpaidDays > 0;
+    this.ledgerText.setText(`Troops ${GameState.troops.length}  ·  wages −${wages}/day  ·  tribute +${tribute}/day  ·  net ${net >= 0 ? '+' : ''}${net}/day${unpaid ? '   ·   UNPAID — the men grumble' : ''}`)
+      .setColor(unpaid ? '#ff9a8a' : net >= 0 ? '#c8f0c8' : '#ffe9a8');
     const tier = GameState.infamyTier;
     const next = GameState.infamyNextMin;
     const cur = INFAMY.tiers[tier].min;
     const frac = next === null ? 1 : Phaser.Math.Clamp((GameState.infamy - cur) / (next - cur), 0, 1);
     this.infamyLabel.setText(`INFAMY ${GameState.infamy}  ·  ${GameState.infamyTierName.toUpperCase()}${next !== null ? `  (${INFAMY.tiers[tier + 1].name} at ${next})` : ''}`);
     this.infamyFg.width = this.infamyBg.width * frac;
-    this.bountyText.setText(GameState.bounty > 0 ? `Bounty: ${GameState.bounty} gold` : 'No bounty yet');
+    this.bountyText.setText(GameState.bounty > 0 ? `bounty ${GameState.bounty}g` : 'no bounty yet');
   }
 
   get panelOpen() { return this.spec !== null; }
+  get panelModal() { return !!this.spec?.modal; }
   panelContains(x: number, y: number) { return !!this.panelRect && this.panelRect.contains(x, y); }
+  barContains(_x: number, y: number) { return y <= this.barBottom; }
+
+  /** A few lines that fade after a moment — desertions, unpaid wages, conquest summaries. */
+  toast(lines: string[], color = '#ffe9a8') {
+    this.toastText?.destroy();
+    const { width: w } = this.scale;
+    const u = this.u;
+    const t = this.add.text(w / 2, this.barBottom + 12 * u, lines.join('\n'), {
+      fontFamily: FONT, fontSize: `${Math.round(13 * u)}px`, color, stroke: '#000', strokeThickness: 5, align: 'center', fontStyle: 'bold', wordWrap: { width: w * 0.9 },
+    }).setOrigin(0.5, 0).setDepth(31);
+    this.toastText = t;
+    this.tweens.add({ targets: t, alpha: 0, delay: 4500, duration: 700, onComplete: () => { if (this.toastText === t) this.toastText = null; t.destroy(); } });
+  }
 
   showPanel(spec: PanelSpec) {
     this.hidePanel();

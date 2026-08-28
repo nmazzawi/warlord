@@ -6,7 +6,7 @@ import type { Enemy } from './Enemy';
 import type { Hero } from './Hero';
 import type { RaidScene } from '../scenes/RaidScene';
 import type { TroopRecord } from '../state/GameState';
-import { ABILITIES, TROOP } from '../config/balance';
+import { ABILITIES, TROOP, TROOP_KINDS } from '../config/balance';
 import { TEX } from '../systems/Textures';
 import { formationSlot } from '../systems/Formation';
 import { dealDamage } from '../systems/Combat';
@@ -28,8 +28,15 @@ export class Troop extends Unit {
   private lastPos: Phaser.Math.Vector2;
   private stuckTimer = 0;
 
+  private readonly damageAmount: number;
+  private readonly kindTint: number;
+
   constructor(scene: RaidScene, x: number, y: number, record: TroopRecord, slot: number) {
-    super(scene, x, y, TEX.troop, { hp: TROOP.hp, speed: TROOP.speed, radius: TROOP.radius, team: 'player', barColor: 0x5ec26a });
+    const k = TROOP_KINDS[record.kind ?? 'raider'];
+    super(scene, x, y, TEX.troop, { hp: k.hp, speed: TROOP.speed, radius: TROOP.radius, team: 'player', barColor: 0x5ec26a });
+    this.damageAmount = k.damage;
+    this.kindTint = k.tint;
+    this.applyTint();
     this.record = record;
     this.slot = slot;
     this.lastPos = new Phaser.Math.Vector2(x, y);
@@ -70,7 +77,23 @@ export class Troop extends Unit {
         this.retargetTimer = 0.25;
         this.target = this.findTarget(hero);
       }
-      if (this.target && distHero <= TROOP.leash) {
+      // no enemy to fight but a gate to batter? get on it
+      const gate = this.raid.gate;
+      const gateDuty = !this.target && !!gate && gate.alive && distHero <= TROOP.leash && gate.distTo(this.x, this.y) < TROOP.engageRadius + 60;
+      if (gateDuty && gate) {
+        this.state = 'engage';
+        const d = gate.distTo(this.x, this.y);
+        if (d <= TROOP.reach + this.radius) {
+          this.desired.set(0, 0);
+          if (this.attackTimer <= 0) {
+            this.attackTimer = TROOP.cooldown;
+            this.raid.juice.slash(this.x, this.y, Math.atan2(gate.y - this.y, gate.x - this.x), 1, 0xb8ffb8, 0.55);
+            this.raid.hitGate(this.damageAmount, this.x, this.y, 'troop');
+          }
+        } else {
+          this.moveToward(Phaser.Math.Clamp(this.x, gate.rect.left - 2, gate.rect.right + 2), Phaser.Math.Clamp(this.y, gate.rect.top + 4, gate.rect.bottom - 4), spd);
+        }
+      } else if (this.target && distHero <= TROOP.leash) {
         this.state = 'engage';
         const ed = this.edgeDistTo(this.target);
         if (ed <= TROOP.reach) {
@@ -106,7 +129,7 @@ export class Troop extends Unit {
   private findTarget(hero: Hero): Enemy | null {
     let best: Enemy | null = null, bestD = Infinity;
     for (const e of this.raid.enemies) {
-      if (!e.alive) continue;
+      if (!e.alive || e.onWall || e.dormant) continue;
       const d = this.distTo(e);
       if (d > TROOP.engageRadius || e.distTo(hero) > TROOP.leash) continue;
       if (!hasLineOfSight(this.x, this.y, e.x, e.y)) continue;
@@ -119,7 +142,14 @@ export class Troop extends Unit {
     this.attackTimer = TROOP.cooldown;
     const angle = Math.atan2(e.y - this.y, e.x - this.x);
     this.raid.juice.slash(this.x, this.y, angle, 1, 0xb8ffb8, 0.55);
-    dealDamage(this.raid, e, TROOP.damage, this.x, this.y, 120, 'troop');
+    dealDamage(this.raid, e, this.damageAmount, this.x, this.y, 120, 'troop');
+  }
+
+  /** Levies and town guards carry a colour of their own (a flash still overrides it). */
+  override applyTint() {
+    if (this.baseTint !== null) this.setTintFill(this.baseTint);
+    else if (this.kindTint !== 0xffffff) this.setTint(this.kindTint);
+    else this.clearTint();
   }
 
   override syncVisuals(now: number) {

@@ -5,7 +5,7 @@ import { BootScene } from './scenes/BootScene';
 import { TitleScene } from './scenes/TitleScene';
 import { MapScene } from './scenes/MapScene';
 import { MapHudScene } from './scenes/MapHudScene';
-import { CampScene } from './scenes/CampScene';
+import { SettlementScene } from './scenes/SettlementScene';
 import { ShopScene } from './scenes/ShopScene';
 import { RaidScene } from './scenes/RaidScene';
 import { HudScene } from './scenes/HudScene';
@@ -13,6 +13,7 @@ import { ResultScene } from './scenes/ResultScene';
 import { Sound } from './systems/Sound';
 import { GameState } from './state/GameState';
 import { NODES } from './world/WorldMap';
+import { patrolBattle, siegeBattle, villageBattle } from './world/Battles';
 
 const dpr = Math.min(window.devicePixelRatio || 1, 2);
 const px = (css: number) => Math.max(1, Math.floor(css * dpr));
@@ -33,7 +34,7 @@ const game = new Phaser.Game({
   input: { activePointers: 3 }, // thumb on the joystick + a finger on a button at the same time
   disableContextMenu: true,
   render: { antialias: true, pixelArt: false, powerPreference: 'high-performance' },
-  scene: [BootScene, TitleScene, MapScene, MapHudScene, CampScene, ShopScene, RaidScene, HudScene, ResultScene],
+  scene: [BootScene, TitleScene, MapScene, MapHudScene, SettlementScene, ShopScene, RaidScene, HudScene, ResultScene],
 });
 
 // Keep the canvas matched to the window (Phaser's own resize handling is off in NONE mode).
@@ -51,6 +52,7 @@ window.visualViewport?.addEventListener('resize', fitSoon);
 (window as unknown as { __warlord: Phaser.Game; __GameState: typeof GameState; __NODES: typeof NODES }).__warlord = game;
 (window as unknown as { __GameState: typeof GameState }).__GameState = GameState;
 (window as unknown as { __NODES: typeof NODES }).__NODES = NODES;
+(window as unknown as { __battles: object }).__battles = { villageBattle, siegeBattle, patrolBattle };
 
 // Save when the tab is hidden or closed (belt and braces — the game also saves at every safe point).
 window.addEventListener('pagehide', () => GameState.save());

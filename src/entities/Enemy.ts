@@ -1,7 +1,7 @@
-// Enemy.ts — village defenders. Three kinds with different *behaviour*:
-//   militia  — swarm and try to surround you (each claims a slot around the hero)
-//   archer   — keeps its distance and shoots; backs off when you get close
-//   captain  — slow, huge hits with a long, obvious wind-up you can step out of
+// Enemy.ts — defenders. Kinds with different *behaviour*:
+//   militia / guard — swarm and try to surround you (each claims a slot around the hero)
+//   archer          — keeps its distance and shoots; backs off when you get close (on a wall: stands and shoots)
+//   captain / boss  — slow, huge hits with a long, obvious wind-up you can step out of
 import Phaser from 'phaser';
 import { Unit } from './Unit';
 import type { Hero } from './Hero';
@@ -12,7 +12,7 @@ import { TEX } from '../systems/Textures';
 import { dealDamage } from '../systems/Combat';
 import { hasLineOfSight } from '../systems/LineOfSight';
 
-export type EnemyKind = 'militia' | 'archer' | 'captain';
+export type EnemyKind = 'militia' | 'archer' | 'captain' | 'guard' | 'boss';
 
 export interface EnemyMult { hp: number; dmg: number; gold: number; }
 
@@ -21,6 +21,10 @@ export class Enemy extends Unit {
   readonly goldValue: number;
   readonly damageAmount: number;
   aggro = false;
+  /** Asleep behind a wall: does nothing until the raid releases it. */
+  dormant = false;
+  /** Standing on a wall top: cannot move, cannot be reached by melee, shoots over everything. */
+  onWall = false;
   target: Unit | null = null;
   /** Assigned by SurroundManager when this militia is hunting the hero. */
   slotAngle: number | null = null;
@@ -40,10 +44,10 @@ export class Enemy extends Unit {
 
   constructor(scene: RaidScene, x: number, y: number, kind: EnemyKind, mult: EnemyMult) {
     const s = ENEMIES[kind];
-    const tex = kind === 'militia' ? TEX.militia : kind === 'archer' ? TEX.archer : TEX.captain;
+    const tex = kind === 'militia' ? TEX.militia : kind === 'archer' ? TEX.archer : kind === 'captain' ? TEX.captain : kind === 'guard' ? TEX.guard : TEX.boss;
     super(scene, x, y, tex, {
       hp: Math.round(s.hp * mult.hp), speed: s.speed, radius: s.radius, team: 'enemy', barColor: 0xe0453a,
-      barWidth: kind === 'captain' ? 34 : 22,
+      barWidth: kind === 'captain' ? 34 : kind === 'boss' ? 44 : 22,
     });
     this.kind = kind;
     this.stats = { speed: s.speed, cooldown: s.cooldown, windup: s.windup, reach: s.reach, aggro: s.aggro };
@@ -70,9 +74,14 @@ export class Enemy extends Unit {
     this.flash(70);
   }
 
+  get heavy() { return this.kind === 'captain' || this.kind === 'boss'; }
+
   update(dt: number, hero: Hero, troops: Troop[]) {
     this.attackTimer -= dt;
     this.retargetTimer -= dt;
+
+    if (this.dormant) { this.desired.set(0, 0); this.applyVelocity(dt); return; }
+    if (this.onWall) { this.aggro = true; this.wallArcher(dt, hero, troops); return; }
 
     if (!this.aggro) {
       this.idle(dt, hero, troops);
@@ -97,7 +106,7 @@ export class Enemy extends Unit {
       }
       // swell up as the blow approaches; snapping back to normal size IS the strike
       const p = 1 - Math.max(0, this.windupTimer) / this.stats.windup;
-      const grow = this.kind === 'captain' ? 1.4 : 1.22;
+      const grow = this.heavy ? 1.4 : 1.22;
       this.setScale(1 + (grow - 1) * p * p);
       if (this.windupTimer <= 0) this.finishAttack();
       this.applyVelocity(dt);
@@ -105,12 +114,31 @@ export class Enemy extends Unit {
     }
 
     switch (this.kind) {
-      case 'militia': this.militia(hero); break;
+      case 'militia': case 'guard': this.militia(hero); break;
       case 'archer': this.archer(); break;
-      case 'captain': this.captain(); break;
+      case 'captain': case 'boss': this.captain(); break;
     }
     this.trackStuck(dt);
     this.applyVelocity(dt);
+  }
+
+  /** On the battlements: never moves, shoots anything in range (the wall is no obstacle from up there). */
+  private wallArcher(dt: number, hero: Hero, troops: Troop[]) {
+    this.desired.set(0, 0);
+    this.body.setVelocity(0, 0);
+    if (!this.windingUp && (this.retargetTimer <= 0 || !this.target || !this.target.alive)) {
+      this.retargetTimer = 0.3;
+      this.target = this.pickTarget(hero, troops);
+    }
+    if (this.windingUp) {
+      this.windupTimer -= dt;
+      const p = 1 - Math.max(0, this.windupTimer) / this.stats.windup;
+      this.setScale(1 + 0.22 * p * p);
+      if (this.windupTimer <= 0) this.finishAttack();
+      return;
+    }
+    const t = this.target;
+    if (t && this.attackTimer <= 0 && this.distTo(t) <= ENEMIES.archer.maxDist + 60) this.beginWindup();
   }
 
   /** Shuffle around the post; notice the hero or troops when they get close. */
@@ -226,9 +254,9 @@ export class Enemy extends Unit {
   private beginWindup() {
     this.windingUp = true;
     this.windupTimer = this.stats.windup;
-    this.baseTint = this.kind === 'captain' ? 0xff5a3c : this.kind === 'archer' ? 0xf0d0ff : 0xffb0a0;
+    this.baseTint = this.heavy ? 0xff5a3c : this.kind === 'archer' ? 0xf0d0ff : 0xffb0a0;
     this.applyTint();
-    if (this.kind === 'captain') {
+    if (this.heavy) {
       // a ring on the ground shows exactly how far the spear will reach
       this.telegraph = this.raid.juice.telegraphRing(this.x, this.y, this.stats.reach + this.radius + 14, 0xff3030, this.stats.windup * 1000);
     }
@@ -243,13 +271,13 @@ export class Enemy extends Unit {
     this.attackTimer = this.stats.cooldown;
     const t = this.target;
     if (!t || !t.alive || !this.alive) return;
-    if (this.kind === 'archer') { this.raid.fireArrow(this, t); return; }
+    if (this.kind === 'archer') { this.raid.fireArrow(this, t, this.onWall); return; }
     const angle = Math.atan2(t.y - this.y, t.x - this.x);
-    this.raid.juice.slash(this.x, this.y, angle, 1, this.kind === 'captain' ? 0xff6040 : 0xffb0b0, this.kind === 'captain' ? 0.9 : 0.5);
+    this.raid.juice.slash(this.x, this.y, angle, 1, this.heavy ? 0xff6040 : 0xffb0b0, this.heavy ? 0.9 : 0.5);
     // a little forgiveness on reach, but stepping back makes it whiff — and it must be LESS than a
     // militia's width (22px) so the second row of a crowd can't hit you through the first.
     if (this.edgeDistTo(t) <= this.stats.reach + 6) {
-      const kb = this.kind === 'captain' ? ENEMIES.captain.knockback : 90;
+      const kb = this.kind === 'captain' ? ENEMIES.captain.knockback : this.kind === 'boss' ? ENEMIES.boss.knockback : 90;
       dealDamage(this.raid, t, this.damageAmount, this.x, this.y, kb, 'enemy');
     } else {
       this.raid.juice.damageNumber(this.x, this.y - this.radius - 10, 'miss', 0xbbbbbb, 11);

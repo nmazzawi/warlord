@@ -112,3 +112,18 @@ Bows cannot fire at full speed. **Shooting requires being stopped or nearly stop
 - **Saving:** one slot, per browser/device, written at every safe point (arrival, purchase, battle result). The title screen offers Continue / New warband (which erases the save).
 - **The town** (Kingsport) only warns you off until Milestone 3.
 - Services are conquest-gated by design; for now only the camp has any.
+
+## Milestone 3 — Armies Eat, and Kingsport Falls (built 2026-08-28)
+
+**Designer-specified (from the M3 brief):** upkeep (daily wages while traveling, a ledger on the map bar, one day of morale warning then desertions one by one); the siege of Kingsport (a wall with a gate that has HP, archers on the wall tops, then two waves inside — town guards a tier above militia and a garrison captain mini-boss who drops a signature weapon); SACK or OCCUPY after any conquest (sack: big one-time gold, ruined, services burn, infamy spike; occupy: smaller loot, daily tribute, 2 troops pinned as garrison, its Forge/Barracks/Stables open with local stock — Kingsport's beats any village's); conquest-gated shopping; a balance pass so raid → travel → siege leaves you slightly ahead if you play well and broke if you idle.
+
+**Working assumptions made by the build — overrule any of these by feel:**
+- **Wages:** 2 gold per troop per day, paid whenever days pass (roads, or "Wait a day" at the camp). Tribute arrives first, then wages. If you can't pay: day 1 the men grumble (warning on the ledger and a toast on arrival), from day 2 one random troop deserts per unpaid day. Garrisons cost nothing.
+- **Tribute:** villages 4 + tier gold/day (5–8); Kingsport 15/day.
+- **After a village victory you get three choices**, not two: SACK (+50 +30×tier gold, burnt for good, infamy +10), OCCUPY (needs 2 troops; tribute; shops), or **LEAVE** — take the loot, the village lies ruined for 8 days and rebuilds tougher (the M2 loop). The loop of "raid to feed the army" needs LEAVE to exist. Kingsport offers only SACK (+350 gold, infamy +25) or OCCUPY.
+- **Siege unlock:** Kingsport can be besieged once you are a **Bandit** (infamy 15). Before that, tapping it explains what it takes (no days wasted). The siege: a gate with 300 HP that swords, troops and arrows chip at; 4 archers on the battlements who can only be hit with the bow while the gate stands (they shoot over everything; use the rocks); when the gate falls they climb down and 8 town guards wake; when the courtyard is clear the garrison captain (320 HP, ring telegraph) comes out with 3 guards. He drops the **Kingsport Halberd** (tier-4 weapon, damage 34, reach 100, 200° arc), auto-equipped; switch at any forge.
+- **Local stock:** camp — swords to tier 3, leather, round shield, bow, courser, destrier, raider recruits (55 HP / 8 dmg / 35g). Villages — swords to tier 2, leather, round shield, levies (45 / 7 / 25g), a courser at tier 2+. Kingsport — everything plus Steel Plate (+4 def, 150g), Kite Shield (+3, 120g), town guards (75 / 10 / 60g).
+- **Defense** now shaves a share off each hit: def / (def + 12) — 4 ≈ 25%, 7 ≈ 37%, 11 ≈ 48% — so every point keeps mattering.
+- **Ranged rule as built:** on foot the bow fires only when the joystick is below 35% (nearly stopped); mounted, the horse drops to 35% speed while there is a target in range and you fire at that walk.
+- **Tuning from the M2 review:** infamy tiers now 0 / 15 / 45 (raids give 5 + 2×tier; sack spikes push you up fast); Raider patrols are 6 militia + 2 archers + captain at 30%; fortification maxes at +4 militia and no longer jumps when you change tier; courser speed +35%.
+- Settlements are tap screens now (camp, occupied villages, Kingsport); "Wait a day" exists only at the camp. Save format changed (v3) — old saves are not loaded.

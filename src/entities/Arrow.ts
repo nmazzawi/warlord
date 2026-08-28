@@ -8,8 +8,10 @@ export class Arrow extends Phaser.Physics.Arcade.Image {
   damageAmount = 0;
   life = 0;
   team: Team = 'enemy';
+  /** Shot from a wall top: ignores obstacles. */
+  overWalls = false;
 
-  fire(x: number, y: number, vx: number, vy: number, damage: number, life: number, team: Team) {
+  fire(x: number, y: number, vx: number, vy: number, damage: number, life: number, team: Team, overWalls = false) {
     this.enableBody(true, x, y, true, true);
     if (!this.body.isCircle) this.setCircle(4, 4, -2);
     this.setDepth(25);
@@ -18,6 +20,7 @@ export class Arrow extends Phaser.Physics.Arcade.Image {
     this.damageAmount = damage;
     this.life = life;
     this.team = team;
+    this.overWalls = overWalls;
     this.setTint(team === 'player' ? 0xbfe8ff : 0xffffff);
   }
 

@@ -1,41 +1,54 @@
 // MapScene.ts — the overworld. Your warband is a token on a map of roads; tap a place to travel
-// there (days pass), then raid it, enter it, or get stopped on the road by a patrol.
+// there (days pass, wages are paid, tribute comes in), then raid it, enter it, or get stopped on the
+// road by a patrol. Kingsport can be besieged once you are infamous enough.
 import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
-import { INFAMY, TRAVEL } from '../config/balance';
+import { INFAMY, SIEGE, TRAVEL } from '../config/balance';
 import { EDGES, edgeBetween, findPath, MAP, nodeById, NODES, type MapNode } from '../world/WorldMap';
-import { patrolBattle, villageBattle } from '../world/Battles';
+import { patrolBattle, siegeBattle, villageBattle } from '../world/Battles';
+import { LAYOUTS } from '../world/Layouts';
 import { TEX } from '../systems/Textures';
 import { Sound } from '../systems/Sound';
 import { mulberry32 } from '../utils/rng';
 import type { MapHudScene } from './MapHudScene';
 import { FONT } from './ui';
 
-const TAP_RADIUS = 64;
+const TAP_RADIUS = 70;
+
+interface LabelRef { t: Phaser.GameObjects.Text; css: number; }
 
 export class MapScene extends Phaser.Scene {
-  private token!: Phaser.GameObjects.Image;
+  private token!: Phaser.GameObjects.Container;
   private status = new Map<string, Phaser.GameObjects.Text>();
   private badges = new Map<string, Phaser.GameObjects.Image>();
+  private flags = new Map<string, Phaser.GameObjects.Image>();
+  private labels: LabelRef[] = [];
   private traveling = false;
   private dragStart = new Phaser.Math.Vector2();
   private camStart = new Phaser.Math.Vector2();
   private dragMoved = false;
+  private pendingToast: string | null = null;
   private hud!: MapHudScene;
 
   constructor() { super('Map'); }
 
+  init(data?: { toast?: string }) { this.pendingToast = data?.toast ?? null; }
+
   create() {
     this.status.clear();
     this.badges.clear();
+    this.flags.clear();
+    this.labels = [];
     this.traveling = false;
     this.add.image(0, -MAP.padY, this.groundTexture()).setOrigin(0).setDepth(0);
     this.drawRoads();
     for (const n of NODES) this.drawNode(n);
 
+    // the token is a container so the idle bob (on the image) never fights the travel tween (on the container)
     const here = nodeById(GameState.location);
-    this.token = this.add.image(here.x, here.y - 12, TEX.mapToken).setDepth(10).setScale(1.1);
-    this.tweens.add({ targets: this.token, y: '-=4', duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    const img = this.add.image(0, 0, TEX.mapToken).setScale(1.1);
+    this.token = this.add.container(here.x, here.y - 12, [img]).setDepth(10);
+    this.tweens.add({ targets: img, y: -4, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
 
     this.cameras.main.setBounds(0, -MAP.padY, MAP.w, MAP.h + 2 * MAP.padY);
     this.applyZoom();
@@ -50,6 +63,7 @@ export class MapScene extends Phaser.Scene {
     this.input.on('pointerup', this.onUp, this);
     this.input.on('wheel', (_p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
       this.cameras.main.setZoom(Phaser.Math.Clamp(this.cameras.main.zoom * (dy > 0 ? 0.9 : 1.1), 0.45, 2.2));
+      this.scaleLabels();
     });
 
     this.events.once('shutdown', () => {
@@ -57,19 +71,25 @@ export class MapScene extends Phaser.Scene {
       this.scene.stop('MapHud');
     });
 
-    // pick up where we left off: mid-road after a patrol, mid-journey, or standing somewhere
+    // pick up where we left off: a patrol still blocking the road, mid-road after one, mid-journey, or standing somewhere
     this.time.delayedCall(30, () => {
       this.refresh();
+      if (this.pendingToast) { this.hud.toast([this.pendingToast], '#f5c542'); this.pendingToast = null; }
       const rt = GameState.resumeTravel;
-      if (rt) {
-        GameState.resumeTravel = null;
-        GameState.save();
+      if (rt && GameState.patrolPending) {
+        const a = nodeById(rt.from), b = nodeById(rt.to);
+        this.token.setPosition(Phaser.Math.Linear(a.x, b.x, 0.5), Phaser.Math.Linear(a.y, b.y, 0.5) - 12);
+        this.cameras.main.centerOn(this.token.x, this.token.y);
+        this.traveling = true;
+        this.showPatrolPanel();
+      } else if (rt) {
         const a = nodeById(rt.from), b = nodeById(rt.to);
         const edge = edgeBetween(rt.from, rt.to)!;
         this.traveling = true;
         this.cameras.main.startFollow(this.token, true, 0.08, 0.08);
         this.moveToken(a, b, 0.5, 1, () => {
-          GameState.advanceDays(Math.floor(edge.days / 2));
+          GameState.resumeTravel = null;
+          this.passDays(Math.floor(edge.days / 2));
           GameState.save();
           Sound.travel();
           this.refresh();
@@ -89,6 +109,21 @@ export class MapScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const zoom = Phaser.Math.Clamp(Math.max(width / MAP.w, height / (MAP.h + 2 * MAP.padY)), 0.6, 2.0);
     this.cameras.main.setZoom(zoom);
+    this.scaleLabels();
+  }
+
+  /** Keep world-space labels a readable size on screen whatever the zoom and device pixel ratio. */
+  private scaleLabels() {
+    const dpr = this.scale.displayScale.x || 1;
+    const s = Phaser.Math.Clamp(dpr / this.cameras.main.zoom, 0.9, 2.4);
+    for (const l of this.labels) l.t.setScale(s);
+  }
+
+  /** Days pass: wages, tribute, desertions. Anything notable is shown as a toast. */
+  private passDays(n: number) {
+    if (n <= 0) return;
+    const events = GameState.advanceDays(n);
+    if (events.length) this.hud.toast(events.map(e => e.text), '#ff9a8a');
   }
 
   // ---------------------------------------------------------------- drawing
@@ -104,7 +139,6 @@ export class MapScene extends Phaser.Scene {
       const x = rnd() * MAP.w, y = rnd() * H, r = 14 + rnd() * 50;
       g.fillStyle(rnd() > 0.5 ? 0x5f7242 : 0x748a52, 0.5).fillCircle(x, y, r);
     }
-    // forests (node-band coordinates, shifted down by the padding)
     const forests = [[300, 320, 160], [820, 840, 200], [1250, 860, 140], [560, 120, 120], [150, 900, 120], [700, -150, 200], [400, 1120, 180], [1200, 1150, 160], [1000, -120, 150]];
     for (const [fx, fy, fr] of forests) {
       for (let i = 0; i < 60; i++) {
@@ -112,18 +146,22 @@ export class MapScene extends Phaser.Scene {
         g.fillStyle(rnd() > 0.5 ? 0x3f5a32 : 0x34502a, 0.9).fillCircle(fx + Math.cos(a) * d, fy + P + Math.sin(a) * d, 10 + rnd() * 14);
       }
     }
-    // mountains, top right
     for (let i = 0; i < 9; i++) {
       const x = 1080 + i * 36 + rnd() * 20, y = P + 90 + rnd() * 90, s = 30 + rnd() * 40;
       g.fillStyle(0x6d6f68, 1).fillTriangle(x - s, y + s, x + s, y + s, x, y - s);
       g.fillStyle(0xd9dbd6, 1).fillTriangle(x - s * 0.35, y - s * 0.3, x + s * 0.35, y - s * 0.3, x, y - s);
     }
-    // a lake
     g.fillStyle(0x3d6a8a, 1).fillEllipse(1040, 780 + P, 180, 100);
     g.fillStyle(0x5a8db0, 0.6).fillEllipse(1030, 772 + P, 120, 60);
     g.generateTexture(key, MAP.w, H);
     g.destroy();
     return key;
+  }
+
+  private label(x: number, y: number, str: string, css: number, color: string, originY = 0) {
+    const t = this.add.text(x, y, str, { fontFamily: FONT, fontSize: `${css}px`, color, stroke: '#000', strokeThickness: Math.max(2, Math.round(css / 4)), fontStyle: 'bold', align: 'center' }).setOrigin(0.5, originY);
+    this.labels.push({ t, css });
+    return t;
   }
 
   private drawRoads() {
@@ -132,8 +170,7 @@ export class MapScene extends Phaser.Scene {
       const a = nodeById(e.a), b = nodeById(e.b);
       g.lineStyle(12, 0x5a4630, 1).lineBetween(a.x, a.y, b.x, b.y);
       g.lineStyle(7, 0x9a7d55, 1).lineBetween(a.x, a.y, b.x, b.y);
-      // day cost at the midpoint
-      this.add.text((a.x + b.x) / 2, (a.y + b.y) / 2, `${e.days}d`, { fontFamily: FONT, fontSize: '12px', color: '#fff3d0', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5).setDepth(2).setAlpha(0.9);
+      this.label((a.x + b.x) / 2, (a.y + b.y) / 2, `${e.days}d`, 12, '#fff3d0', 0.5).setDepth(2).setAlpha(0.95);
     }
   }
 
@@ -141,12 +178,15 @@ export class MapScene extends Phaser.Scene {
     if (n.kind === 'cross') { this.add.image(n.x, n.y, TEX.mapCross).setDepth(3); return; }
     const tex = n.kind === 'camp' ? TEX.mapCamp : n.kind === 'village' ? TEX.mapVillage : TEX.mapTown;
     this.add.image(n.x, n.y, tex).setDepth(5);
-    this.add.text(n.x, n.y + 30, n.name, { fontFamily: FONT, fontSize: '17px', color: '#fff8e7', stroke: '#000', strokeThickness: 4, fontStyle: 'bold' }).setOrigin(0.5, 0).setDepth(6);
-    const st = this.add.text(n.x, n.y + 50, '', { fontFamily: FONT, fontSize: '11px', color: '#e8dcc0', stroke: '#000', strokeThickness: 3, align: 'center' }).setOrigin(0.5, 0).setDepth(6);
+    this.label(n.x, n.y + 30, n.name, 16, '#fff8e7').setDepth(6);
+    const st = this.label(n.x, n.y + 50, '', 11, '#e8dcc0');
+    st.setDepth(6);
     this.status.set(n.id, st);
-    if (n.kind === 'village') {
+    if (n.kind !== 'camp') {
       const badge = this.add.image(n.x, n.y, TEX.mapPalisade).setDepth(4).setScale(1.2).setVisible(false);
       this.badges.set(n.id, badge);
+      const flag = this.add.image(n.x + 26, n.y - 26, TEX.mapToken).setDepth(7).setScale(0.6).setVisible(false);
+      this.flags.set(n.id, flag);
     }
   }
 
@@ -155,19 +195,26 @@ export class MapScene extends Phaser.Scene {
     for (const n of NODES) {
       const st = this.status.get(n.id);
       if (!st) continue;
-      if (n.kind === 'camp') st.setText('Home');
-      else if (n.kind === 'town') st.setText('LOCKED — garrison');
+      if (n.kind === 'camp') { st.setText('Home'); continue; }
+      const s = GameState.settlement(n.id);
+      const parts: string[] = [];
+      let color = '#e8dcc0';
+      if (s.sacked) { parts.push('Sacked — a burnt ruin'); color = '#9a9a9a'; }
+      else if (s.occupied) { parts.push(`Yours · tribute +${n.kind === 'town' ? 15 : 4 + (n.tier ?? 1)}/day`); color = '#c8f0c8'; }
+      else if (n.kind === 'town') { parts.push(GameState.siegeUnlocked ? 'Walled · siege it' : 'LOCKED — garrison'); color = GameState.siegeUnlocked ? '#ffb0a0' : '#e8dcc0'; }
       else {
         const info = GameState.villageInfo(n.id);
-        const parts: string[] = [];
-        if (info.ruined) parts.push(`Ruined · ${info.daysToRecover}d`);
+        if (info.ruined) { parts.push(`Ruined · ${info.daysToRecover}d`); color = '#9a9a9a'; }
         else parts.push(`~${info.total} defenders`);
         if (info.palisade) parts.push('palisade');
         else if (info.steps > 0) parts.push(`fortified +${info.steps}`);
         if (info.timesRaided > 0 && !info.ruined) parts.push(`raided ×${info.timesRaided}`);
-        st.setText(parts.join(' · ')).setColor(info.ruined ? '#9a9a9a' : info.steps > 0 ? '#ffb0a0' : '#e8dcc0');
+        if (info.steps > 0 && !info.ruined) color = '#ffb0a0';
         this.badges.get(n.id)?.setVisible(info.palisade && !info.ruined);
       }
+      st.setText(parts.join(' · ')).setColor(color);
+      this.flags.get(n.id)?.setVisible(s.occupied);
+      if (s.occupied || s.sacked) this.badges.get(n.id)?.setVisible(false);
     }
     this.hud?.refresh();
   }
@@ -181,9 +228,10 @@ export class MapScene extends Phaser.Scene {
 
   private onMove(p: Phaser.Input.Pointer) {
     if (!p.isDown) return;
+    if (this.hud.barContains(this.dragStart.x, this.dragStart.y)) return;
+    if (this.hud.panelOpen && this.hud.panelContains(this.dragStart.x, this.dragStart.y)) return;
     const dx = p.x - this.dragStart.x, dy = p.y - this.dragStart.y;
     if (!this.dragMoved && Math.hypot(dx, dy) < 10 * (this.scale.displayScale.x || 1)) return;
-    if (this.hud.panelOpen && this.hud.panelContains(this.dragStart.x, this.dragStart.y)) return;
     this.dragMoved = true;
     this.cameras.main.stopFollow();
     const z = this.cameras.main.zoom;
@@ -192,8 +240,9 @@ export class MapScene extends Phaser.Scene {
 
   private onUp(p: Phaser.Input.Pointer) {
     if (this.dragMoved) return;
+    if (this.hud.barContains(p.downX, p.downY) || this.hud.barContains(p.x, p.y)) return;
     if (this.hud.panelOpen) {
-      if (this.hud.panelContains(p.x, p.y)) return; // the panel's own buttons handle it
+      if (this.hud.panelContains(p.x, p.y) || this.hud.panelModal) return; // the panel's own buttons handle it
       this.hud.hidePanel();
       return;
     }
@@ -207,6 +256,8 @@ export class MapScene extends Phaser.Scene {
     }
     if (!best) return;
     if (best.id === GameState.location) { this.showNodePanel(best); return; }
+    // the town shows what you're walking into (and the day cost) BEFORE you pay for the trip
+    if (best.kind === 'town' && !GameState.settlement(best.id).occupied) { this.showNodePanel(best); return; }
     this.travelTo(best.id);
   }
 
@@ -241,8 +292,9 @@ export class MapScene extends Phaser.Scene {
       GameState.pendingPath = GameState.pendingPath.slice(1);
       GameState.location = to;
       if (intercepted) {
-        GameState.advanceDays(Math.ceil(edge.days / 2));
+        this.passDays(Math.ceil(edge.days / 2));
         GameState.resumeTravel = { from, to };
+        GameState.patrolPending = true;
         GameState.lastPatrolDay = GameState.day;
         GameState.save();
         this.refresh();
@@ -250,7 +302,7 @@ export class MapScene extends Phaser.Scene {
         this.cameras.main.shake(250, 0.004);
         this.showPatrolPanel();
       } else {
-        GameState.advanceDays(edge.days);
+        this.passDays(edge.days);
         GameState.save();
         Sound.travel();
         this.refresh();
@@ -267,46 +319,84 @@ export class MapScene extends Phaser.Scene {
     this.tweens.add({ targets: this.token, x: x1, y: y1, duration: Math.max(200, dur), ease: 'Sine.InOut', onComplete: done });
   }
 
+  private routeDays(to: string) {
+    const path = findPath(GameState.location, to);
+    let days = 0, cur = GameState.location;
+    for (const n of path) { days += edgeBetween(cur, n)?.days ?? 0; cur = n; }
+    return days;
+  }
+
   // ---------------------------------------------------------------- panels
   private showNodePanel(n: MapNode) {
+    const leave = { label: 'Leave', color: 0x555555, onPress: () => this.hud.hidePanel() };
     if (n.kind === 'camp') {
       this.hud.showPanel({
-        title: 'BANDIT CAMP', lines: ['Your home. Walk between the Forge, the Barracks and the Stables to spend your gold.'],
-        buttons: [
-          { label: 'ENTER CAMP', color: 0x3f7a3f, onPress: () => { GameState.save(); this.scene.start('Camp'); } },
-          { label: 'Leave', color: 0x555555, onPress: () => this.hud.hidePanel() },
-        ],
+        title: 'BANDIT CAMP', lines: ['Your home. Tap the Forge, the Barracks or the Stables to spend your gold. Waiting here still costs wages.'],
+        buttons: [{ label: 'ENTER CAMP', color: 0x3f7a3f, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: 'camp' }); } }, leave],
       });
-    } else if (n.kind === 'town') {
-      this.hud.showPanel({
-        title: n.name.toUpperCase(), lines: [n.blurb ?? '', 'The garrison is far too strong for your warband. Not yet.'],
-        buttons: [{ label: 'Leave', color: 0x555555, onPress: () => this.hud.hidePanel() }],
-      });
-    } else {
-      const info = GameState.villageInfo(n.id);
-      const lines = [n.blurb ?? ''];
-      if (info.ruined) lines.push(`Ruined — nothing left to take. They rebuild in ${info.daysToRecover} day${info.daysToRecover === 1 ? '' : 's'}.`);
-      else {
-        lines.push(`Tier ${info.tier} village  ·  about ${info.total} defenders (${info.militia} militia, ${info.archers} archer${info.archers === 1 ? '' : 's'}, ${info.captains} captain${info.captains === 1 ? '' : 's'})`);
-        if (info.steps > 0) lines.push(`Fortified: +${info.steps} militia hired since word of you spread${info.palisade ? ', and a palisade with a single gate' : ''}.`);
-        if (info.timesRaided > 0) lines.push(`Raided ${info.timesRaided}× before — they have hired more guards, but there is more to take.`);
-      }
-      this.hud.showPanel({
-        title: n.name.toUpperCase(), lines,
-        buttons: [
-          { label: 'RAID', color: 0xa0341f, enabled: !info.ruined, onPress: () => { GameState.save(); this.scene.start('Raid', villageBattle(n.id)); } },
-          { label: 'Leave', color: 0x555555, onPress: () => this.hud.hidePanel() },
-        ],
-      });
+      return;
     }
+    const s = GameState.settlement(n.id);
+    if (s.sacked) {
+      this.hud.showPanel({ title: n.name.toUpperCase(), lines: ['A burnt ruin. Nothing lives here now, and nothing ever will.'], buttons: [leave] });
+      return;
+    }
+    if (s.occupied) {
+      const garrison = (GameState.garrisons[n.id] ?? []).map(t => t.name).join(' and ') || 'nobody';
+      this.hud.showPanel({
+        title: n.name.toUpperCase(),
+        lines: [`Yours. ${garrison} hold it for you. Tribute +${n.kind === 'town' ? 15 : 4 + (n.tier ?? 1)} gold a day. Its shops are open to you.`],
+        buttons: [{ label: 'ENTER', color: 0x3f7a3f, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: n.id }); } }, leave],
+      });
+      return;
+    }
+    if (n.kind === 'town') {
+      if (!GameState.siegeUnlocked) {
+        this.hud.showPanel({
+          title: n.name.toUpperCase(),
+          lines: [n.blurb ?? '', `The garrison is far too strong for a nobody. Become a ${INFAMY.tiers[SIEGE.unlockTier].name} (infamy ${INFAMY.tiers[SIEGE.unlockTier].min}) and they will take you seriously.`,
+            GameState.location !== n.id ? `The road there takes ${this.routeDays(n.id)} days.` : ''].filter(Boolean),
+          buttons: [leave],
+        });
+      } else {
+        const here = GameState.location === n.id;
+        this.hud.showPanel({
+          title: n.name.toUpperCase(),
+          lines: [n.blurb ?? '', `A stone wall with one gate; ${SIEGE.wallArchers} archers on the battlements, ${SIEGE.guards} town guards and the garrison captain behind it. Batter the gate, then take the courtyard.`],
+          buttons: [
+            here
+              ? { label: 'SIEGE', color: 0xa0341f, onPress: () => { GameState.save(); this.scene.start('Raid', siegeBattle()); } }
+              : { label: `MARCH (${this.routeDays(n.id)}d)`, color: 0xa0341f, onPress: () => this.travelTo(n.id) },
+            leave],
+        });
+      }
+      return;
+    }
+    const info = GameState.villageInfo(n.id);
+    const lines = [n.blurb ?? ''];
+    if (info.ruined) lines.push(`Ruined — nothing left to take. They rebuild in ${info.daysToRecover} day${info.daysToRecover === 1 ? '' : 's'}.`);
+    else {
+      lines.push(`Tier ${info.tier} village  ·  about ${info.total} defenders (${info.militia} militia, ${info.archers} archer${info.archers === 1 ? '' : 's'}, ${info.captains} captain${info.captains === 1 ? '' : 's'})`);
+      const gates = LAYOUTS[n.layout ?? 'ashford'].palisade?.gaps.length ?? 0;
+      if (info.steps > 0) lines.push(`Fortified: +${info.steps} militia hired since word of you spread${info.palisade ? `, and a palisade with ${gates} gate${gates === 1 ? '' : 's'}` : ''}.`);
+      if (info.timesRaided > 0) lines.push(`Raided ${info.timesRaided}× before — they have hired more guards, but there is more to take.`);
+    }
+    this.hud.showPanel({
+      title: n.name.toUpperCase(), lines,
+      buttons: [
+        { label: 'RAID', color: 0xa0341f, enabled: !info.ruined, onPress: () => { GameState.save(); this.scene.start('Raid', villageBattle(n.id)); } },
+        leave,
+      ],
+    });
   }
 
   private showPatrolPanel() {
     const p = GameState.patrolConfig();
     const n = p ? p.militia + p.archers + p.captains : 6;
     this.hud.showPanel({
-      title: 'ROAD PATROL', lines: [`${n} riders block the road — your bounty has drawn them. There is no way around.`],
-      buttons: [{ label: 'FIGHT', color: 0xa0341f, onPress: () => { this.scene.start('Raid', patrolBattle()); } }],
+      title: 'ROAD PATROL', modal: true,
+      lines: [`${n} riders block the road — your bounty has drawn them. There is no way around.`],
+      buttons: [{ label: 'FIGHT', color: 0xa0341f, onPress: () => { GameState.save(); this.scene.start('Raid', patrolBattle()); } }],
     });
   }
 }

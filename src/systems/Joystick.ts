@@ -18,7 +18,15 @@ export class Joystick {
     scene.input.on('pointerup', this.onUp, this);
     scene.input.on('pointerupoutside', this.onUp, this);
     scene.input.on('gameout', this.release, this);
-    scene.events.once('shutdown', () => this.release());
+    scene.events.on(Phaser.Scenes.Events.SLEEP, this.release, this);
+    scene.events.on(Phaser.Scenes.Events.PAUSE, this.release, this);
+    scene.events.on(Phaser.Scenes.Events.WAKE, this.release, this);
+    scene.events.once('shutdown', () => {
+      this.release();
+      scene.events.off(Phaser.Scenes.Events.SLEEP, this.release, this);
+      scene.events.off(Phaser.Scenes.Events.PAUSE, this.release, this);
+      scene.events.off(Phaser.Scenes.Events.WAKE, this.release, this);
+    });
     this.release();
   }
 

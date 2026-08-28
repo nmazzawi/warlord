@@ -1,20 +1,19 @@
-// HudScene.ts — screen-space overlay used by the raid (HP, gold, counters, War Horn / Charge buttons,
-// intro banner) and by the walkable camp (gold, date, a big INTERACT button, a MAP button).
-// The floating joystick lives here in both modes.
+// HudScene.ts — screen-space overlay on top of a battle: hero HP, gold, counters, the floating
+// joystick, the two big ability buttons with cooldown wedges, and the intro banner.
 import Phaser from 'phaser';
 import type { PlayerInput } from '../systems/PlayerInput';
 import { Joystick } from '../systems/Joystick';
-import { FONT, makeButton, safeInsets } from './ui';
+import { dprOf, FONT, safeInsets } from './ui';
 
 export interface HudModel {
-  mode: 'raid' | 'camp';
   title: string; hint: string; name: string;
-  heroHp: number; heroMaxHp: number; gold: number; day: string;
+  heroHp: number; heroMaxHp: number; gold: number;
   troopsAlive: number; troopsTotal: number; enemiesAlive: number;
   hornCd: number; hornMax: number; chargeCd: number; chargeMax: number; boosted: boolean;
-  /** camp mode: what the big button does right now ("ENTER FORGE"), or null to hide it */
-  interactLabel: string | null;
   defense: number;
+  /** siege: gate HP fraction (or null) */
+  gate: number | null;
+  objective: string;
 }
 
 interface Btn { x: number; y: number; r: number; g: Phaser.GameObjects.Graphics; label: Phaser.GameObjects.Text; key: Phaser.GameObjects.Text; pressedUntil: number; color: number; }
@@ -22,56 +21,47 @@ interface Btn { x: number; y: number; r: number; g: Phaser.GameObjects.Graphics;
 export class HudScene extends Phaser.Scene {
   private input_!: PlayerInput;
   private model!: HudModel;
-  private onMap: (() => void) | null = null;
   private u = 1;
   private hpBg!: Phaser.GameObjects.Rectangle;
   private hpFg!: Phaser.GameObjects.Rectangle;
   private hpText!: Phaser.GameObjects.Text;
   private goldText!: Phaser.GameObjects.Text;
   private infoText!: Phaser.GameObjects.Text;
+  private objectiveText!: Phaser.GameObjects.Text;
   private joystick!: Joystick;
   private horn!: Btn;
   private charge!: Btn;
-  private interact!: Btn;
   private intro!: Phaser.GameObjects.Text;
   private hint!: Phaser.GameObjects.Text;
-  private mapBtn: Phaser.GameObjects.Container | null = null;
 
   constructor() { super('Hud'); }
 
-  init(data: { input: PlayerInput; model: HudModel; onMap?: () => void }) {
+  init(data: { input: PlayerInput; model: HudModel }) {
     this.input_ = data.input;
     this.model = data.model;
-    this.onMap = data.onMap ?? null;
   }
 
   create() {
-    const raid = this.model.mode === 'raid';
     this.input_.joyX = 0; this.input_.joyY = 0;
-    this.hpBg = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.6).setOrigin(0, 0.5).setVisible(raid);
-    this.hpFg = this.add.rectangle(0, 0, 10, 10, 0x5ec26a, 1).setOrigin(0, 0.5).setVisible(raid);
-    this.hpText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: '#ffffff', stroke: '#000', strokeThickness: 3 }).setOrigin(0, 0.5).setVisible(raid);
+    this.hpBg = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.6).setOrigin(0, 0.5);
+    this.hpFg = this.add.rectangle(0, 0, 10, 10, 0x5ec26a, 1).setOrigin(0, 0.5);
+    this.hpText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: '#ffffff', stroke: '#000', strokeThickness: 3 }).setOrigin(0, 0.5);
     this.goldText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '16px', color: '#f5c542', stroke: '#000', strokeThickness: 4, fontStyle: 'bold' });
     this.infoText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: '#e8dcc0', stroke: '#000', strokeThickness: 3 });
+    this.objectiveText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: '#ffe9a8', stroke: '#000', strokeThickness: 3, fontStyle: 'bold' });
 
     this.horn = this.makeBtn('HORN', 'Q', 0xd9a441);
     this.charge = this.makeBtn('CHARGE', 'E', 0x3fa9f5);
-    this.interact = this.makeBtn('ENTER', 'E', 0x3f7a3f);
-    this.joystick = new Joystick(this, this.input_, p => this.hitBtn(p) !== null || this.overMapBtn(p));
+    this.joystick = new Joystick(this, this.input_, p => this.hitBtn(p) !== null);
 
-    // banner + hint (screen space, so they can never be clipped by the map edge)
-    this.intro = this.add.text(0, 0, raid ? `${this.model.title}\nClear ${this.model.enemiesAlive} defenders` : this.model.title, {
+    this.intro = this.add.text(0, 0, `${this.model.title}\n${this.model.objective}`, {
       fontFamily: FONT, fontSize: '22px', color: '#fff8e7', stroke: '#000', strokeThickness: 5, align: 'center', fontStyle: 'bold',
     }).setOrigin(0.5);
     this.hint = this.add.text(0, 0, this.model.hint, {
       fontFamily: FONT, fontSize: '13px', color: '#ffe9a8', stroke: '#000', strokeThickness: 4, align: 'center', fontStyle: 'bold',
     }).setOrigin(0.5);
     this.tweens.add({ targets: this.intro, alpha: 0, delay: 3200, duration: 700 });
-    this.tweens.add({ targets: this.hint, alpha: 0, delay: raid ? 5500 : 4000, duration: 700 });
-
-    if (!raid && this.onMap) {
-      this.mapBtn = makeButton(this, 0, 0, { width: 90, height: 40, label: 'MAP', color: 0x2f6b8a, fontSize: 15, onPress: () => this.onMap?.() });
-    }
+    this.tweens.add({ targets: this.hint, alpha: 0, delay: 5500, duration: 700 });
 
     this.layout();
     this.scale.on('resize', this.layout, this);
@@ -79,7 +69,6 @@ export class HudScene extends Phaser.Scene {
       this.scale.off('resize', this.layout, this);
       this.input_.joyX = 0; this.input_.joyY = 0;
     });
-
     this.input.on('pointerdown', this.onDown, this);
   }
 
@@ -92,41 +81,32 @@ export class HudScene extends Phaser.Scene {
 
   private layout() {
     const { width: w, height: h } = this.scale;
-    const u = this.u = Phaser.Math.Clamp(Math.min(w, h) / 420, 0.8, 1.7);
+    const dpr = dprOf(this);
+    const u = this.u = Phaser.Math.Clamp(Math.min(w, h) / dpr / 420, 0.8, 1.7) * dpr;
     const ins = safeInsets(this);
     const m = 14 * u;
     const left = m + ins.left, top = m + ins.top;
-    const raid = this.model.mode === 'raid';
     this.hpBg.setPosition(left, top + 9 * u).setSize(190 * u, 18 * u);
     this.hpFg.setPosition(left, top + 9 * u).setSize(190 * u, 18 * u);
     this.hpText.setPosition(left + 6 * u, top + 9 * u).setFontSize(Math.round(11 * u));
-    this.goldText.setPosition(left, top + (raid ? 24 : 0) * u).setFontSize(Math.round(16 * u));
-    this.infoText.setPosition(left, top + (raid ? 46 : 22) * u).setFontSize(Math.round(11 * u)).setLineSpacing(2 * u);
+    this.goldText.setPosition(left, top + 24 * u).setFontSize(Math.round(16 * u));
+    this.infoText.setPosition(left, top + 46 * u).setFontSize(Math.round(11 * u)).setLineSpacing(2 * u);
+    this.objectiveText.setPosition(left, top + 78 * u).setFontSize(Math.round(11 * u));
     this.intro.setPosition(w / 2, h * 0.2).setFontSize(Math.round(22 * u)).setWordWrapWidth(w - 4 * m);
     this.hint.setPosition(w / 2, h * 0.2 + 52 * u).setFontSize(Math.round(13 * u)).setWordWrapWidth(w - 4 * m);
-    // buttons bottom-right, above the home indicator and clear of rounded corners
     const r = 40 * u;
     const by = h - m - r - 6 * u - ins.bottom;
     this.charge.x = w - m - r - 6 * u - ins.right; this.charge.y = by; this.charge.r = r;
     this.horn.x = this.charge.x - r * 2 - 22 * u; this.horn.y = by; this.horn.r = r;
-    this.interact.x = this.charge.x - 6 * u; this.interact.y = by - 6 * u; this.interact.r = r * 1.15;
-    for (const b of [this.horn, this.charge, this.interact]) {
+    for (const b of [this.horn, this.charge]) {
       b.label.setPosition(b.x, b.y - 4 * u).setFontSize(Math.round(12 * u));
       b.key.setPosition(b.x, b.y + 12 * u).setFontSize(Math.round(10 * u));
     }
     this.joystick.layout(u);
-    if (this.mapBtn) this.mapBtn.setPosition(w - m - ins.right - 45 * u, top + 20 * u).setScale(u);
-  }
-
-  private overMapBtn(p: Phaser.Input.Pointer) {
-    if (!this.mapBtn) return false;
-    return Math.abs(p.x - this.mapBtn.x) < 55 * this.u && Math.abs(p.y - this.mapBtn.y) < 30 * this.u;
   }
 
   private hitBtn(p: Phaser.Input.Pointer): Btn | null {
-    const raid = this.model.mode === 'raid';
-    const list = raid ? [this.horn, this.charge] : (this.model.interactLabel ? [this.interact] : []);
-    for (const b of list) {
+    for (const b of [this.horn, this.charge]) {
       if (Phaser.Math.Distance.Between(p.x, p.y, b.x, b.y) <= b.r * 1.25) return b;
     }
     return null;
@@ -136,47 +116,32 @@ export class HudScene extends Phaser.Scene {
     const b = this.hitBtn(p);
     if (!b) return;
     b.pressedUntil = this.time.now + 120;
-    if (b === this.horn) this.input_.pressHorn();
-    else if (b === this.charge) this.input_.pressCharge();
-    else this.input_.pressInteract();
+    if (b === this.horn) this.input_.pressHorn(); else this.input_.pressCharge();
   }
 
   update() {
     const m = this.model, u = this.u;
-    const raid = m.mode === 'raid';
-    if (raid) {
-      const frac = Phaser.Math.Clamp(m.heroHp / m.heroMaxHp, 0, 1);
-      this.hpFg.width = 190 * u * frac;
-      this.hpFg.setFillStyle(frac > 0.5 ? 0x5ec26a : frac > 0.25 ? 0xe0b040 : 0xe0453a);
-      this.hpText.setText(`${Math.ceil(m.heroHp)} / ${m.heroMaxHp}${m.defense ? `   ·   DEF ${m.defense}` : ''}`);
-      this.infoText.setText(`${m.name}  ·  Troops ${m.troopsAlive}/${m.troopsTotal}\nDefenders left ${m.enemiesAlive}${m.boosted ? '  ·  RALLIED!' : ''}`);
-      this.drawBtn(this.horn, m.hornCd, m.hornMax, true);
-      this.drawBtn(this.charge, m.chargeCd, m.chargeMax, true);
-      this.drawBtn(this.interact, 0, 1, false);
-    } else {
-      this.infoText.setText(`${m.day}\nTroops ${m.troopsTotal}`);
-      this.drawBtn(this.horn, 0, 1, false);
-      this.drawBtn(this.charge, 0, 1, false);
-      if (m.interactLabel) this.interact.label.setText(m.interactLabel);
-      this.drawBtn(this.interact, 0, 1, !!m.interactLabel);
-    }
+    const frac = Phaser.Math.Clamp(m.heroHp / m.heroMaxHp, 0, 1);
+    this.hpFg.width = 190 * u * frac;
+    this.hpFg.setFillStyle(frac > 0.5 ? 0x5ec26a : frac > 0.25 ? 0xe0b040 : 0xe0453a);
+    this.hpText.setText(`${Math.ceil(m.heroHp)} / ${m.heroMaxHp}${m.defense ? `   ·   DEF ${m.defense}` : ''}`);
     this.goldText.setText(`⬤ ${m.gold} gold`);
+    this.infoText.setText(`${m.name}  ·  Troops ${m.troopsAlive}/${m.troopsTotal}\nDefenders left ${m.enemiesAlive}${m.boosted ? '  ·  RALLIED!' : ''}`);
+    this.objectiveText.setText(m.gate !== null ? `GATE ${Math.ceil(m.gate * 100)}%  ·  ${m.objective}` : m.objective);
+    this.drawBtn(this.horn, m.hornCd, m.hornMax);
+    this.drawBtn(this.charge, m.chargeCd, m.chargeMax);
   }
 
-  private drawBtn(b: Btn, cd: number, max: number, visible: boolean) {
-    b.g.clear();
-    b.label.setVisible(visible);
-    b.key.setVisible(visible);
-    if (!visible) return;
+  private drawBtn(b: Btn, cd: number, max: number) {
     const ready = cd <= 0;
     const pressed = this.time.now < b.pressedUntil;
     const r = b.r * (pressed ? 0.9 : 1);
     const g = b.g;
+    g.clear();
     g.fillStyle(0x000000, 0.45).fillCircle(b.x + 2, b.y + 3, r);
     g.fillStyle(b.color, ready ? 1 : 0.45).fillCircle(b.x, b.y, r);
     g.lineStyle(3, 0xffffff, ready ? 0.9 : 0.35).strokeCircle(b.x, b.y, r);
     if (!ready) {
-      // dark wedge shrinks clockwise as the cooldown runs out
       const frac = Phaser.Math.Clamp(cd / max, 0, 1);
       g.fillStyle(0x000000, 0.55);
       g.slice(b.x, b.y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac, false);

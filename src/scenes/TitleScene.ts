@@ -1,7 +1,7 @@
 // TitleScene.ts — Continue or start a new warband.
 import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
-import { FONT, makeButton, uiUnit } from './ui';
+import { dprOf, FONT, makeButton, uiUnit } from './ui';
 
 export class TitleScene extends Phaser.Scene {
   constructor() { super('Title'); }
@@ -16,7 +16,7 @@ export class TitleScene extends Phaser.Scene {
   private build() {
     for (const c of this.children.list.slice()) c.destroy();
     const { width: w, height: h } = this.scale;
-    const u = uiUnit(w, h);
+    const u = uiUnit(w, h, dprOf(this));
     const cx = w / 2;
     const colW = Math.min(w * 0.9, 380 * u);
     let y = h * 0.16;
@@ -39,9 +39,9 @@ export class TitleScene extends Phaser.Scene {
     makeButton(this, cx, y + 28 * u, {
       width: colW, height: 56 * u, label: 'NEW WARBAND', sub: hasSave ? 'erases the current save' : 'start from nothing', color: hasSave ? 0x8a5a2b : 0xa0341f,
       fontSize: Math.round(20 * u),
-      onPress: () => { GameState.reset(); GameState.wipe(); GameState.save(); this.scene.start('Camp'); },
+      onPress: () => { GameState.newRun(); this.scene.start('Settlement', { id: 'camp' }); },
     });
     y += 56 * u + 30 * u;
-    text('Move: drag anywhere / WASD  ·  Q = War Horn  ·  E = Charge (or interact in camp)\nYou attack automatically. Fight in the alleys, not in the open.', 11, '#a89a80');
+    text('In battle: drag anywhere / WASD to move  ·  Q = War Horn  ·  E = Charge\nYou attack automatically. Fight in the alleys, not in the open.', 11, '#a89a80');
   }
 }

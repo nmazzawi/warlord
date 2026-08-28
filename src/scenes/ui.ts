@@ -12,10 +12,15 @@ export function safeInsets(scene: Phaser.Scene) {
   return { top: px('--sat'), right: px('--sar'), bottom: px('--sab'), left: px('--sal') };
 }
 
-/** UI scale unit that fits both axes (so nothing overflows in landscape phones). */
-export function uiUnit(w: number, h: number) {
-  return Phaser.Math.Clamp(Math.min(w / 420, h / 560), 0.75, 1.6) * (Math.min(w, h) > 1000 ? 1.15 : 1);
+/**
+ * UI scale unit. Sized in CSS pixels (so text is the same physical size on a 1x and a 2x screen),
+ * then multiplied by the device pixel ratio. Fits both axes so nothing overflows on landscape phones.
+ */
+export function uiUnit(w: number, h: number, dpr = 1) {
+  const cw = w / dpr, ch = h / dpr;
+  return Phaser.Math.Clamp(Math.min(cw / 420, ch / 560), 0.75, 1.6) * (Math.min(cw, ch) > 1000 ? 1.15 : 1) * dpr;
 }
+export function dprOf(scene: Phaser.Scene) { return scene.scale.displayScale.x || 1; }
 
 export interface ButtonOpts {
   width: number; height: number; label: string; sub?: string; color?: number; fontSize?: number;
@@ -46,15 +51,23 @@ export function makeButton(scene: Phaser.Scene, x: number, y: number, o: ButtonO
   // so the hit rectangle must start at (0, 0) even though the container is drawn centred.
   c.setSize(o.width, o.height);
   c.setInteractive(new Phaser.Geom.Rectangle(0, 0, o.width, o.height), Phaser.Geom.Rectangle.Contains);
-  c.on('pointerdown', () => {
-    c.setScale(0.94);
+  // Press = the same pointer goes down AND up on the button (a drag that ends here does not count).
+  // Scale is relative to whatever scale the caller set (buttons are often scaled by the UI unit).
+  let armed = -1;
+  const base = () => (c.getData('baseScale') as number | undefined) ?? c.scaleX;
+  c.on('pointerdown', (p: Phaser.Input.Pointer) => {
+    c.setData('baseScale', c.scaleX);
+    armed = p.id;
+    c.setScale(base() * 0.94);
   });
-  c.on('pointerup', () => {
-    c.setScale(1);
+  c.on('pointerup', (p: Phaser.Input.Pointer) => {
+    c.setScale(base());
+    if (armed !== p.id) return;
+    armed = -1;
     if (!enabled) { Sound.deny(); return; }
     Sound.click();
     o.onPress();
   });
-  c.on('pointerout', () => c.setScale(1));
+  c.on('pointerout', () => { c.setScale(base()); armed = -1; });
   return c;
 }
