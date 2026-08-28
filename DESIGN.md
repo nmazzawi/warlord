@@ -61,3 +61,20 @@ Run-based campaign (15–25 hours), replayable via culture starts. On death, the
 Phone-browser-first controls: one thumb plus a few buttons, resolution-independent UI, touch and keyboard both. Ship order: free web version (first territory, the discovery funnel) → paid Steam version ($15–20) via a thin desktop wrapper → mobile app (free download + single unlock purchase).
 
 Placeholder shape art until the loop is fun.
+
+## Milestone 1 — The Raid Loop (built 2026-08-28)
+
+**Designer-specified (from the M1 brief):** movement-only hero with auto-attack; War Horn (rally + speed boost) and Charge (dash + knockback) on Q/E and two big touch buttons; 3 starting troops in loose formation with permanent death; village of huts defended by ~8 militia, 2 kiting archers and 1 slow hard-hitting spearman captain; gold pickups; victory summary / defeat with retry; camp with 3 weapon tiers (bigger strike each tier) and recruiting up to 6 troops; Raid 2 is bigger and stronger; punchy feedback (hit-pause, knockback, damage numbers, hit flash, small shake); positioning must matter (real damage, surrounding, funnel between huts).
+
+**Working assumptions made by the build — overrule any of these by feel:**
+- **A lost raid rewinds.** Retry (or returning to camp after a defeat) restores gold and troops to how they were when the raid began. Losses only become permanent when you *win* the raid. This avoids a death spiral where one bad raid leaves you with no troops and no gold.
+- **Start:** 0 gold, Rusty Sword, three named recruits. Hero and troops heal fully at camp.
+- **Prices:** Iron Sword 80, Warlord Blade 200, recruit 35, max 6 troops. Raid 1 pays roughly 100 gold.
+- **Hero recovery:** after 4 seconds without being hit, the hero slowly regains HP (4/s) — pulling back to breathe is a real tactic.
+- **Swinging plants your feet** for a fraction of a second, so you cannot back-pedal forever while auto-attacking; militia are only slightly slower than you.
+- **Charge makes you untouchable for its 0.2 s** — it is also a dodge.
+- **The War Horn is loud:** it wakes defenders within earshot.
+- **Map:** you start in a dead-end street (huts on three sides) — defenders can only reach you two at a time. The plaza and the fields north-west of the street are open ground where they surround you. Defenders wake in waves as you approach (a woken defender alerts friends nearby, one hop).
+- **Raid scaling:** each raid adds 2 militia, an archer every other raid, a captain every third; +25% HP, +10% damage, +15% gold per raid.
+- **Sound:** generated blips only (no audio files).
+- **Nothing is saved between page reloads yet** — save/load is Milestone 2.

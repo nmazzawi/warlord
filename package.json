@@ -3,17 +3,19 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Warlord — a browser-first 2D conquest action-RPG (Milestone 1: the raid loop)",
+  "description": "Warlord \u2014 a browser-first 2D conquest action-RPG (Milestone 1: the raid loop)",
   "scripts": {
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "smoke": "node tests/smoke.mjs"
   },
   "dependencies": {
     "phaser": "3.90.0"
   },
   "devDependencies": {
+    "playwright": "^1.62.1",
     "typescript": "5.9.3",
     "vite": "7.3.6"
   }
