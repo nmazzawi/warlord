@@ -29,7 +29,7 @@ export class MapScene extends Phaser.Scene {
     this.status.clear();
     this.badges.clear();
     this.traveling = false;
-    this.add.image(0, 0, this.groundTexture()).setOrigin(0).setDepth(0);
+    this.add.image(0, -MAP.padY, this.groundTexture()).setOrigin(0).setDepth(0);
     this.drawRoads();
     for (const n of NODES) this.drawNode(n);
 
@@ -37,7 +37,7 @@ export class MapScene extends Phaser.Scene {
     this.token = this.add.image(here.x, here.y - 12, TEX.mapToken).setDepth(10).setScale(1.1);
     this.tweens.add({ targets: this.token, y: '-=4', duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
 
-    this.cameras.main.setBounds(0, 0, MAP.w, MAP.h);
+    this.cameras.main.setBounds(0, -MAP.padY, MAP.w, MAP.h + 2 * MAP.padY);
     this.applyZoom();
     this.cameras.main.centerOn(this.token.x, this.token.y);
     this.scale.on('resize', this.applyZoom, this);
@@ -84,9 +84,10 @@ export class MapScene extends Phaser.Scene {
     });
   }
 
+  /** "Cover" zoom: the world always fills the screen (pan to see the rest), never a black band. */
   private applyZoom() {
     const { width, height } = this.scale;
-    const zoom = Phaser.Math.Clamp(Math.min(width / MAP.w, height / MAP.h) * 1.25, 0.55, 1.6);
+    const zoom = Phaser.Math.Clamp(Math.max(width / MAP.w, height / (MAP.h + 2 * MAP.padY)), 0.6, 2.0);
     this.cameras.main.setZoom(zoom);
   }
 
@@ -95,30 +96,32 @@ export class MapScene extends Phaser.Scene {
     const key = 'map_ground';
     if (this.textures.exists(key)) return key;
     const rnd = mulberry32(4242);
+    const P = MAP.padY;
+    const H = MAP.h + 2 * P;
     const g = this.make.graphics({ x: 0, y: 0 }, false);
-    g.fillStyle(0x6a7d4a, 1).fillRect(0, 0, MAP.w, MAP.h);
-    for (let i = 0; i < 260; i++) {
-      const x = rnd() * MAP.w, y = rnd() * MAP.h, r = 14 + rnd() * 50;
+    g.fillStyle(0x6a7d4a, 1).fillRect(0, 0, MAP.w, H);
+    for (let i = 0; i < 380; i++) {
+      const x = rnd() * MAP.w, y = rnd() * H, r = 14 + rnd() * 50;
       g.fillStyle(rnd() > 0.5 ? 0x5f7242 : 0x748a52, 0.5).fillCircle(x, y, r);
     }
-    // forests
-    const forests = [[300, 320, 160], [820, 840, 200], [1250, 860, 140], [560, 120, 120], [150, 900, 120]];
+    // forests (node-band coordinates, shifted down by the padding)
+    const forests = [[300, 320, 160], [820, 840, 200], [1250, 860, 140], [560, 120, 120], [150, 900, 120], [700, -150, 200], [400, 1120, 180], [1200, 1150, 160], [1000, -120, 150]];
     for (const [fx, fy, fr] of forests) {
       for (let i = 0; i < 60; i++) {
         const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * fr;
-        g.fillStyle(rnd() > 0.5 ? 0x3f5a32 : 0x34502a, 0.9).fillCircle(fx + Math.cos(a) * d, fy + Math.sin(a) * d, 10 + rnd() * 14);
+        g.fillStyle(rnd() > 0.5 ? 0x3f5a32 : 0x34502a, 0.9).fillCircle(fx + Math.cos(a) * d, fy + P + Math.sin(a) * d, 10 + rnd() * 14);
       }
     }
     // mountains, top right
     for (let i = 0; i < 9; i++) {
-      const x = 1080 + i * 36 + rnd() * 20, y = 90 + rnd() * 90, s = 30 + rnd() * 40;
+      const x = 1080 + i * 36 + rnd() * 20, y = P + 90 + rnd() * 90, s = 30 + rnd() * 40;
       g.fillStyle(0x6d6f68, 1).fillTriangle(x - s, y + s, x + s, y + s, x, y - s);
       g.fillStyle(0xd9dbd6, 1).fillTriangle(x - s * 0.35, y - s * 0.3, x + s * 0.35, y - s * 0.3, x, y - s);
     }
     // a lake
-    g.fillStyle(0x3d6a8a, 1).fillEllipse(1040, 780, 180, 100);
-    g.fillStyle(0x5a8db0, 0.6).fillEllipse(1030, 772, 120, 60);
-    g.generateTexture(key, MAP.w, MAP.h);
+    g.fillStyle(0x3d6a8a, 1).fillEllipse(1040, 780 + P, 180, 100);
+    g.fillStyle(0x5a8db0, 0.6).fillEllipse(1030, 772 + P, 120, 60);
+    g.generateTexture(key, MAP.w, H);
     g.destroy();
     return key;
   }

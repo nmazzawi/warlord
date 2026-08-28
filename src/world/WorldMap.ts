@@ -11,7 +11,8 @@ export interface MapNode {
 }
 export interface MapEdge { a: string; b: string; days: number; }
 
-export const MAP = { w: 1480, h: 1000 };
+/** Node band is 1480x1000; the drawn world extends padY above and below it so tall phone screens stay full. */
+export const MAP = { w: 1480, h: 1000, padY: 260 };
 
 export const NODES: MapNode[] = [
   { id: 'camp', name: 'Bandit Camp', kind: 'camp', x: 200, y: 720, blurb: 'Home. Forge, barracks and stables.' },

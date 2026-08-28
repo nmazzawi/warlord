@@ -13,7 +13,7 @@ import { FONT } from './ui';
 export type BuildingId = 'forge' | 'barracks' | 'stables';
 interface Building { id: BuildingId; label: string; x: number; y: number; tex: string; w: number; h: number; }
 
-const CAMP = { w: 960, h: 640 };
+const CAMP = { w: 960, h: 640, padY: 240 }; // padY: extra grass above/below so tall phones stay full
 const BUILDINGS: Building[] = [
   { id: 'forge', label: 'FORGE', x: 230, y: 170, tex: TEX.forge, w: 160, h: 110 },
   { id: 'barracks', label: 'BARRACKS', x: 560, y: 160, tex: TEX.barracks, w: 170, h: 110 },
@@ -38,8 +38,8 @@ export class CampScene extends Phaser.Scene {
   create() {
     this.shopOpen = false;
     this.troopSprites = [];
-    this.add.image(0, 0, this.groundTexture()).setOrigin(0).setDepth(0);
-    this.physics.world.setBounds(0, 0, CAMP.w, CAMP.h);
+    this.add.image(0, -CAMP.padY, this.groundTexture()).setOrigin(0).setDepth(0);
+    this.physics.world.setBounds(0, -CAMP.padY, CAMP.w, CAMP.h + 2 * CAMP.padY);
 
     const solids = this.physics.add.staticGroup();
     for (const b of BUILDINGS) {
@@ -65,7 +65,7 @@ export class CampScene extends Phaser.Scene {
     this.physics.add.collider(this.hero, solids);
     this.prompt = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: '#fff8e7', stroke: '#000', strokeThickness: 4, fontStyle: 'bold' }).setOrigin(0.5, 1).setDepth(50);
 
-    this.cameras.main.setBounds(0, 0, CAMP.w, CAMP.h);
+    this.cameras.main.setBounds(0, -CAMP.padY, CAMP.w, CAMP.h + 2 * CAMP.padY);
     this.cameras.main.startFollow(this.hero, true, 0.1, 0.1);
     this.applyZoom();
     this.scale.on('resize', this.applyZoom, this);
@@ -89,29 +89,32 @@ export class CampScene extends Phaser.Scene {
     });
   }
 
+  /** "Cover" zoom: the camp always fills the screen. */
   private applyZoom() {
     const { width, height } = this.scale;
-    this.cameras.main.setZoom(Phaser.Math.Clamp(Math.min(width, height) / 520, 0.75, 2.2));
+    const cover = Math.max(width / CAMP.w, height / (CAMP.h + 2 * CAMP.padY));
+    this.cameras.main.setZoom(Phaser.Math.Clamp(Math.max(cover, Math.min(width, height) / 620), 0.75, 2.4));
   }
 
   private groundTexture() {
     const key = 'ground_camp';
     if (this.textures.exists(key)) return key;
     const rnd = mulberry32(99);
+    const P = CAMP.padY, H = CAMP.h + 2 * P;
     const g = this.make.graphics({ x: 0, y: 0 }, false);
-    g.fillStyle(0x4f5e36, 1).fillRect(0, 0, CAMP.w, CAMP.h);
-    for (let i = 0; i < 120; i++) {
-      const x = rnd() * CAMP.w, y = rnd() * CAMP.h, r = 10 + rnd() * 36;
+    g.fillStyle(0x4f5e36, 1).fillRect(0, 0, CAMP.w, H);
+    for (let i = 0; i < 200; i++) {
+      const x = rnd() * CAMP.w, y = rnd() * H, r = 10 + rnd() * 36;
       g.fillStyle(rnd() > 0.5 ? 0x46552f : 0x5b6b42, 0.5).fillCircle(x, y, r);
     }
-    g.fillStyle(0x8a7048, 1).fillEllipse(480, 400, 520, 300);
-    g.lineStyle(44, 0x8a7048, 1).beginPath(); g.moveTo(90, 560); g.lineTo(240, 470); g.lineTo(300, 420); g.strokePath();
-    g.fillStyle(0x3a2f20, 1).fillCircle(FIRE.x, FIRE.y, 30);
+    g.fillStyle(0x8a7048, 1).fillEllipse(480, 400 + P, 520, 300);
+    g.lineStyle(44, 0x8a7048, 1).beginPath(); g.moveTo(90, 560 + P); g.lineTo(240, 470 + P); g.lineTo(300, 420 + P); g.strokePath();
+    g.fillStyle(0x3a2f20, 1).fillCircle(FIRE.x, FIRE.y + P, 30);
     for (let i = 0; i < 40; i++) {
       const a = rnd() * Math.PI * 2, d = rnd() * 240;
-      g.fillStyle(0x6f5a3c, 0.8).fillCircle(480 + Math.cos(a) * d, 400 + Math.sin(a) * d * 0.6, 1.5 + rnd() * 2);
+      g.fillStyle(0x6f5a3c, 0.8).fillCircle(480 + Math.cos(a) * d, 400 + P + Math.sin(a) * d * 0.6, 1.5 + rnd() * 2);
     }
-    g.generateTexture(key, CAMP.w, CAMP.h);
+    g.generateTexture(key, CAMP.w, H);
     g.destroy();
     return key;
   }
