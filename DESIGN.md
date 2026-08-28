@@ -80,6 +80,12 @@ Bows cannot fire at full speed. **Shooting requires being stopped or nearly stop
 - Raider patrol chance 45% → **30%**.
 - Keep "Ruined · 8d" for now.
 
+## Settlement Access
+Unconquered settlements can be **VISITED** peacefully while they have no reason to fear you. Visiting opens the settlement screen as a customer: Forge and Stables at a ~50% markup with smaller stock; Barracks locked ("the locals won't fight for you"); an **INN** that sells one rumor (a real hint about the world: patrol routes, fortification, Kingsport's garrison). Gates close — VISIT replaced by a "they know your face" notice — for any settlement the player has personally raided (forever, unless later occupied), and for ALL unconquered settlements once infamy reaches Raider. Occupied settlements: full access, no markup, as now.
+
+## Art Direction (identity pass, not the art pass)
+Still 100% code-drawn, but it must look intentional. One cohesive palette: aged-parchment UI panels, dark iron surfaces, ember/gold accents, muted earth terrain; blood-red reserved for danger (raid buttons, infamy, telegraphs). Two self-hosted fonts: a strong display face for titles, a clean face for UI. Styled buttons/panels with consistent borders, spacing, and shadows. Units become composed-shape figures whose type reads at a glance: helmet shapes, shields, visible weapons (militia pitchfork, archer bow, captain plume, hero cloak). Settlement building cards become small vignettes: forge with glowing coals and smoke, barracks with a banner, stables with horse heads over doors. Map: unify colors, name plates on settlements, subtle road texture. Soft shadows under every entity in raids.
+
 ## Milestone 1 — The Raid Loop (built 2026-08-28)
 
 **Designer-specified (from the M1 brief):** movement-only hero with auto-attack; War Horn (rally + speed boost) and Charge (dash + knockback) on Q/E and two big touch buttons; 3 starting troops in loose formation with permanent death; village of huts defended by ~8 militia, 2 kiting archers and 1 slow hard-hitting spearman captain; gold pickups; victory summary / defeat with retry; camp with 3 weapon tiers (bigger strike each tier) and recruiting up to 6 troops; Raid 2 is bigger and stronger; punchy feedback (hit-pause, knockback, damage numbers, hit flash, small shake); positioning must matter (real damage, surrounding, funnel between huts).
