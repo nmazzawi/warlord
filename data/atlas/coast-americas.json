@@ -1,0 +1,803 @@
+{
+ "segments": [
+  {
+   "id": "north_america",
+   "closed": true,
+   "points": [
+    {
+     "lon": -125.0,
+     "lat": 60.0,
+     "at": "Yakutat Bay, Alaska Panhandle (clamped to map west edge)"
+    },
+    {
+     "lon": -125.0,
+     "lat": 56.2,
+     "at": "Cape Ommaney, Baranof Island, Alaska (clamped)"
+    },
+    {
+     "lon": -125.0,
+     "lat": 51.9,
+     "at": "Cape St James, Haida Gwaii (clamped)"
+    },
+    {
+     "lon": -125.0,
+     "lat": 50.8,
+     "at": "Cape Scott, Vancouver Island (clamped)"
+    },
+    {
+     "lon": -124.7,
+     "lat": 48.4,
+     "at": "Cape Flattery, Washington"
+    },
+    {
+     "lon": -124.1,
+     "lat": 46.3,
+     "at": "Columbia River mouth"
+    },
+    {
+     "lon": -124.6,
+     "lat": 42.8,
+     "at": "Cape Blanco, Oregon"
+    },
+    {
+     "lon": -124.4,
+     "lat": 40.4,
+     "at": "Cape Mendocino, California"
+    },
+    {
+     "lon": -123.0,
+     "lat": 38.0,
+     "at": "Point Reyes, California"
+    },
+    {
+     "lon": -122.5,
+     "lat": 37.8,
+     "at": "Golden Gate, San Francisco Bay"
+    },
+    {
+     "lon": -120.5,
+     "lat": 34.4,
+     "at": "Point Conception, California"
+    },
+    {
+     "lon": -117.2,
+     "lat": 32.7,
+     "at": "Point Loma, San Diego"
+    },
+    {
+     "lon": -116.0,
+     "lat": 29.9,
+     "at": "Punta Baja, Baja California"
+    },
+    {
+     "lon": -115.1,
+     "lat": 27.8,
+     "at": "Punta Eugenia, Baja California Sur"
+    },
+    {
+     "lon": -112.1,
+     "lat": 24.6,
+     "at": "Bahia Magdalena, Baja California Sur"
+    },
+    {
+     "lon": -109.9,
+     "lat": 22.9,
+     "at": "Cabo San Lucas"
+    },
+    {
+     "lon": -110.3,
+     "lat": 24.3,
+     "at": "La Paz, Gulf of California"
+    },
+    {
+     "lon": -113.5,
+     "lat": 29.0,
+     "at": "Bahia de los Angeles, Gulf of California"
+    },
+    {
+     "lon": -114.7,
+     "lat": 31.8,
+     "at": "Colorado River delta"
+    },
+    {
+     "lon": -110.9,
+     "lat": 27.9,
+     "at": "Guaymas, Sonora"
+    },
+    {
+     "lon": -106.4,
+     "lat": 23.2,
+     "at": "Mazatlan, Sinaloa"
+    },
+    {
+     "lon": -105.7,
+     "lat": 20.4,
+     "at": "Cabo Corrientes, Jalisco"
+    },
+    {
+     "lon": -99.9,
+     "lat": 16.8,
+     "at": "Acapulco, Guerrero"
+    },
+    {
+     "lon": -95.2,
+     "lat": 16.2,
+     "at": "Salina Cruz, Isthmus of Tehuantepec"
+    },
+    {
+     "lon": -92.4,
+     "lat": 14.7,
+     "at": "Puerto Madero, Chiapas"
+    },
+    {
+     "lon": -87.7,
+     "lat": 13.0,
+     "at": "Gulf of Fonseca, Honduras/El Salvador"
+    },
+    {
+     "lon": -84.8,
+     "lat": 9.9,
+     "at": "Gulf of Nicoya, Puntarenas, Costa Rica"
+    },
+    {
+     "lon": -83.3,
+     "lat": 8.4,
+     "at": "Cabo Matapalo, Osa Peninsula"
+    },
+    {
+     "lon": -82.9,
+     "lat": 8.0,
+     "at": "Punta Burica, Panama/Costa Rica border"
+    },
+    {
+     "lon": -79.5,
+     "lat": 8.9,
+     "at": "Panama City, Gulf of Panama"
+    },
+    {
+     "lon": -78.4,
+     "lat": 8.1,
+     "at": "Punta Garachine, Darien"
+    },
+    {
+     "lon": -76.9,
+     "lat": 8.6,
+     "at": "Punta Caribana, Gulf of Uraba (Gulf of Darien)"
+    },
+    {
+     "lon": -79.9,
+     "lat": 9.4,
+     "at": "Colon, Caribbean Panama"
+    },
+    {
+     "lon": -83.0,
+     "lat": 10.0,
+     "at": "Puerto Limon, Costa Rica"
+    },
+    {
+     "lon": -83.7,
+     "lat": 12.0,
+     "at": "Bluefields, Mosquito Coast, Nicaragua"
+    },
+    {
+     "lon": -83.2,
+     "lat": 15.0,
+     "at": "Cabo Gracias a Dios"
+    },
+    {
+     "lon": -87.9,
+     "lat": 15.8,
+     "at": "Puerto Cortes, Honduras"
+    },
+    {
+     "lon": -88.2,
+     "lat": 17.5,
+     "at": "Belize City"
+    },
+    {
+     "lon": -87.0,
+     "lat": 21.5,
+     "at": "Cabo Catoche, northeast Yucatan"
+    },
+    {
+     "lon": -89.7,
+     "lat": 21.3,
+     "at": "Progreso, north Yucatan"
+    },
+    {
+     "lon": -90.5,
+     "lat": 19.8,
+     "at": "Campeche"
+    },
+    {
+     "lon": -94.4,
+     "lat": 18.2,
+     "at": "Coatzacoalcos, Bay of Campeche"
+    },
+    {
+     "lon": -96.1,
+     "lat": 19.2,
+     "at": "Veracruz"
+    },
+    {
+     "lon": -97.8,
+     "lat": 22.2,
+     "at": "Tampico, Panuco river mouth"
+    },
+    {
+     "lon": -97.2,
+     "lat": 25.9,
+     "at": "Rio Grande mouth, Boca Chica"
+    },
+    {
+     "lon": -94.8,
+     "lat": 29.3,
+     "at": "Galveston, Texas"
+    },
+    {
+     "lon": -89.2,
+     "lat": 29.1,
+     "at": "Mississippi delta, Southwest Pass"
+    },
+    {
+     "lon": -85.4,
+     "lat": 29.7,
+     "at": "Cape San Blas, Florida panhandle"
+    },
+    {
+     "lon": -82.7,
+     "lat": 27.7,
+     "at": "Tampa Bay, Florida"
+    },
+    {
+     "lon": -81.7,
+     "lat": 25.9,
+     "at": "Cape Romano, southwest Florida"
+    },
+    {
+     "lon": -81.8,
+     "lat": 24.5,
+     "at": "Key West, Florida Keys"
+    },
+    {
+     "lon": -80.2,
+     "lat": 25.8,
+     "at": "Miami, Florida"
+    },
+    {
+     "lon": -80.5,
+     "lat": 28.4,
+     "at": "Cape Canaveral, Florida"
+    },
+    {
+     "lon": -81.3,
+     "lat": 30.0,
+     "at": "St Augustine, Florida"
+    },
+    {
+     "lon": -79.9,
+     "lat": 32.8,
+     "at": "Charleston, South Carolina"
+    },
+    {
+     "lon": -78.0,
+     "lat": 33.8,
+     "at": "Cape Fear, North Carolina"
+    },
+    {
+     "lon": -75.5,
+     "lat": 35.2,
+     "at": "Cape Hatteras, North Carolina"
+    },
+    {
+     "lon": -76.0,
+     "lat": 37.1,
+     "at": "Cape Charles, mouth of Chesapeake Bay"
+    },
+    {
+     "lon": -74.0,
+     "lat": 40.5,
+     "at": "Sandy Hook, New York Harbor"
+    },
+    {
+     "lon": -72.0,
+     "lat": 41.1,
+     "at": "Montauk Point, Long Island"
+    },
+    {
+     "lon": -70.0,
+     "lat": 41.8,
+     "at": "Cape Cod, Massachusetts"
+    },
+    {
+     "lon": -70.2,
+     "lat": 43.7,
+     "at": "Casco Bay, Portland, Maine"
+    },
+    {
+     "lon": -66.1,
+     "lat": 45.3,
+     "at": "Saint John, Bay of Fundy"
+    },
+    {
+     "lon": -65.6,
+     "lat": 43.5,
+     "at": "Cape Sable Island, Nova Scotia"
+    },
+    {
+     "lon": -63.6,
+     "lat": 44.6,
+     "at": "Halifax, Nova Scotia"
+    },
+    {
+     "lon": -60.4,
+     "lat": 47.0,
+     "at": "Cape North, Cape Breton Island"
+    },
+    {
+     "lon": -64.2,
+     "lat": 48.8,
+     "at": "Cape Gaspe, Gulf of St Lawrence"
+    },
+    {
+     "lon": -59.3,
+     "lat": 47.6,
+     "at": "Cape Ray, southwest Newfoundland"
+    },
+    {
+     "lon": -53.1,
+     "lat": 46.7,
+     "at": "Cape Race, Newfoundland"
+    },
+    {
+     "lon": -53.1,
+     "lat": 48.7,
+     "at": "Cape Bonavista, Newfoundland"
+    },
+    {
+     "lon": -55.4,
+     "lat": 51.6,
+     "at": "Cape Bauld, northern Newfoundland"
+    },
+    {
+     "lon": -61.7,
+     "lat": 56.5,
+     "at": "Nain, Labrador"
+    },
+    {
+     "lon": -64.4,
+     "lat": 60.4,
+     "at": "Cape Chidley, northern Labrador"
+    },
+    {
+     "lon": -94.2,
+     "lat": 58.8,
+     "at": "Churchill, Manitoba, Hudson Bay"
+    },
+    {
+     "lon": -115.8,
+     "lat": 60.8,
+     "at": "Hay River, Great Slave Lake"
+    }
+   ]
+  },
+  {
+   "id": "south_america",
+   "closed": true,
+   "points": [
+    {
+     "lon": -76.9,
+     "lat": 8.6,
+     "at": "Punta Caribana, Gulf of Darien, Colombia"
+    },
+    {
+     "lon": -75.5,
+     "lat": 10.4,
+     "at": "Cartagena, Colombia"
+    },
+    {
+     "lon": -74.8,
+     "lat": 11.1,
+     "at": "Barranquilla, Magdalena river delta"
+    },
+    {
+     "lon": -72.1,
+     "lat": 12.2,
+     "at": "Cabo de la Vela, Guajira"
+    },
+    {
+     "lon": -71.7,
+     "lat": 12.4,
+     "at": "Punta Gallinas, Guajira Peninsula"
+    },
+    {
+     "lon": -71.6,
+     "lat": 11.0,
+     "at": "Gulf of Venezuela, Maracaibo bar"
+    },
+    {
+     "lon": -70.2,
+     "lat": 12.2,
+     "at": "Cabo San Roman, Paraguana Peninsula"
+    },
+    {
+     "lon": -68.0,
+     "lat": 10.5,
+     "at": "Puerto Cabello, Venezuela"
+    },
+    {
+     "lon": -64.2,
+     "lat": 10.5,
+     "at": "Cumana, Gulf of Cariaco"
+    },
+    {
+     "lon": -61.9,
+     "lat": 10.7,
+     "at": "Punta Penas, Paria Peninsula"
+    },
+    {
+     "lon": -60.5,
+     "lat": 8.6,
+     "at": "Orinoco delta, Boca Grande"
+    },
+    {
+     "lon": -58.2,
+     "lat": 6.8,
+     "at": "Georgetown, Guyana"
+    },
+    {
+     "lon": -55.2,
+     "lat": 6.0,
+     "at": "Paramaribo, Suriname"
+    },
+    {
+     "lon": -52.3,
+     "lat": 4.9,
+     "at": "Cayenne, French Guiana"
+    },
+    {
+     "lon": -51.1,
+     "lat": 4.4,
+     "at": "Cabo Orange, Oiapoque"
+    },
+    {
+     "lon": -50.0,
+     "lat": 0.0,
+     "at": "Cabo Norte, mouth of the Amazon"
+    },
+    {
+     "lon": -48.5,
+     "lat": -0.9,
+     "at": "Belem, Marajo Island"
+    },
+    {
+     "lon": -44.3,
+     "lat": -2.5,
+     "at": "Sao Luis, Maranhao"
+    },
+    {
+     "lon": -41.8,
+     "lat": -2.9,
+     "at": "Parnaiba river delta"
+    },
+    {
+     "lon": -38.5,
+     "lat": -3.7,
+     "at": "Fortaleza, Ceara"
+    },
+    {
+     "lon": -35.3,
+     "lat": -5.2,
+     "at": "Cape Sao Roque"
+    },
+    {
+     "lon": -34.9,
+     "lat": -8.1,
+     "at": "Recife, Pernambuco"
+    },
+    {
+     "lon": -36.4,
+     "lat": -10.5,
+     "at": "Sao Francisco river mouth"
+    },
+    {
+     "lon": -38.5,
+     "lat": -13.0,
+     "at": "Salvador, Baia de Todos os Santos"
+    },
+    {
+     "lon": -39.2,
+     "lat": -17.7,
+     "at": "Caravelas, Abrolhos coast"
+    },
+    {
+     "lon": -40.3,
+     "lat": -20.3,
+     "at": "Vitoria, Espirito Santo"
+    },
+    {
+     "lon": -42.0,
+     "lat": -22.9,
+     "at": "Cabo Frio"
+    },
+    {
+     "lon": -43.2,
+     "lat": -23.0,
+     "at": "Rio de Janeiro, Guanabara Bay"
+    },
+    {
+     "lon": -46.3,
+     "lat": -24.0,
+     "at": "Santos, Sao Paulo"
+    },
+    {
+     "lon": -48.5,
+     "lat": -25.5,
+     "at": "Paranagua Bay"
+    },
+    {
+     "lon": -48.5,
+     "lat": -27.6,
+     "at": "Florianopolis, Santa Catarina"
+    },
+    {
+     "lon": -52.1,
+     "lat": -32.1,
+     "at": "Rio Grande, Lagoa dos Patos bar"
+    },
+    {
+     "lon": -54.9,
+     "lat": -34.9,
+     "at": "Punta del Este, Uruguay"
+    },
+    {
+     "lon": -57.0,
+     "lat": -35.0,
+     "at": "Rio de la Plata estuary, Buenos Aires"
+    },
+    {
+     "lon": -57.5,
+     "lat": -38.0,
+     "at": "Mar del Plata, Argentina"
+    },
+    {
+     "lon": -62.3,
+     "lat": -39.0,
+     "at": "Bahia Blanca"
+    },
+    {
+     "lon": -63.8,
+     "lat": -42.1,
+     "at": "Punta Norte, Peninsula Valdes"
+    },
+    {
+     "lon": -67.5,
+     "lat": -45.9,
+     "at": "Comodoro Rivadavia, Patagonia"
+    },
+    {
+     "lon": -65.9,
+     "lat": -47.8,
+     "at": "Puerto Deseado, Santa Cruz"
+    },
+    {
+     "lon": -68.9,
+     "lat": -49.0,
+     "at": "Rio Gallegos, Patagonia (lat clamped from -51.6)"
+    },
+    {
+     "lon": -65.0,
+     "lat": -49.0,
+     "at": "Cabo San Diego, east Tierra del Fuego (lat clamped from -54.7)"
+    },
+    {
+     "lon": -67.3,
+     "lat": -49.0,
+     "at": "Cape Horn (lat clamped from -55.9)"
+    },
+    {
+     "lon": -74.7,
+     "lat": -49.0,
+     "at": "Cabo Pilar, west mouth of the Strait of Magellan (lat clamped from -52.7)"
+    },
+    {
+     "lon": -75.0,
+     "lat": -47.4,
+     "at": "Golfo de Penas, Chilean fjords"
+    },
+    {
+     "lon": -73.8,
+     "lat": -41.8,
+     "at": "Punta Corona, Chiloe Island"
+    },
+    {
+     "lon": -73.5,
+     "lat": -39.8,
+     "at": "Valdivia, Chile"
+    },
+    {
+     "lon": -73.2,
+     "lat": -36.8,
+     "at": "Concepcion, Bay of Talcahuano"
+    },
+    {
+     "lon": -71.6,
+     "lat": -33.0,
+     "at": "Valparaiso, Chile"
+    },
+    {
+     "lon": -70.4,
+     "lat": -23.6,
+     "at": "Antofagasta, Atacama coast"
+    },
+    {
+     "lon": -70.3,
+     "lat": -18.5,
+     "at": "Arica, northern Chile"
+    },
+    {
+     "lon": -75.2,
+     "lat": -15.4,
+     "at": "San Juan de Marcona, Peru"
+    },
+    {
+     "lon": -77.1,
+     "lat": -12.0,
+     "at": "Callao, Lima"
+    },
+    {
+     "lon": -81.1,
+     "lat": -6.0,
+     "at": "Punta Aguja, Sechura, Peru"
+    },
+    {
+     "lon": -81.3,
+     "lat": -4.7,
+     "at": "Punta Parinas, south side of the Gulf of Guayaquil"
+    },
+    {
+     "lon": -80.3,
+     "lat": -2.9,
+     "at": "Isla Puna, Guayaquil"
+    },
+    {
+     "lon": -80.5,
+     "lat": -0.6,
+     "at": "Bahia de Caraquez, Ecuador"
+    },
+    {
+     "lon": -79.7,
+     "lat": 1.0,
+     "at": "Esmeraldas, Ecuador"
+    },
+    {
+     "lon": -77.1,
+     "lat": 3.9,
+     "at": "Buenaventura, Colombia"
+    },
+    {
+     "lon": -77.5,
+     "lat": 5.5,
+     "at": "Cabo Corrientes, Choco, Colombia"
+    },
+    {
+     "lon": -77.4,
+     "lat": 7.2,
+     "at": "Punta Ardita, Colombia/Panama Pacific border"
+    }
+   ]
+  },
+  {
+   "id": "cuba",
+   "closed": true,
+   "points": [
+    {
+     "lon": -84.9,
+     "lat": 21.9,
+     "at": "Cabo San Antonio, west tip of Cuba"
+    },
+    {
+     "lon": -82.8,
+     "lat": 21.6,
+     "at": "Isla de la Juventud, Gulf of Batabano, Cuba"
+    },
+    {
+     "lon": -80.4,
+     "lat": 22.1,
+     "at": "Cienfuegos, south coast of Cuba"
+    },
+    {
+     "lon": -77.8,
+     "lat": 20.7,
+     "at": "Santa Cruz del Sur, Cuba"
+    },
+    {
+     "lon": -77.7,
+     "lat": 19.8,
+     "at": "Cabo Cruz, Cuba"
+    },
+    {
+     "lon": -75.9,
+     "lat": 19.9,
+     "at": "Santiago de Cuba"
+    },
+    {
+     "lon": -74.1,
+     "lat": 20.2,
+     "at": "Punta Maisi, east tip of Cuba"
+    },
+    {
+     "lon": -74.5,
+     "lat": 20.4,
+     "at": "Baracoa, northeast Cuba"
+    },
+    {
+     "lon": -76.1,
+     "lat": 21.1,
+     "at": "Gibara, north coast of Cuba"
+    },
+    {
+     "lon": -77.1,
+     "lat": 21.6,
+     "at": "Punta Maternillos, Nuevitas, Cuba"
+    },
+    {
+     "lon": -78.5,
+     "lat": 22.5,
+     "at": "Cayo Coco, north Cuba"
+    },
+    {
+     "lon": -82.4,
+     "lat": 23.1,
+     "at": "Havana, Cuba"
+    }
+   ]
+  },
+  {
+   "id": "hispaniola",
+   "closed": true,
+   "points": [
+    {
+     "lon": -73.4,
+     "lat": 19.8,
+     "at": "Mole-Saint-Nicolas, northwest Haiti"
+    },
+    {
+     "lon": -74.4,
+     "lat": 18.3,
+     "at": "Cap Tiburon, southwest Haiti"
+    },
+    {
+     "lon": -71.4,
+     "lat": 17.6,
+     "at": "Cabo Beata, southern Dominican Republic"
+    },
+    {
+     "lon": -69.9,
+     "lat": 18.5,
+     "at": "Santo Domingo, Dominican Republic"
+    },
+    {
+     "lon": -68.3,
+     "lat": 18.6,
+     "at": "Cabo Engano, Punta Cana"
+    },
+    {
+     "lon": -69.3,
+     "lat": 19.4,
+     "at": "Cabo Cabron, Samana Peninsula"
+    },
+    {
+     "lon": -71.6,
+     "lat": 19.9,
+     "at": "Monte Cristi, north Dominican Republic"
+    },
+    {
+     "lon": -72.2,
+     "lat": 19.8,
+     "at": "Cap-Haitien, north Haiti"
+    }
+   ]
+  }
+ ]
+}

@@ -19,7 +19,7 @@ import { GameState } from './state/GameState';
 import { NODES } from './world/WorldMap';
 import { campBattle, patrolBattle, siegeBattle, steppePatrolBattle, villageBattle } from './world/Battles';
 import { CAMPS, campLocation } from './world/Steppe';
-import { REGIONS } from './world/WorldChart';
+import { REGIONS, SEA_ROUTES } from './world/WorldChart';
 import { STEPPE } from './config/balance';
 
 const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -63,6 +63,7 @@ window.visualViewport?.addEventListener('resize', fitSoon);
 (window as unknown as { __CAMPS: typeof CAMPS; __campLocation: typeof campLocation; __REGIONS: typeof REGIONS }).__CAMPS = CAMPS;
 (window as unknown as { __campLocation: typeof campLocation }).__campLocation = campLocation;
 (window as unknown as { __REGIONS: typeof REGIONS }).__REGIONS = REGIONS;
+(window as unknown as { __SEA_ROUTES: typeof SEA_ROUTES }).__SEA_ROUTES = SEA_ROUTES;
 (window as unknown as { __STEPPE: typeof STEPPE }).__STEPPE = STEPPE;
 
 // Save when the tab is hidden or closed (belt and braces — the game also saves at every safe point).

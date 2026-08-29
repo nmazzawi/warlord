@@ -142,28 +142,60 @@ async function desktopRun(browser) {
   const ledger = await page.evaluate(() => window.__warlord.scene.getScene('MapHud').ledgerText.text);
   check(/wages/.test(ledger) && /tribute/.test(ledger), `ledger on the map bar: "${ledger}"`);
   await page.screenshot({ path: `${OUT}/d-map.png` });
-  // --- the world chart: zoom out to the whole world, tap a locked region, a sea road, zoom back in
-  const chart = await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); return { regions: m.regionLabels.length, zoom: m.cameras.main.zoom, tex: window.__warlord.textures.exists('world_chart') }; });
-  check(chart.regions === 13 && chart.tex && chart.zoom > 2, `world chart drawn: ${chart.regions} regions, territory zoom ${chart.zoom.toFixed(2)}`);
+  // --- the atlas of empires: zoom out to the whole Earth, tap a locked realm, one of its cities,
+  // --- and a sea road; then come back down to your own roads
+  const chart = await page.evaluate(() => {
+    const m = window.__warlord.scene.getScene('Map');
+    return { realms: m.empireLabels.length, places: m.markers.length, capitals: m.markers.filter(k => k.place.kind === 'capital').length,
+      zoom: m.cameras.main.zoom, tex: window.__warlord.textures.exists('world_chart') };
+  });
+  check(chart.realms === 13 && chart.tex && chart.zoom > 1.5, `atlas drawn: ${chart.realms} realms, territory zoom ${chart.zoom.toFixed(2)}`);
+  check(chart.places > 80 && chart.capitals === 11, `every empire has places: ${chart.places} settlements, ${chart.capitals} capitals`);
   for (let i = 0; i < 8; i++) await clickBtn(page, 'MapHud', '−');
-  const far = await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); return { zoom: m.cameras.main.zoom, detail: m.territoryObjects[0].visible }; });
-  check(far.zoom < 0.6 && !far.detail, `zoomed out to the world (zoom ${far.zoom.toFixed(2)}, territory detail hidden)`);
+  const far = await page.evaluate(() => {
+    const m = window.__warlord.scene.getScene('Map');
+    return { zoom: m.cameras.main.zoom, detail: m.territoryObjects[0].visible, names: m.empireLabels[0].visible,
+      major: m.majorObjects[0].visible, minor: m.minorObjects[0].visible };
+  });
+  check(far.zoom < 0.4 && !far.detail && !far.major && !far.minor && far.names,
+    `far out: coastlines and realm names only (zoom ${far.zoom.toFixed(2)})`);
   await page.screenshot({ path: `${OUT}/d-world.png` });
-  const romeTap = await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); const cam = m.cameras.main; const d = window.__warlord.scale.displayScale.x || 1; const r = window.__REGIONS.find(r => r.id === 'rome'); const c = r.poly.reduce((a, p) => [a[0] + p[0] / r.poly.length, a[1] + p[1] / r.poly.length], [0, 0]);
-    return { x: ((c[0] - cam.worldView.x) * cam.zoom) / d, y: ((c[1] - cam.worldView.y) * cam.zoom) / d }; });
-  await page.mouse.click(romeTap.x, romeTap.y);
+  const tapWorld = (pt) => page.evaluate((p) => { const cam = window.__warlord.scene.getScene('Map').cameras.main; const d = window.__warlord.scale.displayScale.x || 1;
+    return { x: ((p[0] - cam.worldView.x) * cam.zoom) / d, y: ((p[1] - cam.worldView.y) * cam.zoom) / d }; }, pt);
+  const rome = await page.evaluate(() => window.__REGIONS.find(r => r.id === 'rome').labelAt);
+  let at = await tapWorld(rome);
+  await page.mouse.click(at.x, at.y);
   await sleep(400);
-  check((await panelTitle(page)) === 'ROME', `tapping a locked region shows its note (${await panelTitle(page)})`);
+  const romeSpec = await page.evaluate(() => { const h = window.__warlord.scene.getScene('MapHud'); return { title: h.spec?.title, lines: (h.spec?.lines ?? []).join(' ') }; });
+  check(romeSpec.title === 'THE ROMAN EMPIRE' && /Throne: Roma/.test(romeSpec.lines) && /Not yet/.test(romeSpec.lines),
+    `tapping a realm gives its card (${romeSpec.title})`);
   await hidePanel(page);
-  const seaTap = await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); const cam = m.cameras.main; const d = window.__warlord.scale.displayScale.x || 1; const p = [1100, 340];
-    return { x: ((p[0] - cam.worldView.x) * cam.zoom) / d, y: ((p[1] - cam.worldView.y) * cam.zoom) / d }; });
-  await page.mouse.click(seaTap.x, seaTap.y);
+  // a sea road, wherever it actually runs
+  const seaPt = await page.evaluate(() => { const r = window.__SEA_ROUTES.find(r => r.id === 'west'); const a = r.pts[1], b = r.pts[2]; return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; });
+  at = await tapWorld(seaPt);
+  await page.mouse.click(at.x, at.y);
   await sleep(400);
   const seaSpec = await page.evaluate(() => { const h = window.__warlord.scene.getScene('MapHud'); return h.spec ? h.spec.lines.join(' ') : ''; });
   check(/No ship will carry you/.test(seaSpec), 'a sea road is locked: "no ship will carry you — yet"');
   await hidePanel(page);
-  for (let i = 0; i < 8; i++) await clickBtn(page, 'MapHud', '+');
-  await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); m.cameras.main.centerOn(m.token.x, m.token.y); });
+  // mid zoom: capitals and cities appear, towns and villages stay hidden
+  const mid = await page.evaluate(() => {
+    const m = window.__warlord.scene.getScene('Map');
+    const cap = m.markers.find(k => k.place.name === 'Roma');
+    m.setZoom(1.0); m.cameras.main.centerOn(cap.place.x, cap.place.y); m.cameras.main.preRender();
+    const d = window.__warlord.scale.displayScale.x || 1, cam = m.cameras.main;
+    return { major: m.majorObjects[0].visible, minor: m.minorObjects[0].visible, detail: m.territoryObjects[0].visible,
+      x: ((cap.place.x - cam.worldView.x) * cam.zoom) / d, y: ((cap.place.y - cam.worldView.y) * cam.zoom) / d };
+  });
+  check(mid.major && !mid.minor && !mid.detail, 'mid zoom: capitals and cities in, towns and roads still out');
+  await page.mouse.click(mid.x, mid.y);
+  await sleep(400);
+  const placeSpec = await page.evaluate(() => { const h = window.__warlord.scene.getScene('MapHud'); return { title: h.spec?.title, lines: (h.spec?.lines ?? []).join(' ') }; });
+  check(placeSpec.title === 'ROMA' && /throne of The Roman Empire/.test(placeSpec.lines), `tapping a locked city names it (${placeSpec.title})`);
+  await hidePanel(page);
+  await page.screenshot({ path: `${OUT}/d-empires.png` });
+  await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); m.zoomToTerritory(); });
+  await sleep(300);
 
   // --- raid Ashford and just leave
   await tapNode(page, 'ashford');
@@ -226,6 +258,11 @@ async function desktopRun(browser) {
   await autoPlay(page, 80);
   await sleep(1800);
   await waitScene(page, 'Result');
+  if (!(await activeScenes(page)).includes('Result')) console.log('DIAG raid unfinished:', JSON.stringify(await raidState(page)));
+  else {
+    const btns = await page.evaluate(() => window.__warlord.scene.getScene('Result').children.list.filter(c => c.type === 'Container').map(c => c.list.find(t => t.type === 'Text')?.text));
+    if (!btns.includes('OCCUPY')) console.log('DIAG result buttons:', btns.join('/'), JSON.stringify(await gs(page)).slice(0, 300));
+  }
   await clickBtn(page, 'Result', 'OCCUPY');
   await waitScene(page, 'Map');
   await sleep(800);
@@ -466,6 +503,30 @@ async function desktopRun(browser) {
   check(s.settlements.kingsport?.occupied && s.owned.halberd && s.armor === 'plate', 'conquests, the halberd and the plate survived a reload');
   const fps = await page.evaluate(() => window.__warlord.loop.actualFps);
   check(fps > 50, `fps healthy (${fps.toFixed(0)})`);
+  // --- an old save (written before the steppe and before the atlas) still loads, and lands on the new Earth
+  await page.evaluate(() => {
+    const S = window.__GameState;
+    const old = S.toJSON();
+    delete old.steppeInfamy; delete old.campScattered; delete old.huntedUntil; delete old.lastSteppePatrolDay;
+    delete old.owned.composite;
+    old.gold = 777; old.day = 42; old.location = 'greywater'; old.pendingPath = []; old.resumeTravel = null; old.pendingVictory = null;
+    S.save = () => {};   // the page saves on unload; keep it from writing over the old save we inject
+    localStorage.setItem('warlord.save.v3', JSON.stringify(old));
+  });
+  await page.reload();
+  await sleep(1500);
+  await clickBtn(page, 'Title', 'CONTINUE');
+  check(await waitScene(page, 'Map'), 'a pre-atlas save still loads');
+  await sleep(900);
+  const old = await page.evaluate(() => {
+    const S = window.__GameState, m = window.__warlord.scene.getScene('Map');
+    const n = window.__NODES.find(n => n.id === 'greywater');
+    return { gold: S.gold, day: S.day, where: S.location, steppe: S.steppeInfamy, hunted: S.hunted, composite: S.owned.composite,
+      kingsport: !!S.settlements.kingsport?.occupied, onNode: Math.hypot(m.token.x - n.x, m.token.y - n.y) < 40 };
+  });
+  check(old.gold === 777 && old.day === 42 && old.where === 'greywater' && old.kingsport && old.steppe === 0 && old.hunted === false && old.composite === false && old.onNode,
+    `an old save keeps its state and stands on the new chart (gold ${old.gold}, day ${old.day}, at ${old.where})`);
+
   check(errors.length === 0, `no console errors/warnings on desktop (${errors.length})`);
   if (errors.length) console.log(errors.slice(0, 20).join('\n'));
   await ctx.close();
@@ -491,6 +552,26 @@ async function phoneRun(browser) {
   check(await waitScene(page, 'Map'), 'phone: to the map');
   await sleep(700);
   await page.screenshot({ path: `${OUT}/p-map.png` });
+  // pinch out to the whole Earth and drag across it: the atlas has to stay smooth in one thumb
+  await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); m.setZoom(0.0001); m.cameras.main.centerOn(2700, 1620); });
+  await sleep(800);
+  await page.screenshot({ path: `${OUT}/p-world.png` });
+  const pan = await page.evaluate(async () => {
+    const g = window.__warlord, cam = g.scene.getScene('Map').cameras.main;
+    const t0 = performance.now(); let frames = 0, x = cam.scrollX;
+    await new Promise(res => {
+      const step = () => {
+        cam.setScroll(x + Math.sin(frames / 6) * 240, cam.scrollY);   // drag back and forth
+        frames++;
+        if (performance.now() - t0 > 2000) res(); else requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+    return { fps: g.loop.actualFps, frames, zoom: cam.zoom };
+  });
+  check(pan.fps > 25, `phone: panning the whole atlas stays smooth (${pan.fps.toFixed(0)} fps at zoom ${pan.zoom.toFixed(2)})`);
+  await page.evaluate(() => window.__warlord.scene.getScene('Map').zoomToTerritory());
+  await sleep(400);
   await noPatrols(page);
   await tapNode(page, 'ashford', true);
   check(await waitPanel(page, 15000), 'phone: tap-to-travel reached Ashford');

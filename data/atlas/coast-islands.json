@@ -1,0 +1,353 @@
+{
+  "segments": [
+    {
+      "id": "britain",
+      "closed": true,
+      "points": [
+        { "lon": -5.71, "lat": 50.07, "at": "Land's End" },
+        { "lon": -4.53, "lat": 51.02, "at": "Hartland Point, north Devon" },
+        { "lon": -2.7, "lat": 51.5, "at": "Avonmouth, head of the Bristol Channel" },
+        { "lon": -4.33, "lat": 51.57, "at": "Worms Head, Gower Peninsula" },
+        { "lon": -5.32, "lat": 51.9, "at": "St David's Head, Pembrokeshire" },
+        { "lon": -4.77, "lat": 52.79, "at": "Braich y Pwll, tip of the Lleyn Peninsula" },
+        { "lon": -3.86, "lat": 53.33, "at": "Great Orme, Llandudno" },
+        { "lon": -3.0, "lat": 54.08, "at": "Morecambe Bay" },
+        { "lon": -3.26, "lat": 54.97, "at": "Annan, inner Solway Firth" },
+        { "lon": -4.86, "lat": 54.63, "at": "Mull of Galloway" },
+        { "lon": -4.63, "lat": 55.46, "at": "Ayr, Firth of Clyde" },
+        { "lon": -4.76, "lat": 55.95, "at": "Greenock, head of the Clyde" },
+        { "lon": -5.8, "lat": 55.31, "at": "Mull of Kintyre" },
+        { "lon": -6.23, "lat": 56.73, "at": "Ardnamurchan Point" },
+        { "lon": -5.82, "lat": 57.86, "at": "Rubha Reidh, Wester Ross" },
+        { "lon": -5.0, "lat": 58.62, "at": "Cape Wrath" },
+        { "lon": -3.07, "lat": 58.64, "at": "John o' Groats" },
+        { "lon": -3.77, "lat": 57.87, "at": "Tarbat Ness, Moray Firth" },
+        { "lon": -2.0, "lat": 57.7, "at": "Kinnaird Head, Fraserburgh" },
+        { "lon": -2.09, "lat": 57.14, "at": "Aberdeen" },
+        { "lon": -2.59, "lat": 56.28, "at": "Fife Ness, north side of the Firth of Forth" },
+        { "lon": -2.13, "lat": 55.9, "at": "St Abb's Head" },
+        { "lon": -0.08, "lat": 54.12, "at": "Flamborough Head" },
+        { "lon": 0.33, "lat": 52.92, "at": "The Wash" },
+        { "lon": 1.73, "lat": 52.6, "at": "Great Yarmouth" },
+        { "lon": 0.95, "lat": 51.6, "at": "Foulness Point, Thames mouth" },
+        { "lon": 1.32, "lat": 51.13, "at": "Dover" },
+        { "lon": -1.4, "lat": 50.8, "at": "Southampton Water, the Solent" },
+        { "lon": -2.45, "lat": 50.51, "at": "Portland Bill" },
+        { "lon": -3.65, "lat": 50.22, "at": "Start Point, south Devon" }
+      ]
+    },
+    {
+      "id": "ireland",
+      "closed": true,
+      "points": [
+        { "lon": -7.37, "lat": 55.38, "at": "Malin Head" },
+        { "lon": -6.15, "lat": 55.21, "at": "Torr Head, north Antrim" },
+        { "lon": -5.7, "lat": 54.68, "at": "Belfast Lough" },
+        { "lon": -5.44, "lat": 54.23, "at": "St John's Point, County Down" },
+        { "lon": -6.07, "lat": 53.37, "at": "Howth Head, Dublin Bay" },
+        { "lon": -6.36, "lat": 52.17, "at": "Carnsore Point" },
+        { "lon": -8.25, "lat": 51.79, "at": "Roche's Point, Cork Harbour" },
+        { "lon": -9.82, "lat": 51.45, "at": "Mizen Head" },
+        { "lon": -10.45, "lat": 52.12, "at": "Slea Head, Dingle Peninsula" },
+        { "lon": -9.93, "lat": 52.56, "at": "Loop Head, mouth of the Shannon" },
+        { "lon": -10.23, "lat": 53.4, "at": "Slyne Head, Connemara" },
+        { "lon": -10.2, "lat": 53.97, "at": "Achill Head" },
+        { "lon": -10.0, "lat": 54.31, "at": "Erris Head" },
+        { "lon": -8.6, "lat": 54.3, "at": "Sligo Bay" },
+        { "lon": -8.68, "lat": 54.63, "at": "Slieve League, Donegal Bay" },
+        { "lon": -8.3, "lat": 55.15, "at": "Bloody Foreland" }
+      ]
+    },
+    {
+      "id": "iceland",
+      "closed": true,
+      "points": [
+        { "lon": -22.7, "lat": 63.81, "at": "Reykjanes, southwest tip" },
+        { "lon": -24.55, "lat": 64.88, "at": "Ondverdarnes, tip of Snaefellsnes" },
+        { "lon": -24.53, "lat": 65.5, "at": "Latrabjarg, westernmost Iceland" },
+        { "lon": -22.4, "lat": 66.45, "at": "Horn, Hornstrandir" },
+        { "lon": -20.1, "lat": 66.13, "at": "Skagata, tip of the Skagi peninsula" },
+        { "lon": -17.3, "lat": 66.1, "at": "Husavik, Skjalfandi bay" },
+        { "lon": -16.2, "lat": 66.53, "at": "Rifstangi, Melrakkasletta" },
+        { "lon": -14.53, "lat": 66.37, "at": "Langanes, northeast tip" },
+        { "lon": -14.8, "lat": 65.75, "at": "Vopnafjordur" },
+        { "lon": -13.57, "lat": 65.09, "at": "Gerpir, easternmost Iceland" },
+        { "lon": -15.2, "lat": 64.25, "at": "Hofn, Hornafjordur" },
+        { "lon": -16.65, "lat": 63.8, "at": "Ingolfshofdi" },
+        { "lon": -19.13, "lat": 63.4, "at": "Dyrholaey, near Vik i Myrdal" },
+        { "lon": -21.38, "lat": 63.85, "at": "Thorlakshofn" }
+      ]
+    },
+    {
+      "id": "honshu",
+      "closed": true,
+      "points": [
+        { "lon": 130.96, "lat": 33.95, "at": "Kanmon Strait, Shimonoseki" },
+        { "lon": 132.45, "lat": 34.3, "at": "Hiroshima Bay, Inland Sea" },
+        { "lon": 135.0, "lat": 34.63, "at": "Akashi Strait, Kobe" },
+        { "lon": 135.76, "lat": 33.44, "at": "Cape Shionomisaki, tip of the Kii Peninsula" },
+        { "lon": 136.9, "lat": 34.28, "at": "Cape Daiozaki, Shima Peninsula" },
+        { "lon": 136.88, "lat": 35.05, "at": "Ise Bay, Nagoya" },
+        { "lon": 137.02, "lat": 34.58, "at": "Cape Irago, Atsumi Peninsula" },
+        { "lon": 138.23, "lat": 34.6, "at": "Omaezaki" },
+        { "lon": 138.85, "lat": 34.6, "at": "Cape Irozaki, tip of the Izu Peninsula" },
+        { "lon": 139.8, "lat": 35.6, "at": "Tokyo Bay" },
+        { "lon": 139.89, "lat": 34.9, "at": "Cape Nojimazaki, tip of the Boso Peninsula" },
+        { "lon": 140.87, "lat": 35.71, "at": "Cape Inubosaki, Choshi" },
+        { "lon": 140.98, "lat": 38.2, "at": "Sendai Bay" },
+        { "lon": 141.48, "lat": 38.3, "at": "Oshika Peninsula" },
+        { "lon": 142.07, "lat": 39.55, "at": "Cape Todogasaki, easternmost Honshu" },
+        { "lon": 141.46, "lat": 41.43, "at": "Cape Shiriya, Shimokita Peninsula" },
+        { "lon": 140.91, "lat": 41.53, "at": "Cape Oma, Tsugaru Strait" },
+        { "lon": 140.34, "lat": 41.26, "at": "Cape Tappi, Tsugaru Peninsula" },
+        { "lon": 139.7, "lat": 39.95, "at": "Oga Peninsula" },
+        { "lon": 139.06, "lat": 37.95, "at": "Niigata, mouth of the Shinano River" },
+        { "lon": 137.32, "lat": 37.53, "at": "Cape Rokkozaki, tip of the Noto Peninsula" },
+        { "lon": 136.07, "lat": 35.65, "at": "Tsuruga, Wakasa Bay" },
+        { "lon": 134.23, "lat": 35.54, "at": "Tottori sand dunes, Sea of Japan coast" },
+        { "lon": 133.05, "lat": 35.55, "at": "Shimane Peninsula, Matsue" },
+        { "lon": 131.4, "lat": 34.42, "at": "Hagi" }
+      ]
+    },
+    {
+      "id": "hokkaido",
+      "closed": true,
+      "points": [
+        { "lon": 140.2, "lat": 41.42, "at": "Cape Shirakami, Matsumae Peninsula" },
+        { "lon": 140.73, "lat": 41.78, "at": "Hakodate" },
+        { "lon": 141.17, "lat": 41.81, "at": "Cape Esan" },
+        { "lon": 140.97, "lat": 42.32, "at": "Muroran, Uchiura (Volcano) Bay" },
+        { "lon": 141.6, "lat": 42.62, "at": "Tomakomai" },
+        { "lon": 143.25, "lat": 41.92, "at": "Cape Erimo" },
+        { "lon": 144.38, "lat": 42.97, "at": "Kushiro" },
+        { "lon": 145.0, "lat": 43.39, "at": "Cape Nosappu, Nemuro (clamped west from 145.8E)" },
+        { "lon": 145.0, "lat": 44.33, "at": "Cape Shiretoko, Shiretoko Peninsula (clamped west from 145.3E)" },
+        { "lon": 144.27, "lat": 44.02, "at": "Abashiri, Sea of Okhotsk coast" },
+        { "lon": 141.94, "lat": 45.52, "at": "Cape Soya, northernmost Hokkaido" },
+        { "lon": 141.7, "lat": 43.94, "at": "Rumoi" },
+        { "lon": 141.0, "lat": 43.2, "at": "Otaru, Ishikari Bay" },
+        { "lon": 140.35, "lat": 43.34, "at": "Cape Kamui, Shakotan Peninsula" },
+        { "lon": 140.13, "lat": 41.87, "at": "Esashi, Japan Sea coast" }
+      ]
+    },
+    {
+      "id": "kyushu",
+      "closed": true,
+      "points": [
+        { "lon": 130.96, "lat": 33.94, "at": "Moji, Kanmon Strait" },
+        { "lon": 131.9, "lat": 33.26, "at": "Cape Sekizaki, Oita" },
+        { "lon": 131.67, "lat": 32.58, "at": "Nobeoka, Hyuga coast" },
+        { "lon": 131.42, "lat": 31.9, "at": "Miyazaki" },
+        { "lon": 131.35, "lat": 31.37, "at": "Cape Toi, Osumi coast" },
+        { "lon": 130.67, "lat": 31.03, "at": "Cape Sata, southernmost Kyushu" },
+        { "lon": 130.55, "lat": 31.6, "at": "Kagoshima Bay" },
+        { "lon": 130.22, "lat": 31.15, "at": "Cape Nagasakibana, Satsuma Peninsula" },
+        { "lon": 130.3, "lat": 31.85, "at": "Kushikino, East China Sea coast" },
+        { "lon": 130.4, "lat": 32.22, "at": "Minamata, Yatsushiro Sea" },
+        { "lon": 130.37, "lat": 32.79, "at": "Shimabara" },
+        { "lon": 129.87, "lat": 32.75, "at": "Nagasaki" },
+        { "lon": 129.72, "lat": 33.2, "at": "Sasebo, Hirado sound" },
+        { "lon": 129.97, "lat": 33.45, "at": "Karatsu" },
+        { "lon": 130.4, "lat": 33.62, "at": "Hakata Bay, Fukuoka" }
+      ]
+    },
+    {
+      "id": "shikoku",
+      "closed": true,
+      "points": [
+        { "lon": 134.65, "lat": 34.23, "at": "Naruto Strait" },
+        { "lon": 134.75, "lat": 33.83, "at": "Cape Gamoda, easternmost Shikoku" },
+        { "lon": 134.18, "lat": 33.25, "at": "Cape Muroto" },
+        { "lon": 133.55, "lat": 33.5, "at": "Kochi, Tosa Bay" },
+        { "lon": 133.02, "lat": 32.72, "at": "Cape Ashizuri" },
+        { "lon": 132.55, "lat": 33.22, "at": "Uwajima" },
+        { "lon": 132.02, "lat": 33.35, "at": "Cape Sadamisaki, westernmost Shikoku" },
+        { "lon": 132.72, "lat": 33.83, "at": "Matsuyama" },
+        { "lon": 132.98, "lat": 34.07, "at": "Imabari, Kurushima Strait" },
+        { "lon": 134.05, "lat": 34.35, "at": "Takamatsu, Inland Sea" }
+      ]
+    },
+    {
+      "id": "sakhalin",
+      "closed": true,
+      "points": [
+        { "lon": 142.32, "lat": 54.42, "at": "Cape Elizabeth, northern tip" },
+        { "lon": 142.95, "lat": 53.58, "at": "Okha, Sakhalin Gulf" },
+        { "lon": 143.3, "lat": 51.8, "at": "Nyisky Bay, Okhotsk coast" },
+        { "lon": 144.73, "lat": 48.65, "at": "Cape Terpeniya" },
+        { "lon": 143.1, "lat": 49.22, "at": "Poronaysk, head of Terpeniya Bay" },
+        { "lon": 143.15, "lat": 48.47, "at": "Cape Svobodny" },
+        { "lon": 143.42, "lat": 46.03, "at": "Cape Aniva" },
+        { "lon": 142.78, "lat": 46.63, "at": "Korsakov, Aniva Bay" },
+        { "lon": 142.1, "lat": 45.9, "at": "Cape Krillon, southern tip" },
+        { "lon": 142.05, "lat": 47.05, "at": "Kholmsk, Tatar Strait" },
+        { "lon": 142.07, "lat": 49.08, "at": "Uglegorsk" },
+        { "lon": 142.15, "lat": 50.9, "at": "Aleksandrovsk-Sakhalinsky" },
+        { "lon": 141.65, "lat": 52.23, "at": "Cape Pogibi, Nevelskoy Strait" },
+        { "lon": 142.05, "lat": 54.3, "at": "Cape Maria, northwest tip" }
+      ]
+    },
+    {
+      "id": "taiwan",
+      "closed": true,
+      "points": [
+        { "lon": 121.54, "lat": 25.3, "at": "Cape Fugui, northern tip" },
+        { "lon": 121.75, "lat": 25.15, "at": "Keelung" },
+        { "lon": 122.0, "lat": 25.01, "at": "Cape Sandiaojiao, northeast corner" },
+        { "lon": 121.85, "lat": 24.6, "at": "Su-ao" },
+        { "lon": 121.62, "lat": 23.98, "at": "Hualien" },
+        { "lon": 121.15, "lat": 22.75, "at": "Taitung" },
+        { "lon": 120.85, "lat": 21.9, "at": "Cape Eluanbi, southern tip" },
+        { "lon": 120.45, "lat": 22.45, "at": "Donggang" },
+        { "lon": 120.15, "lat": 23.0, "at": "Anping, Tainan" },
+        { "lon": 120.1, "lat": 23.6, "at": "Waisanding sandbar, Yunlin" },
+        { "lon": 120.5, "lat": 24.28, "at": "Taichung Harbour" },
+        { "lon": 120.9, "lat": 24.8, "at": "Hsinchu" },
+        { "lon": 121.42, "lat": 25.18, "at": "Tamsui, mouth of the Danshui River" }
+      ]
+    },
+    {
+      "id": "sri_lanka",
+      "closed": true,
+      "points": [
+        { "lon": 80.23, "lat": 9.83, "at": "Point Pedro, northern tip" },
+        { "lon": 81.23, "lat": 8.58, "at": "Trincomalee" },
+        { "lon": 81.7, "lat": 7.72, "at": "Batticaloa" },
+        { "lon": 81.83, "lat": 6.87, "at": "Arugam Bay, Pottuvil" },
+        { "lon": 81.28, "lat": 6.22, "at": "Kirinda, Great Basses" },
+        { "lon": 81.12, "lat": 6.12, "at": "Hambantota" },
+        { "lon": 80.59, "lat": 5.92, "at": "Dondra Head, southern tip" },
+        { "lon": 80.22, "lat": 6.03, "at": "Galle" },
+        { "lon": 79.85, "lat": 6.93, "at": "Colombo" },
+        { "lon": 79.77, "lat": 8.23, "at": "Kalpitiya, Puttalam lagoon" },
+        { "lon": 79.9, "lat": 8.98, "at": "Mannar" },
+        { "lon": 80.02, "lat": 9.66, "at": "Jaffna" }
+      ]
+    },
+    {
+      "id": "sicily",
+      "closed": true,
+      "points": [
+        { "lon": 15.65, "lat": 38.27, "at": "Capo Peloro, Strait of Messina" },
+        { "lon": 14.02, "lat": 38.04, "at": "Cefalu" },
+        { "lon": 13.36, "lat": 38.13, "at": "Palermo" },
+        { "lon": 12.73, "lat": 38.18, "at": "Capo San Vito" },
+        { "lon": 12.51, "lat": 38.02, "at": "Trapani" },
+        { "lon": 12.44, "lat": 37.8, "at": "Capo Lilibeo, Marsala" },
+        { "lon": 13.08, "lat": 37.5, "at": "Sciacca" },
+        { "lon": 13.53, "lat": 37.28, "at": "Porto Empedocle, Agrigento" },
+        { "lon": 14.25, "lat": 37.06, "at": "Gela" },
+        { "lon": 15.14, "lat": 36.68, "at": "Capo Passero, southeast tip" },
+        { "lon": 15.29, "lat": 37.07, "at": "Siracusa" },
+        { "lon": 15.09, "lat": 37.5, "at": "Catania" },
+        { "lon": 15.29, "lat": 37.85, "at": "Taormina" }
+      ]
+    },
+    {
+      "id": "sardinia",
+      "closed": true,
+      "points": [
+        { "lon": 9.22, "lat": 41.25, "at": "Punta Falcone, Santa Teresa Gallura" },
+        { "lon": 9.62, "lat": 40.93, "at": "Golfo Aranci, Olbia" },
+        { "lon": 9.82, "lat": 40.52, "at": "Capo Comino" },
+        { "lon": 9.72, "lat": 39.93, "at": "Capo Bellavista, Arbatax" },
+        { "lon": 9.51, "lat": 39.1, "at": "Capo Carbonara, Villasimius" },
+        { "lon": 9.12, "lat": 39.2, "at": "Cagliari, Golfo di Cagliari" },
+        { "lon": 8.64, "lat": 38.87, "at": "Capo Teulada, southern tip" },
+        { "lon": 8.44, "lat": 39.05, "at": "Sant'Antioco" },
+        { "lon": 8.5, "lat": 39.85, "at": "Golfo di Oristano" },
+        { "lon": 8.36, "lat": 40.03, "at": "Capo Mannu, Sinis Peninsula" },
+        { "lon": 8.17, "lat": 40.56, "at": "Capo Caccia, Alghero" },
+        { "lon": 8.2, "lat": 40.96, "at": "Capo Falcone, Stintino" },
+        { "lon": 8.4, "lat": 40.84, "at": "Porto Torres, Golfo dell'Asinara" },
+        { "lon": 8.71, "lat": 40.92, "at": "Castelsardo" }
+      ]
+    },
+    {
+      "id": "corsica",
+      "closed": true,
+      "points": [
+        { "lon": 9.45, "lat": 43.0, "at": "Cap Corse, northern tip" },
+        { "lon": 9.45, "lat": 42.7, "at": "Bastia" },
+        { "lon": 9.55, "lat": 42.1, "at": "Aleria, east coast" },
+        { "lon": 9.4, "lat": 41.86, "at": "Solenzara" },
+        { "lon": 9.29, "lat": 41.59, "at": "Porto-Vecchio" },
+        { "lon": 9.16, "lat": 41.38, "at": "Bonifacio, southern tip" },
+        { "lon": 8.9, "lat": 41.68, "at": "Propriano, Golfe de Valinco" },
+        { "lon": 8.74, "lat": 41.92, "at": "Ajaccio" },
+        { "lon": 8.6, "lat": 42.13, "at": "Cargese, Golfe de Sagone" },
+        { "lon": 8.56, "lat": 42.25, "at": "Capo Rosso, Golfe de Porto" },
+        { "lon": 8.76, "lat": 42.57, "at": "Calvi" },
+        { "lon": 8.94, "lat": 42.64, "at": "L'Ile-Rousse" },
+        { "lon": 9.3, "lat": 42.68, "at": "Saint-Florent" }
+      ]
+    },
+    {
+      "id": "crete",
+      "closed": true,
+      "points": [
+        { "lon": 26.3, "lat": 35.3, "at": "Cape Sidero, northeast tip" },
+        { "lon": 26.1, "lat": 35.21, "at": "Sitia" },
+        { "lon": 26.05, "lat": 34.93, "at": "Cape Goudouras, southeast corner" },
+        { "lon": 25.74, "lat": 35.01, "at": "Ierapetra" },
+        { "lon": 24.72, "lat": 34.93, "at": "Cape Lithino, southernmost Crete" },
+        { "lon": 23.65, "lat": 35.2, "at": "Palaiochora, Cape Krios" },
+        { "lon": 23.57, "lat": 35.62, "at": "Cape Vouxa, Gramvousa" },
+        { "lon": 24.02, "lat": 35.52, "at": "Chania, Souda Bay" },
+        { "lon": 24.47, "lat": 35.37, "at": "Rethymno" },
+        { "lon": 25.13, "lat": 35.34, "at": "Heraklion" },
+        { "lon": 25.72, "lat": 35.19, "at": "Agios Nikolaos, Mirabello Bay" }
+      ]
+    },
+    {
+      "id": "cyprus",
+      "closed": true,
+      "points": [
+        { "lon": 34.58, "lat": 35.69, "at": "Cape Apostolos Andreas, tip of the Karpas Peninsula" },
+        { "lon": 33.94, "lat": 35.12, "at": "Famagusta" },
+        { "lon": 34.08, "lat": 34.96, "at": "Cape Greco" },
+        { "lon": 33.63, "lat": 34.92, "at": "Larnaca" },
+        { "lon": 33.57, "lat": 34.74, "at": "Cape Kiti" },
+        { "lon": 33.04, "lat": 34.67, "at": "Limassol" },
+        { "lon": 32.98, "lat": 34.56, "at": "Cape Gata, Akrotiri Peninsula" },
+        { "lon": 32.41, "lat": 34.77, "at": "Paphos" },
+        { "lon": 32.27, "lat": 35.09, "at": "Cape Arnaoutis, Akamas Peninsula" },
+        { "lon": 32.92, "lat": 35.4, "at": "Cape Kormakitis" },
+        { "lon": 33.32, "lat": 35.34, "at": "Kyrenia" }
+      ]
+    },
+    {
+      "id": "novaya_zemlya",
+      "closed": true,
+      "points": [
+        { "lon": 57.5, "lat": 70.55, "at": "Cape Kussov Nos, southern tip at the Kara Gate" },
+        { "lon": 53.6, "lat": 70.7, "at": "Cape Menshikov, Barents coast" },
+        { "lon": 51.7, "lat": 71.5, "at": "Gusinaya Zemlya Peninsula" },
+        { "lon": 52.7, "lat": 72.0, "at": "Malye Karmakuly, Moller Bay (lat clamped south from 72.4N)" },
+        { "lon": 53.8, "lat": 72.0, "at": "Cape Sukhoy Nos, west entrance of Matochkin Shar (lat clamped south from 73.4N)" },
+        { "lon": 55.4, "lat": 72.0, "at": "Krestovaya Bay (lat clamped south from 74.1N)" },
+        { "lon": 68.55, "lat": 72.0, "at": "Cape Zhelaniya, northern tip (lat clamped south from 76.9N)" },
+        { "lon": 64.5, "lat": 72.0, "at": "Cape Middendorf, Kara coast (lat clamped south from 75.0N)" },
+        { "lon": 56.5, "lat": 72.0, "at": "Cape Vyhodnoy, east entrance of Matochkin Shar (lat clamped south from 73.3N)" },
+        { "lon": 56.3, "lat": 71.6, "at": "Abrosimov Bay, Kara coast" }
+      ]
+    },
+    {
+      "id": "gotland",
+      "closed": true,
+      "points": [
+        { "lon": 19.35, "lat": 57.96, "at": "Holmudden, northern tip of Faro" },
+        { "lon": 18.8, "lat": 57.71, "at": "Slite" },
+        { "lon": 18.85, "lat": 57.42, "at": "Herrvik, Ostergarn" },
+        { "lon": 18.75, "lat": 57.33, "at": "Ljugarn" },
+        { "lon": 18.5, "lat": 57.17, "at": "Ronehamn" },
+        { "lon": 18.28, "lat": 57.04, "at": "Burgsvik" },
+        { "lon": 18.15, "lat": 56.92, "at": "Hoburgen, southern tip" },
+        { "lon": 18.2, "lat": 57.39, "at": "Klintehamn" },
+        { "lon": 18.29, "lat": 57.64, "at": "Visby" },
+        { "lon": 18.75, "lat": 57.86, "at": "Kappelshamn" },
+        { "lon": 19.05, "lat": 57.87, "at": "Farosund" }
+      ]
+    }
+  ]
+}

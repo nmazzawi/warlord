@@ -1,0 +1,97 @@
+{
+  "segments": [
+    {
+      "id": "black_sea",
+      "closed": true,
+      "points": [
+        {"lon": 29.0, "lat": 41.2, "at": "Bosphorus mouth, Istanbul"},
+        {"lon": 31.4, "lat": 41.3, "at": "Karadeniz Eregli"},
+        {"lon": 35.2, "lat": 42.0, "at": "Cape Inceburun, Sinop"},
+        {"lon": 36.0, "lat": 41.7, "at": "Kizilirmak Delta"},
+        {"lon": 39.7, "lat": 41.0, "at": "Trabzon"},
+        {"lon": 41.7, "lat": 42.15, "at": "Poti, Rioni Delta"},
+        {"lon": 41.0, "lat": 43.0, "at": "Sukhumi"},
+        {"lon": 37.8, "lat": 44.7, "at": "Novorossiysk"},
+        {"lon": 36.9, "lat": 45.2, "at": "Taman, east side of the Kerch Strait"},
+        {"lon": 38.3, "lat": 46.7, "at": "Yeysk, Sea of Azov"},
+        {"lon": 38.9, "lat": 47.2, "at": "Taganrog, mouth of the Don"},
+        {"lon": 37.0, "lat": 46.5, "at": "Berdyansk Spit, north shore of the Sea of Azov"},
+        {"lon": 34.8, "lat": 46.2, "at": "Genichesk, head of the Arabat Spit"},
+        {"lon": 35.8, "lat": 45.45, "at": "Cape Kazantip, Crimean Azov shore"},
+        {"lon": 36.5, "lat": 45.35, "at": "Kerch, west side of the Kerch Strait"},
+        {"lon": 35.4, "lat": 45.05, "at": "Feodosia"},
+        {"lon": 33.5, "lat": 44.4, "at": "Cape Sarych, southern tip of Crimea"},
+        {"lon": 32.5, "lat": 45.35, "at": "Cape Tarkhankut, western Crimea"},
+        {"lon": 31.5, "lat": 46.6, "at": "Ochakiv, Dnieper-Bug Estuary"},
+        {"lon": 29.7, "lat": 45.15, "at": "Sulina, Danube Delta"},
+        {"lon": 28.5, "lat": 43.4, "at": "Cape Kaliakra"},
+        {"lon": 28.0, "lat": 41.9, "at": "Igneada, Turkish Thrace"}
+      ]
+    },
+    {
+      "id": "caspian_sea",
+      "closed": true,
+      "points": [
+        {"lon": 48.5, "lat": 46.0, "at": "Volga Delta, Astrakhan"},
+        {"lon": 51.8, "lat": 46.9, "at": "Ural River mouth, Atyrau"},
+        {"lon": 51.5, "lat": 45.2, "at": "Buzachi Peninsula"},
+        {"lon": 50.3, "lat": 44.5, "at": "Cape Tyub-Karagan, Fort Shevchenko"},
+        {"lon": 51.2, "lat": 43.65, "at": "Aktau, Mangyshlak coast"},
+        {"lon": 53.5, "lat": 41.3, "at": "Kara-Bogaz-Gol inlet"},
+        {"lon": 53.0, "lat": 40.0, "at": "Turkmenbashi (Krasnovodsk) Bay"},
+        {"lon": 53.1, "lat": 39.4, "at": "Cheleken Peninsula, Hazar"},
+        {"lon": 53.9, "lat": 37.5, "at": "Esenguly, Turkmen south coast"},
+        {"lon": 54.0, "lat": 36.9, "at": "Miankaleh Spit, Gorgan Bay"},
+        {"lon": 52.6, "lat": 36.7, "at": "Babolsar, Mazandaran coast"},
+        {"lon": 51.5, "lat": 36.65, "at": "Nowshahr"},
+        {"lon": 49.5, "lat": 37.5, "at": "Bandar-e Anzali"},
+        {"lon": 48.87, "lat": 38.43, "at": "Astara, Iran-Azerbaijan border"},
+        {"lon": 49.4, "lat": 39.3, "at": "Kura River Delta"},
+        {"lon": 50.0, "lat": 40.4, "at": "Baku, Apsheron Peninsula"},
+        {"lon": 49.6, "lat": 40.6, "at": "Sumqayit"},
+        {"lon": 48.3, "lat": 42.1, "at": "Derbent"},
+        {"lon": 47.5, "lat": 43.0, "at": "Makhachkala"},
+        {"lon": 47.3, "lat": 44.4, "at": "Kizlyar Bay, Terek Delta"}
+      ]
+    },
+    {
+      "id": "aral_sea",
+      "closed": true,
+      "points": [
+        {"lon": 61.7, "lat": 46.8, "at": "Aralsk, northeast shore"},
+        {"lon": 61.2, "lat": 46.2, "at": "Syr Darya Delta, Karateren"},
+        {"lon": 61.6, "lat": 45.6, "at": "Kaskakulan, east shore"},
+        {"lon": 61.7, "lat": 45.0, "at": "Uzynkair, east shore"},
+        {"lon": 60.7, "lat": 44.3, "at": "Akpetki Archipelago, southeast shore"},
+        {"lon": 59.7, "lat": 43.9, "at": "Amu Darya Delta, Uchsay"},
+        {"lon": 59.0, "lat": 43.9, "at": "Muynak"},
+        {"lon": 58.8, "lat": 44.3, "at": "Chernyshev Bay"},
+        {"lon": 58.3, "lat": 44.7, "at": "Cape Aktumsyk, Ustyurt cliffs"},
+        {"lon": 58.2, "lat": 45.2, "at": "Ustyurt Chink, west shore"},
+        {"lon": 58.6, "lat": 45.9, "at": "Tshche-bas (Shevchenko) Bay"},
+        {"lon": 59.8, "lat": 46.0, "at": "Kulandy Peninsula"},
+        {"lon": 60.6, "lat": 46.5, "at": "Butakov Bay, Kokaral"}
+      ]
+    },
+    {
+      "id": "lake_baikal",
+      "closed": true,
+      "points": [
+        {"lon": 103.7, "lat": 51.7, "at": "Kultuk, southwest tip of Baikal"},
+        {"lon": 105.9, "lat": 51.7, "at": "Babushkin (Mysovaya), south shore"},
+        {"lon": 106.5, "lat": 52.25, "at": "Selenga Delta"},
+        {"lon": 108.1, "lat": 52.95, "at": "Gremyachinsk, east shore"},
+        {"lon": 109.0, "lat": 53.4, "at": "Ust-Barguzin, Barguzin Bay"},
+        {"lon": 109.0, "lat": 53.7, "at": "Svyatoy Nos Peninsula"},
+        {"lon": 109.5, "lat": 54.35, "at": "Davsha, Barguzin east shore"},
+        {"lon": 109.6, "lat": 55.78, "at": "Nizhneangarsk, north tip"},
+        {"lon": 109.3, "lat": 55.63, "at": "Severobaykalsk"},
+        {"lon": 108.6, "lat": 54.9, "at": "Cape Kotelnikovsky, west shore"},
+        {"lon": 107.55, "lat": 53.42, "at": "Cape Khoboy, north tip of Olkhon Island"},
+        {"lon": 106.9, "lat": 52.9, "at": "Cape Umysh-Tame, south tip of Olkhon Island"},
+        {"lon": 106.05, "lat": 52.55, "at": "Buguldeika, west shore"},
+        {"lon": 104.87, "lat": 51.87, "at": "Listvyanka, source of the Angara"}
+      ]
+    }
+  ]
+}

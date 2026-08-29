@@ -1,0 +1,64 @@
+{
+  "empires": [
+    {
+      "id": "mongolia",
+      "name": "The Mongol Khanates",
+      "note": "Rolling steppe with nothing on it to burn. No fixed villages - the camps pack and move before you find them, and the riders shoot backwards at a gallop.",
+      "throne": "Karakorum - a camp, not a city",
+      "poly": [
+        {"lon": 87.4, "lat": 49.2, "at": "Altai Mountains, northern crest"},
+        {"lon": 92.7, "lat": 50.3, "at": "Uvs Nuur"},
+        {"lon": 97.0, "lat": 51.7, "at": "Sayan Mountains"},
+        {"lon": 103.8, "lat": 51.5, "at": "Lake Baikal, south shore"},
+        {"lon": 107.6, "lat": 51.8, "at": "Selenge River, lower course"},
+        {"lon": 113.0, "lat": 51.0, "at": "Ingoda - Onon watershed"},
+        {"lon": 119.3, "lat": 50.0, "at": "Argun River"},
+        {"lon": 120.3, "lat": 47.5, "at": "Greater Khingan Range"},
+        {"lon": 119.5, "lat": 43.5, "at": "Shar Moron River"},
+        {"lon": 113.0, "lat": 41.3, "at": "Yin Shan Range"},
+        {"lon": 108.0, "lat": 41.2, "at": "Yellow River, northern loop"},
+        {"lon": 101.5, "lat": 41.9, "at": "Etsin Gol"},
+        {"lon": 96.0, "lat": 42.5, "at": "Beishan desert"},
+        {"lon": 93.5, "lat": 42.8, "at": "Kumul"},
+        {"lon": 88.5, "lat": 44.0, "at": "Bogda Shan"},
+        {"lon": 88.0, "lat": 47.5, "at": "Black Irtysh headwaters"}
+      ],
+      "places": []
+    },
+    {
+      "id": "rus",
+      "name": "The Principalities of Rus",
+      "note": "Winter does half their fighting for them - it starves an army standing still. Shield walls across the forest tracks, and wooden kremlins that burn very well once you get to them.",
+      "throne": "Kiev",
+      "poly": [
+        {"lon": 24.7, "lat": 49.1, "at": "Dniester at Halich"},
+        {"lon": 24.0, "lat": 51.0, "at": "Western Bug"},
+        {"lon": 24.0, "lat": 54.0, "at": "Neman River"},
+        {"lon": 26.5, "lat": 55.9, "at": "Western Dvina, middle course"},
+        {"lon": 27.6, "lat": 57.9, "at": "Lake Peipus, south shore"},
+        {"lon": 28.2, "lat": 59.4, "at": "Narva River"},
+        {"lon": 30.3, "lat": 59.9, "at": "Neva mouth"},
+        {"lon": 31.5, "lat": 61.3, "at": "Lake Ladoga, north shore"},
+        {"lon": 35.5, "lat": 61.5, "at": "Lake Onega, south shore"},
+        {"lon": 37.6, "lat": 60.2, "at": "Lake Beloye"},
+        {"lon": 41.5, "lat": 59.5, "at": "Sukhona River"},
+        {"lon": 44.0, "lat": 56.3, "at": "Volga - Oka confluence"},
+        {"lon": 41.0, "lat": 54.8, "at": "Oka River, middle course"},
+        {"lon": 38.5, "lat": 53.8, "at": "Don headwaters"},
+        {"lon": 36.0, "lat": 51.5, "at": "Seim River"},
+        {"lon": 31.0, "lat": 49.3, "at": "Ros River"}
+      ],
+      "places": [
+        {"name": "Kiev", "kind": "capital", "lon": 30.5, "lat": 50.45, "note": "The high seat above the Dnieper - stone gates, deep ditch, and a dozen princes already quarrelling over who sits in it."},
+        {"name": "Novgorod", "kind": "city", "lon": 31.3, "lat": 58.5, "note": "Fur and wax stacked in the warehouses, marsh on every road in - come before the thaw or not at all."},
+        {"name": "Vladimir", "kind": "city", "lon": 40.4, "lat": 56.13, "note": "White stone churches, new walls, and the treasury that used to be Kiev's."},
+        {"name": "Chernigov", "kind": "city", "lon": 31.3, "lat": 51.5, "note": "A day's ride from the throne and sour about it; earth ramparts, and horsemen who know the steppe road."},
+        {"name": "Smolensk", "kind": "town", "lon": 32.05, "lat": 54.78, "note": "Every boat on the upper Dnieper is dragged overland here. The tolls are heavy and so is the garrison."},
+        {"name": "Pskov", "kind": "town", "lon": 28.35, "lat": 57.82, "note": "Stone walls on the Velikaya; the men there have already fought somebody this year."},
+        {"name": "Polotsk", "kind": "town", "lon": 28.8, "lat": 55.5, "note": "Sits astride the Dvina portage, keeps its own prince, and sends Kiev nothing."},
+        {"name": "Ladoga", "kind": "village", "lon": 32.3, "lat": 60.0, "note": "Timber fort at the river mouth, first stop on the northern trade - the silver is under the floorboards."},
+        {"name": "Beloozero", "kind": "village", "lon": 37.8, "lat": 60.05, "note": "Fishing huts where the lake drains out, four weeks of forest from anywhere; the tribute comes in pelts."}
+      ]
+    }
+  ]
+}

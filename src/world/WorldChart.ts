@@ -1,58 +1,90 @@
-// WorldChart.ts — the world as an aged parchment chart: one stylized, compressed Earth. Land and the
-// twelve culture regions are hand-placed polygons (jittered when drawn so they look inked by hand),
-// the oceans carry hatching, a compass rose and sea creatures, and the locked sea roads are dashed.
+// WorldChart.ts — the world as an aged parchment atlas. The coastlines are real Earth (see geo.ts and
+// AtlasData.ts): the Mediterranean and the Italian boot, Scandinavia, Arabia, India's triangle, the
+// Japanese islands, the Americas across the western ocean. Every realm on it is a named empire with a
+// tint, a throne and settlements of its own — the ones you cannot reach yet are drawn muted, as a
+// promise. The sea, its hatching, its creatures and the compass rose are baked into one texture; the
+// land, the empires and the ink outlines are drawn as vectors so they stay sharp at any zoom.
 import Phaser from 'phaser';
 import { PAL } from '../scenes/ui';
 import { mulberry32 } from '../utils/rng';
+import { CHART, ll, type Pt } from './geo';
+import { ATLAS_EMPIRES, COASTS, SEAS, type AtlasPlace } from './AtlasData';
 
-export const CHART = { w: 3000, h: 1800, texScale: 0.5 };
+export { CHART } from './geo';
+export type { Pt } from './geo';
 
-export type Pt = [number, number];
 export interface Region {
-  id: string; name: string; tint: number; poly: Pt[]; note: string;
-  enterable: boolean; territory?: 'homeland' | 'steppe';
+  id: string; name: string; tint: number; poly: Pt[]; note: string; throne: string;
+  places: AtlasPlace[]; enterable: boolean; territory?: 'homeland' | 'steppe';
+  /** Where the realm's name is written — placed by hand, the way a cartographer would, to keep the
+   *  crowded Old World legible when the whole Earth is on screen. */
+  labelAt: Pt;
 }
 
-/** Filler land (neutral parchment): the Americas, Eurasia + Africa, Japan's islands, Britain. */
-export const LAND: Pt[][] = [
-  [[260, 260], [480, 200], [680, 300], [740, 500], [680, 680], [600, 780], [640, 950], [700, 1150], [640, 1400], [560, 1620], [470, 1700], [400, 1520], [360, 1300], [280, 1120], [330, 980], [270, 860], [200, 700], [190, 470]],
-  [[1120, 300], [1300, 220], [1550, 170], [1780, 210], [2050, 180], [2350, 200], [2650, 240], [2900, 330], [2960, 560], [2880, 760], [2760, 920], [2650, 1060], [2560, 1180], [2470, 1200], [2380, 1120], [2260, 1220], [2230, 1340], [2120, 1300], [2040, 1420], [1980, 1600], [1880, 1680], [1760, 1580], [1660, 1420], [1560, 1260], [1440, 1140], [1330, 1040], [1220, 940], [1130, 780], [1090, 600], [1100, 430]],
-  [[2960, 660], [3060, 690], [3100, 800], [3020, 890], [2940, 830], [2920, 720]],
-  [[1180, 360], [1260, 340], [1290, 420], [1230, 470], [1170, 440]],
-];
+/** One tint per realm — all of them washed-out enough to read as ink on parchment. */
+const TINTS: Record<string, number> = {
+  rome: 0xcf9c7e, greece: 0x9dc0d9, viking: 0x9ab1c8, rus: 0x9fbd94, mongolia: 0xcfb87f,
+  china: 0xd79f9f, japan: 0xdfa7b1, india: 0xd8a55e, persia: 0xc59cbf, arabia: 0xd6c07c,
+  egypt: 0xd9b45f, aztecs: 0x93c08d,
+};
+
+/** Where each realm's name sits (longitude, latitude) — open ground, clear of its neighbours. */
+const LABEL_AT: Record<string, [number, number]> = {
+  rome: [2, 46], greece: [22, 35.5], viking: [8, 58.5], rus: [42, 59], mongolia: [102, 48],
+  china: [111, 29], japan: [131.5, 44], india: [80, 19], persia: [59, 34], arabia: [47, 24],
+  egypt: [30, 14], aztecs: [-104, 17],
+};
+
+/** The one realm that is not a real place: a nameless borderland east of Rus, west of the grass. */
+const BORDERLAND: Pt[] = ([
+  [55.2, 55.0], [59.0, 55.4], [63.4, 55.2], [67.4, 54.2], [68.4, 52.0],
+  [67.2, 49.4], [63.0, 48.2], [58.6, 48.5], [55.0, 49.8], [54.0, 52.4],
+] as Array<[number, number]>).map(([lon, lat]) => ll(lon, lat));
 
 export const REGIONS: Region[] = [
-  { id: 'viking', name: 'The Viking North', tint: 0x9fb4c8, poly: [[1420, 240], [1560, 190], [1700, 230], [1740, 380], [1640, 470], [1500, 460], [1420, 360]], note: 'Longships strike any coast — the sea is their highway. One day, the Longship Update.', enterable: false },
-  { id: 'rus', name: 'Rus', tint: 0xa9c1a0, poly: [[1760, 300], [2000, 260], [2180, 320], [2140, 500], [2020, 600], [1820, 560], [1740, 430]], note: 'Winter punishes invaders. Heavy axes, shield walls, wooden kremlins that burn.', enterable: false },
-  { id: 'homeland', name: 'The Borderland', tint: 0xd9c48a, poly: [[2140, 520], [2350, 500], [2440, 600], [2420, 740], [2300, 800], [2160, 780], [2110, 660]], note: 'A small kingdom nobody bothered to name, wedged between Rus and the steppe. Yours to take.', enterable: true, territory: 'homeland' },
-  { id: 'mongolia', name: 'Mongolia', tint: 0xd6c39a, poly: [[2400, 420], [2600, 360], [2800, 420], [2820, 600], [2680, 700], [2520, 720], [2450, 640]], note: 'Rolling steppe. No fixed villages — camps that move, riders who shoot at a gallop.', enterable: true, territory: 'steppe' },
-  { id: 'china', name: 'China', tint: 0xd9a8a8, poly: [[2620, 720], [2860, 700], [2920, 880], [2800, 1000], [2620, 980], [2560, 860]], note: 'Mass and technology: repeating crossbows, halberd blocks, war drums, the biggest walled cities anywhere.', enterable: false },
-  { id: 'japan', name: 'Japan', tint: 0xe0b0b8, poly: [[2960, 660], [3060, 690], [3100, 800], [3020, 890], [2940, 830], [2920, 720]], note: 'Few but elite. Samurai who accept duels; ninja who strike at night.', enterable: false },
-  { id: 'india', name: 'India', tint: 0xd9b57a, poly: [[2400, 1020], [2560, 1020], [2620, 1140], [2540, 1260], [2440, 1240], [2380, 1120]], note: 'War elephants that trample lines — and rampage into whoever is nearest when panicked.', enterable: false },
-  { id: 'persia', name: 'Persia', tint: 0xc9a6c2, poly: [[2160, 840], [2400, 800], [2440, 940], [2340, 1040], [2180, 1020], [2120, 920]], note: 'The Immortals replace their losses overnight. Satrapies, and the Royal Road.', enterable: false },
-  { id: 'arabia', name: 'Arabia', tint: 0xe0d29a, poly: [[1960, 1080], [2160, 1040], [2200, 1200], [2100, 1300], [1960, 1260], [1920, 1160]], note: 'The richest trade cities, desert that starves armies, assassin guilds for hire, camels that panic horses.', enterable: false },
-  { id: 'egypt', name: 'Egypt', tint: 0xe3cc8f, poly: [[1740, 1120], [1920, 1100], [1940, 1280], [1860, 1360], [1740, 1300], [1700, 1200]], note: 'Chariots rule open ground; the Nile feeds armies; the richest loot per settlement.', enterable: false },
-  { id: 'greece', name: 'Greece', tint: 0xa8c5d9, poly: [[1560, 900], [1700, 880], [1760, 1000], [1680, 1080], [1560, 1060], [1520, 980]], note: 'Phalanx walls unbreakable from the front, weak on the flanks; feuding city-states you can hire against each other.', enterable: false },
-  { id: 'rome', name: 'Rome', tint: 0xd0a68c, poly: [[1320, 860], [1500, 840], [1560, 960], [1480, 1080], [1340, 1060], [1280, 960]], note: 'Discipline. Testudo against arrows, pilum volleys, the best siegecraft, roads that speed every march.', enterable: false },
-  { id: 'aztecs', name: 'The Aztecs', tint: 0xa8c8a0, poly: [[420, 980], [600, 960], [680, 1100], [600, 1260], [460, 1280], [380, 1140]], note: 'Across the western ocean. Flower wars: defeat means capture for sacrifice, and an escape instead of a death.', enterable: false },
+  ...ATLAS_EMPIRES.map(e => ({
+    id: e.id, name: e.name, tint: TINTS[e.id] ?? 0xd9c9a0, poly: e.poly, note: e.note, throne: e.throne,
+    places: e.places, enterable: e.id === 'mongolia',
+    territory: e.id === 'mongolia' ? ('steppe' as const) : undefined,
+    labelAt: LABEL_AT[e.id] ? ll(LABEL_AT[e.id][0], LABEL_AT[e.id][1]) : centroid(e.poly),
+  })),
+  {
+    id: 'homeland', name: 'The Borderland', tint: 0xd9c48a, poly: BORDERLAND, throne: '', places: [],
+    note: 'A small kingdom nobody bothered to name, wedged between Rus and the steppe. No title, no throne, no allies. Yours to take.',
+    enterable: true, territory: 'homeland', labelAt: centroid(BORDERLAND),
+  },
 ];
 
 /** Dashed sea roads — locked until ships exist. */
-export const SEA_ROUTES: Array<{ id: string; name: string; pts: Pt[] }> = [
-  { id: 'west', name: 'The western crossing', pts: [[1420, 300], [1100, 340], [820, 420], [700, 520]] },
-  { id: 'cape', name: 'Around the cape', pts: [[1840, 1400], [1760, 1720], [2050, 1760], [2350, 1500], [2480, 1300]] },
-  { id: 'japan', name: 'The eastern sea', pts: [[2900, 900], [2960, 860]] },
-];
+export const SEA_ROUTES: Array<{ id: string; name: string; pts: Pt[] }> = ([
+  { id: 'west', name: 'The western crossing', pts: [[-10, 36], [-28, 32], [-48, 26], [-64, 17], [-73, 14.5], [-83, 16], [-87, 18]] },
+  { id: 'cape', name: 'Around the cape', pts: [[-10.5, 35], [-14, 29], [-19, 20], [-21, 12], [-12, 0], [3, -15], [10, -28], [19, -38], [30, -36], [45, -30], [55, -12], [68, 8]] },
+  { id: 'japan', name: 'The eastern sea', pts: [[129.6, 36.6], [131.5, 36.5], [132.8, 35.9]] },
+  { id: 'north', name: 'The whale road', pts: [[3.5, 58.5], [-2, 60.5], [-9, 62], [-17, 62.5]] },
+] as Array<{ id: string; name: string; pts: Array<[number, number]> }>)
+  .map(r => ({ ...r, pts: r.pts.map(([lon, lat]) => ll(lon, lat)) }));
 
-export const SEA_CREATURES: Array<{ x: number; y: number; kind: 'serpent' | 'kraken' | 'whale'; scale: number }> = [
-  { x: 950, y: 1350, kind: 'serpent', scale: 1.2 }, { x: 2550, y: 1600, kind: 'kraken', scale: 1 }, { x: 900, y: 620, kind: 'whale', scale: 0.9 }, { x: 2500, y: 1420, kind: 'whale', scale: 0.7 },
-];
-export const COMPASS = { x: 360, y: 1520, r: 110 };
+export const SEA_CREATURES: Array<{ xy: Pt; kind: 'serpent' | 'kraken' | 'whale'; scale: number }> = ([
+  { lon: -42, lat: 8, kind: 'serpent', scale: 1.3 },
+  { lon: 78, lat: -22, kind: 'kraken', scale: 1.15 },
+  { lon: -34, lat: 47, kind: 'whale', scale: 1 },
+  { lon: 140, lat: 4, kind: 'whale', scale: 0.85 },
+  { lon: -45, lat: -32, kind: 'serpent', scale: 0.9 },
+] as Array<{ lon: number; lat: number; kind: 'serpent' | 'kraken' | 'whale'; scale: number }>)
+  .map(c => ({ xy: ll(c.lon, c.lat), kind: c.kind, scale: c.scale }));
 
+export const COMPASS = { xy: ll(-33, -22), r: 210 };
+
+// ---------------------------------------------------------------- geometry helpers
 export function centroid(poly: Pt[]): Pt {
   let x = 0, y = 0;
   for (const [px, py] of poly) { x += px; y += py; }
   return [x / poly.length, y / poly.length];
+}
+export function bbox(poly: Pt[]) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of poly) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 };
 }
 export function pointInPoly(x: number, y: number, poly: Pt[]) {
   let inside = false;
@@ -77,124 +109,251 @@ export function distToPolyline(x: number, y: number, pts: Pt[]) {
   return best;
 }
 
-/** Subdivide and wobble a polygon so it looks inked by hand (deterministic). */
-function wobble(poly: Pt[], rnd: () => number, amp: number, steps = 3): Pt[] {
+// ---------------------------------------------------------------- drawing
+// The whole chart is painted ONCE into a canvas texture: an aged sea, the land, every realm's tint
+// clipped to the coast, the ink, the sea roads, the monsters and the rose. Painting it as a texture
+// (rather than leaving it as live vector shapes) is what keeps the map at full frame rate on a phone —
+// vector shapes are re-tessellated every single frame. The only shapes still drawn live are the
+// borders of the two realms you can actually walk into, so they stay razor sharp when you dive in.
+const SEA = 0xa8b59a, SEA_DEEP = 0x8fa08c, PARCH = 0xe4d3ad, INK = 0x3a2a18;
+const css = (c: number, a = 1) => `rgba(${(c >> 16) & 255},${(c >> 8) & 255},${c & 255},${a})`;
+
+/** Jitter a ring so it looks inked by hand, keeping every real cape exactly where it belongs. */
+function inked(pts: Pt[], rnd: () => number, amp: number): Pt[] {
   const out: Pt[] = [];
-  for (let i = 0; i < poly.length; i++) {
-    const [ax, ay] = poly[i], [bx, by] = poly[(i + 1) % poly.length];
-    for (let s = 0; s < steps; s++) {
+  for (let i = 0; i < pts.length; i++) {
+    const [ax, ay] = pts[i], [bx, by] = pts[(i + 1) % pts.length];
+    out.push([ax + (rnd() - 0.5) * amp, ay + (rnd() - 0.5) * amp]);
+    const len = Math.hypot(bx - ax, by - ay);
+    const steps = Math.min(6, Math.floor(len / 45));
+    for (let s = 1; s < steps; s++) {
       const t = s / steps;
-      out.push([ax + (bx - ax) * t + (rnd() - 0.5) * amp, ay + (by - ay) * t + (rnd() - 0.5) * amp]);
+      out.push([ax + (bx - ax) * t + (rnd() - 0.5) * amp * 1.8, ay + (by - ay) * t + (rnd() - 0.5) * amp * 1.8]);
     }
   }
   return out;
 }
 function mix(a: number, b: number, t: number) {
   const ca = Phaser.Display.Color.ValueToColor(a), cb = Phaser.Display.Color.ValueToColor(b);
-  return Phaser.Display.Color.GetColor(Math.round(ca.red + (cb.red - ca.red) * t), Math.round(ca.green + (cb.green - ca.green) * t), Math.round(ca.blue + (cb.blue - ca.blue) * t));
+  return Phaser.Display.Color.GetColor(
+    Math.round(ca.red + (cb.red - ca.red) * t), Math.round(ca.green + (cb.green - ca.green) * t), Math.round(ca.blue + (cb.blue - ca.blue) * t));
+}
+function trace(ctx: CanvasRenderingContext2D, pts: Pt[], close = true) {
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  if (close) ctx.closePath();
 }
 
-/** Bakes the whole chart once, at half resolution, into a texture. */
+/** Paints the entire chart into one canvas texture and returns its key. */
 export function chartTexture(scene: Phaser.Scene): string {
   const key = 'world_chart';
   if (scene.textures.exists(key)) return key;
   const S = CHART.texScale;
+  const canvas = scene.textures.createCanvas(key, Math.ceil(CHART.w * S), Math.ceil(CHART.h * S));
+  if (!canvas) return key;
+  const ctx = canvas.getContext();
   const rnd = mulberry32(777);
-  const g = scene.make.graphics({ x: 0, y: 0 }, false);
-  const P = (pts: Pt[]) => pts.map(([x, y]) => new Phaser.Geom.Point(x * S, y * S));
-  const SEA = 0xa8b59a, SEA_DEEP = 0x8fa08c, PARCH = 0xe4d3ad, INK = 0x3a2a18;
-  // ocean: parchment-washed sea with hatching and a few deeper washes
-  g.fillStyle(SEA, 1).fillRect(0, 0, CHART.w * S, CHART.h * S);
-  for (let i = 0; i < 70; i++) {
-    g.fillStyle(SEA_DEEP, 0.18).fillEllipse(rnd() * CHART.w * S, rnd() * CHART.h * S, (60 + rnd() * 240) * S, (30 + rnd() * 120) * S);
+  ctx.setTransform(S, 0, 0, S, 0, 0);          // draw in chart units; the transform bakes the scale in
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  // 1. the sea: a flat wash, deeper blooms, and hand hatching
+  ctx.fillStyle = css(SEA);
+  ctx.fillRect(0, 0, CHART.w, CHART.h);
+  ctx.fillStyle = css(SEA_DEEP, 0.16);
+  for (let i = 0; i < 90; i++) {
+    ctx.beginPath();
+    ctx.ellipse(rnd() * CHART.w, rnd() * CHART.h, (100 + rnd() * 420), (50 + rnd() * 220), rnd() * 3, 0, Math.PI * 2);
+    ctx.fill();
   }
-  g.lineStyle(1, INK, 0.08);
-  for (let y = 10; y < CHART.h * S; y += 9) {
-    for (let x = (y / 9) % 2 ? 18 : 0; x < CHART.w * S; x += 36) g.lineBetween(x, y, x + 14 + rnd() * 6, y + 1);
+  ctx.strokeStyle = css(INK, 0.07);
+  ctx.lineWidth = 2.6;
+  ctx.beginPath();
+  for (let y = 30; y < CHART.h; y += 30) {
+    for (let x = (y / 30) % 2 ? 60 : 0; x < CHART.w; x += 120) { ctx.moveTo(x, y); ctx.lineTo(x + 46 + rnd() * 20, y + 3); }
   }
-  // land: filler first, then regions; each with a hand-inked outline
-  const ink = (poly: Pt[], width = 1.6, alpha = 0.9) => {
-    const w = wobble(poly, rnd, 8);
-    g.lineStyle(width * S * 2, INK, alpha).strokePoints(P(w), true, true);
-    g.lineStyle(0.8 * S * 2, 0xfff3d0, 0.35).strokePoints(P(wobble(poly, rnd, 5).map(([x, y]) => [x + 2, y + 2] as Pt)), true, true);
-  };
-  for (const land of LAND) {
-    const w = wobble(land, rnd, 10);
-    g.fillStyle(PARCH, 1).fillPoints(P(w), true, true);
-    g.fillStyle(0xd5c193, 0.5);
-    for (let i = 0; i < 40; i++) { const [cx, cy] = land[Math.floor(rnd() * land.length)]; g.fillCircle((cx + (rnd() - 0.5) * 120) * S, (cy + (rnd() - 0.5) * 120) * S, (20 + rnd() * 50) * S); }
+  ctx.stroke();
+
+  // 2. the land, and every realm's tint clipped inside the coast
+  const coasts = COASTS.map(c => inked(c.pts, rnd, 2.4));
+  const landPath = () => { ctx.beginPath(); for (const pts of coasts) trace(ctx, pts); };
+  landPath();
+  ctx.fillStyle = css(PARCH);
+  ctx.fill();
+
+  ctx.save();
+  landPath();
+  ctx.clip();
+  ctx.fillStyle = css(0xd5c193, 0.45);
+  for (const pts of coasts) {
+    for (let i = 0; i < 26; i++) {
+      const [cx, cy] = pts[Math.floor(rnd() * pts.length)];
+      ctx.beginPath();
+      ctx.arc(cx + (rnd() - 0.5) * 200, cy + (rnd() - 0.5) * 200, 30 + rnd() * 90, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   for (const r of REGIONS) {
-    const w = wobble(r.poly, rnd, 7);
-    const col = r.enterable ? mix(PARCH, r.tint, 0.75) : mix(PARCH, r.tint, 0.42);
-    g.fillStyle(col, 1).fillPoints(P(w), true, true);
-    // relief: a few hill strokes / dunes / mountains as tiny ink marks
-    g.lineStyle(1.2 * S * 2, INK, r.enterable ? 0.35 : 0.22);
-    const [cx, cy] = centroid(r.poly);
-    for (let i = 0; i < 9; i++) {
-      const x = cx + (rnd() - 0.5) * 140, y = cy + (rnd() - 0.5) * 100 + 40;
-      if (pointInPoly(x, y, r.poly)) { g.lineBetween(x * S, y * S, (x + 10) * S, (y - 8) * S); g.lineBetween((x + 10) * S, (y - 8) * S, (x + 20) * S, y * S); }
+    const w = inked(r.poly, rnd, 7);
+    ctx.fillStyle = css(mix(PARCH, r.tint, r.enterable ? 0.8 : 0.66), r.enterable ? 0.9 : 0.8);
+    ctx.beginPath();
+    trace(ctx, w);
+    ctx.fill();
+    // relief: hills scratched across the realm
+    const b = bbox(r.poly);
+    ctx.strokeStyle = css(INK, r.enterable ? 0.3 : 0.2);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const marks = Phaser.Math.Clamp(Math.round((b.w * b.h) / 9000), 6, 26);
+    for (let i = 0; i < marks * 3 && i < 90; i++) {
+      const x = b.x0 + rnd() * b.w, y = b.y0 + rnd() * b.h;
+      if (!pointInPoly(x, y, r.poly)) continue;
+      ctx.moveTo(x, y); ctx.lineTo(x + 11, y - 9); ctx.lineTo(x + 22, y);
     }
+    ctx.stroke();
   }
-  for (const land of LAND) ink(land, 1.8, 0.9);
-  for (const r of REGIONS) ink(r.poly, 1.1, r.enterable ? 0.8 : 0.45);
-  // sea roads, dashed
-  g.lineStyle(1.4 * S * 2, INK, 0.5);
-  for (const route of SEA_ROUTES) {
-    for (let i = 1; i < route.pts.length; i++) {
-      const [ax, ay] = route.pts[i - 1], [bx, by] = route.pts[i];
-      const len = Math.hypot(bx - ax, by - ay), ux = (bx - ax) / len, uy = (by - ay) / len;
-      for (let d = 0; d < len; d += 22) g.lineBetween((ax + ux * d) * S, (ay + uy * d) * S, (ax + ux * Math.min(len, d + 11)) * S, (ay + uy * Math.min(len, d + 11)) * S);
-    }
+  ctx.restore();
+
+  // 3. inland seas punched back out of the land
+  for (const s of SEAS) {
+    const w = inked(s.pts, rnd, 2);
+    ctx.beginPath();
+    trace(ctx, w);
+    ctx.fillStyle = css(SEA);
+    ctx.fill();
+    ctx.strokeStyle = css(INK, 0.5);
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
   }
-  // sea creatures
-  for (const c of SEA_CREATURES) creature(g, c.x * S, c.y * S, c.kind, c.scale * S, INK);
-  // compass rose
-  compass(g, COMPASS.x * S, COMPASS.y * S, COMPASS.r * S, INK, PAL.danger);
-  // a worn border and a vignette
-  g.lineStyle(6 * S * 2, INK, 0.5).strokeRect(4 * S, 4 * S, (CHART.w - 8) * S, (CHART.h - 8) * S);
-  g.lineStyle(1.5 * S * 2, INK, 0.4).strokeRect(16 * S, 16 * S, (CHART.w - 32) * S, (CHART.h - 32) * S);
-  g.fillStyle(0x5a4a2e, 0.14).fillRect(0, 0, CHART.w * S, 40 * S).fillRect(0, (CHART.h - 40) * S, CHART.w * S, 40 * S);
-  g.generateTexture(key, Math.ceil(CHART.w * S), Math.ceil(CHART.h * S));
-  g.destroy();
+
+  // 4. the ink: realm borders, then the coast over the top of them
+  for (const r of REGIONS) {
+    ctx.beginPath();
+    trace(ctx, inked(r.poly, mulberry32(9), 7));
+    ctx.strokeStyle = css(INK, r.enterable ? 0.8 : 0.55);
+    ctx.lineWidth = 3.4;
+    ctx.stroke();
+  }
+  ctx.strokeStyle = css(0xfff3d0, 0.3);
+  ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  for (const pts of coasts) trace(ctx, pts.map(([x, y]) => [x + 5, y + 5] as Pt));
+  ctx.stroke();
+  ctx.strokeStyle = css(INK, 0.85);
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  for (const pts of coasts) trace(ctx, pts);
+  ctx.stroke();
+
+  // 5. the sea roads, dashed, and the things that live out there
+  ctx.setLineDash([34, 26]);
+  ctx.strokeStyle = css(INK, 0.45);
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (const route of SEA_ROUTES) trace(ctx, route.pts, false);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  for (const c of SEA_CREATURES) creature(ctx, c.xy[0], c.xy[1], c.kind, c.scale * 2.2, INK);
+  compass(ctx, COMPASS.xy[0], COMPASS.xy[1], COMPASS.r, INK, PAL.danger);
+
+  // 6. the worn frame of the chart itself
+  ctx.strokeStyle = css(INK, 0.5);
+  ctx.lineWidth = 22;
+  ctx.strokeRect(11, 11, CHART.w - 22, CHART.h - 22);
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = css(INK, 0.4);
+  ctx.strokeRect(46, 46, CHART.w - 92, CHART.h - 92);
+  ctx.fillStyle = css(0x5a4a2e, 0.12);
+  ctx.fillRect(0, 0, CHART.w, 70);
+  ctx.fillRect(0, CHART.h - 70, CHART.w, 70);
+
+  canvas.refresh();
   return key;
 }
 
-function creature(g: Phaser.GameObjects.Graphics, x: number, y: number, kind: 'serpent' | 'kraken' | 'whale', s: number, ink: number) {
-  g.lineStyle(2.2 * s, ink, 0.8);
-  if (kind === 'serpent') {
-    for (let i = 0; i < 3; i++) {
-      g.beginPath(); g.arc(x + i * 48 * s, y, 22 * s, Math.PI, 0, false); g.strokePath();
+export interface ChartLayers { setInkZoom(zoom: number): void; }
+
+/** The borders of the realms you can actually walk into, kept as live vectors so that they stay sharp
+ *  when you zoom right in on your own roads. Two outlines: cheap enough to redraw on a zoom change. */
+export function drawChart(scene: Phaser.Scene): ChartLayers {
+  const g = scene.add.graphics().setDepth(0.5);
+  const rings = REGIONS.filter(r => r.enterable).map(r => inked(r.poly, mulberry32(9), 7));
+  let band = -1;
+  const redraw = (zoom: number) => {
+    const b = zoom < 0.9 ? 0 : zoom < 1.8 ? 1 : 2;
+    if (b === band) return;
+    band = b;
+    const k = [2.2, 1.2, 0.6][b];
+    g.clear();
+    for (const pts of rings) {
+      g.lineStyle(3 * k, INK, 0.8).strokePoints(pts.map(([x, y]) => new Phaser.Geom.Point(x, y)), true, true);
     }
-    g.fillStyle(ink, 0.8).fillTriangle(x - 30 * s, y - 4 * s, x - 22 * s, y - 26 * s, x - 6 * s, y - 8 * s);
-    g.fillCircle(x - 20 * s, y - 14 * s, 2 * s);
+  };
+  redraw(1);
+  return { setInkZoom: redraw };
+}
+
+function creature(ctx: CanvasRenderingContext2D, x: number, y: number, kind: 'serpent' | 'kraken' | 'whale', s: number, ink: number) {
+  const tri = (ax: number, ay: number, bx: number, by: number, cx: number, cy: number) => {
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(cx, cy); ctx.closePath(); ctx.fill();
+  };
+  ctx.strokeStyle = css(ink, 0.75);
+  ctx.lineWidth = 2.2 * s;
+  if (kind === 'serpent') {
+    ctx.beginPath();
+    for (let i = 0; i < 3; i++) { ctx.moveTo(x + i * 48 * s - 22 * s, y); ctx.arc(x + i * 48 * s, y, 22 * s, Math.PI, 0, false); }
+    ctx.stroke();
+    ctx.fillStyle = css(ink, 0.75);
+    tri(x - 30 * s, y - 4 * s, x - 22 * s, y - 26 * s, x - 6 * s, y - 8 * s);
   } else if (kind === 'kraken') {
-    g.fillStyle(ink, 0.75).fillEllipse(x, y - 10 * s, 40 * s, 34 * s);
-    for (let i = -3; i <= 3; i++) { g.beginPath(); g.arc(x + i * 12 * s, y + 18 * s, 14 * s, Math.PI, i % 2 ? 0 : Math.PI * 1.9, i % 2 === 0); g.strokePath(); }
-    g.fillStyle(0xe4d3ad, 1).fillCircle(x - 8 * s, y - 12 * s, 4 * s).fillCircle(x + 8 * s, y - 12 * s, 4 * s);
+    ctx.fillStyle = css(ink, 0.7);
+    ctx.beginPath(); ctx.ellipse(x, y - 10 * s, 20 * s, 17 * s, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    for (let i = -3; i <= 3; i++) { ctx.moveTo(x + i * 12 * s - 14 * s, y + 18 * s); ctx.arc(x + i * 12 * s, y + 18 * s, 14 * s, Math.PI, i % 2 ? 0 : Math.PI * 1.9, i % 2 === 0); }
+    ctx.stroke();
+    ctx.fillStyle = css(0xe4d3ad);
+    ctx.beginPath(); ctx.arc(x - 8 * s, y - 12 * s, 4 * s, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 8 * s, y - 12 * s, 4 * s, 0, Math.PI * 2); ctx.fill();
   } else {
-    g.fillStyle(ink, 0.7).fillEllipse(x, y, 60 * s, 22 * s);
-    g.fillTriangle(x + 26 * s, y, x + 44 * s, y - 14 * s, x + 44 * s, y + 12 * s);
-    g.lineBetween(x - 6 * s, y - 12 * s, x - 6 * s, y - 30 * s); g.lineBetween(x - 6 * s, y - 30 * s, x - 16 * s, y - 40 * s); g.lineBetween(x - 6 * s, y - 30 * s, x + 4 * s, y - 40 * s);
+    ctx.fillStyle = css(ink, 0.65);
+    ctx.beginPath(); ctx.ellipse(x, y, 30 * s, 11 * s, 0, 0, Math.PI * 2); ctx.fill();
+    tri(x + 26 * s, y, x + 44 * s, y - 14 * s, x + 44 * s, y + 12 * s);
+    ctx.beginPath();
+    ctx.moveTo(x - 6 * s, y - 12 * s); ctx.lineTo(x - 6 * s, y - 30 * s);
+    ctx.lineTo(x - 16 * s, y - 40 * s); ctx.moveTo(x - 6 * s, y - 30 * s); ctx.lineTo(x + 4 * s, y - 40 * s);
+    ctx.stroke();
   }
 }
 
-function compass(g: Phaser.GameObjects.Graphics, x: number, y: number, r: number, ink: number, red: number) {
-  g.lineStyle(2, ink, 0.7).strokeCircle(x, y, r);
-  g.lineStyle(1, ink, 0.5).strokeCircle(x, y, r * 0.72);
+function compass(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, ink: number, red: number) {
+  const tri = (ax: number, ay: number, bx: number, by: number, cx: number, cy: number) => {
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(cx, cy); ctx.closePath(); ctx.fill();
+  };
+  ctx.strokeStyle = css(ink, 0.6);
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = css(ink, 0.45);
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.72, 0, Math.PI * 2);
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2;
-    g.lineStyle(1, ink, 0.5).lineBetween(x + Math.cos(a) * r * 0.72, y + Math.sin(a) * r * 0.72, x + Math.cos(a) * r, y + Math.sin(a) * r);
+    ctx.moveTo(x + Math.cos(a) * r * 0.72, y + Math.sin(a) * r * 0.72);
+    ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
   }
+  ctx.stroke();
   const star = (len: number, col: number, rot: number) => {
     for (let i = 0; i < 4; i++) {
       const a = rot + (i * Math.PI) / 2, b = a + Math.PI / 2;
-      g.fillStyle(col, 0.9).fillTriangle(x, y, x + Math.cos(a) * len, y + Math.sin(a) * len, x + Math.cos((a + b) / 2) * len * 0.22, y + Math.sin((a + b) / 2) * len * 0.22);
-      g.fillStyle(col, 0.55).fillTriangle(x, y, x + Math.cos(a) * len, y + Math.sin(a) * len, x + Math.cos((a - Math.PI / 4)) * len * 0.22, y + Math.sin((a - Math.PI / 4)) * len * 0.22);
+      ctx.fillStyle = css(col, 0.85);
+      tri(x, y, x + Math.cos(a) * len, y + Math.sin(a) * len, x + Math.cos((a + b) / 2) * len * 0.22, y + Math.sin((a + b) / 2) * len * 0.22);
+      ctx.fillStyle = css(col, 0.5);
+      tri(x, y, x + Math.cos(a) * len, y + Math.sin(a) * len, x + Math.cos(a - Math.PI / 4) * len * 0.22, y + Math.sin(a - Math.PI / 4) * len * 0.22);
     }
   };
   star(r * 0.55, ink, Math.PI / 4);
   star(r * 0.9, ink, 0);
-  g.fillStyle(red, 0.9).fillTriangle(x, y, x - r * 0.08, y - r * 0.5, x + r * 0.08, y - r * 0.5);
-  g.fillStyle(red, 0.9).fillTriangle(x - r * 0.08, y - r * 0.5, x + r * 0.08, y - r * 0.5, x, y - r * 0.95);
+  ctx.fillStyle = css(red, 0.85);
+  tri(x, y, x - r * 0.08, y - r * 0.5, x + r * 0.08, y - r * 0.5);
+  tri(x - r * 0.08, y - r * 0.5, x + r * 0.08, y - r * 0.5, x, y - r * 0.95);
 }

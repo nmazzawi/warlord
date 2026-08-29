@@ -1,0 +1,73 @@
+{
+  "empires": [
+    {
+      "id": "india",
+      "name": "The Kingdoms of India",
+      "note": "War elephants walk through a shield wall like it is standing wheat. Panic one and it rampages into whoever stands nearest - as often their line as yours.",
+      "throne": "Pataliputra",
+      "poly": [
+        {"lon": 67.3, "lat": 24.2, "at": "Indus mouth"},
+        {"lon": 71.6, "lat": 30.0, "at": "Indus at Multan"},
+        {"lon": 71.5, "lat": 32.6, "at": "Indus at Mianwali"},
+        {"lon": 72.6, "lat": 34.3, "at": "Gandhara hills"},
+        {"lon": 78.2, "lat": 30.0, "at": "Ganges at Haridwar"},
+        {"lon": 83.0, "lat": 27.6, "at": "Kapilavastu"},
+        {"lon": 89.4, "lat": 25.0, "at": "Pundravardhana"},
+        {"lon": 88.9, "lat": 21.7, "at": "Ganges delta"},
+        {"lon": 85.8, "lat": 19.9, "at": "Kalinga coast"},
+        {"lon": 82.3, "lat": 16.7, "at": "Godavari mouth"},
+        {"lon": 80.2, "lat": 12.6, "at": "Mahabalipuram"},
+        {"lon": 77.55, "lat": 8.1, "at": "Kanyakumari"},
+        {"lon": 76.2, "lat": 10.2, "at": "Muziris"},
+        {"lon": 73.8, "lat": 15.5, "at": "Konkan shore"},
+        {"lon": 72.8, "lat": 19.4, "at": "Shurparaka"},
+        {"lon": 70.4, "lat": 20.9, "at": "Prabhasa"}
+      ],
+      "places": [
+        {"name": "Pataliputra", "kind": "capital", "lon": 85.14, "lat": 25.61, "note": "The throne. Timber walls, sixty-four gates, a moat you could lose an army in."},
+        {"name": "Varanasi", "kind": "city", "lon": 83.01, "lat": 25.32, "note": "Silk, dye-vats and pilgrims packed on the riverbank; the guards are used to crowds, not raids."},
+        {"name": "Ujjayini", "kind": "city", "lon": 75.78, "lat": 23.18, "note": "Every western road meets here, and the tolls sit in the treasury between escorts."},
+        {"name": "Takshashila", "kind": "city", "lon": 72.79, "lat": 33.74, "note": "The northern gate of the realm - everything that comes down from the passes is counted here first."},
+        {"name": "Mathura", "kind": "town", "lon": 77.67, "lat": 27.49, "note": "Horse fair on the Yamuna; whoever holds it remounts an army in a week."},
+        {"name": "Pratishthana", "kind": "town", "lon": 75.39, "lat": 19.48, "note": "Black rock and cattle in thousands, and no wall worth the name."},
+        {"name": "Tamralipti", "kind": "town", "lon": 87.92, "lat": 22.3, "note": "The delta's warehouse town - goods stacked waiting on a road one day's march long."},
+        {"name": "Madurai", "kind": "town", "lon": 78.12, "lat": 9.93, "note": "So far south that relief is three months away; the pearl merchants pay the temple and the temple pays no one."},
+        {"name": "Kaushambi", "kind": "village", "lon": 81.39, "lat": 25.35, "note": "River market on an old fort - the ditch silted up two reigns ago."}
+      ]
+    },
+    {
+      "id": "egypt",
+      "name": "The Kingdom of the Nile",
+      "note": "Chariots run you down on open flat ground, so keep to broken country. The river feeds their army all year, and every town along it is fatter than anything you have burned.",
+      "throne": "Waset",
+      "poly": [
+        {"lon": 29.3, "lat": 30.95, "at": "Mareotis shore"},
+        {"lon": 29.9, "lat": 31.3, "at": "Alexandria"},
+        {"lon": 30.4, "lat": 31.5, "at": "Rosetta mouth"},
+        {"lon": 31.8, "lat": 31.45, "at": "Damietta mouth"},
+        {"lon": 32.5, "lat": 31.05, "at": "Pelusium"},
+        {"lon": 32.5, "lat": 30.2, "at": "Bitter Lakes"},
+        {"lon": 32.6, "lat": 29.9, "at": "Clysma"},
+        {"lon": 33.2, "lat": 28.3, "at": "Gulf of Suez shore"},
+        {"lon": 34.25, "lat": 26.15, "at": "Myos Hormos"},
+        {"lon": 35.6, "lat": 23.75, "at": "Berenike coast"},
+        {"lon": 32.9, "lat": 23.8, "at": "First Cataract"},
+        {"lon": 32.2, "lat": 25.7, "at": "Western cliffs at Waset"},
+        {"lon": 31.6, "lat": 26.2, "at": "Desert edge above Abdju"},
+        {"lon": 30.6, "lat": 27.8, "at": "Khmun"},
+        {"lon": 30.5, "lat": 29.5, "at": "Lake Moeris"},
+        {"lon": 29.9, "lat": 30.4, "at": "Western delta edge"}
+      ],
+      "places": [
+        {"name": "Waset", "kind": "capital", "lon": 32.64, "lat": 25.7, "note": "The throne, which foreigners call Thebes. Stone pylons, vaults of temple gold, and priests who keep armed men of their own."},
+        {"name": "Men-nefer", "kind": "city", "lon": 31.25, "lat": 29.85, "note": "White walls where the valley opens into the delta; every road north and south runs through it."},
+        {"name": "Alexandria", "kind": "city", "lon": 29.92, "lat": 31.2, "note": "Straight streets and granaries the size of hills, held by hired foreigners paid in grain."},
+        {"name": "Abdju", "kind": "city", "lon": 31.92, "lat": 26.18, "note": "A burial town - what is under the ground here is worth more than what walks on it."},
+        {"name": "Abu", "kind": "town", "lon": 32.89, "lat": 24.09, "note": "The frontier at the cataract; the river turns to rock and the fort watches the desert road."},
+        {"name": "Per-Bastet", "kind": "town", "lon": 31.51, "lat": 30.57, "note": "Festival crowds and fat temple herds, on soft delta ground cut through with canals."},
+        {"name": "Berenike", "kind": "town", "lon": 35.48, "lat": 23.91, "note": "Where the desert road stops at the Red Sea - ivory and incense in sheds, a dozen guards."},
+        {"name": "Nekhen", "kind": "village", "lon": 32.78, "lat": 25.1, "note": "Half sunk in sand; the priests are rich and the walls are mud brick."}
+      ]
+    }
+  ]
+}

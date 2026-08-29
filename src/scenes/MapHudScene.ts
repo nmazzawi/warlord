@@ -53,7 +53,7 @@ export class MapHudScene extends Phaser.Scene {
     this.zoomIn = makeButton(this, 0, 0, { width: 44, height: 44, label: '+', tone: 'neutral', fontSize: 24, onPress: () => this.onZoom?.(1) });
     this.zoomOut = makeButton(this, 0, 0, { width: 44, height: 44, label: '−', tone: 'neutral', fontSize: 24, onPress: () => this.onZoom?.(-1) });
     if (!GameState.seenMapHint) {
-      this.hintText = this.add.text(0, 0, 'Tap a place to travel there. Drag to look around the map.', uiStyle(14, CSS.goldHi, { stroke: true })).setOrigin(0.5, 0).setDepth(30);
+      this.hintText = this.add.text(0, 0, 'Tap a place to travel there. Drag to look around; pinch or + / − to zoom out to the world.', uiStyle(14, CSS.goldHi, { stroke: true })).setOrigin(0.5, 0).setDepth(30);
       this.tweens.add({ targets: this.hintText, alpha: 0, delay: 6000, duration: 700, onComplete: () => { this.hintText?.destroy(); this.hintText = null; } });
       GameState.seenMapHint = true;
     }

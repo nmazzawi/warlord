@@ -1,0 +1,245 @@
+{
+ "segments": [
+  {
+   "id": "asia_arctic",
+   "closed": false,
+   "points": [
+    {
+     "lon": 145.0,
+     "lat": 71.0,
+     "at": "Kolyma lowland coast at the map edge, East Siberian Sea"
+    },
+    {
+     "lon": 143.5,
+     "lat": 71.6,
+     "at": "Khroma Bay, Kolyma lowland"
+    },
+    {
+     "lon": 140.5,
+     "lat": 72.0,
+     "at": "Cape Svyatoy Nos, Dmitry Laptev Strait"
+    },
+    {
+     "lon": 136.5,
+     "lat": 71.5,
+     "at": "Yana delta, Yana Bay"
+    },
+    {
+     "lon": 132.7,
+     "lat": 71.9,
+     "at": "Cape Buor-Khaya"
+    },
+    {
+     "lon": 129.0,
+     "lat": 71.6,
+     "at": "Tiksi, Buor-Khaya Gulf"
+    },
+    {
+     "lon": 126.5,
+     "lat": 72.0,
+     "at": "Lena delta, Cape Sagastyr"
+    },
+    {
+     "lon": 104.3,
+     "lat": 72.0,
+     "at": "Cape Chelyuskin, tip of the Taymyr Peninsula"
+    },
+    {
+     "lon": 80.5,
+     "lat": 72.0,
+     "at": "Dikson, entrance to the Yenisei Gulf"
+    },
+    {
+     "lon": 82.7,
+     "lat": 71.9,
+     "at": "Cape Sopochnaya Karga, mouth of the Yenisei"
+    },
+    {
+     "lon": 74.6,
+     "lat": 72.0,
+     "at": "Cape Yavay, north Gydan Peninsula"
+    },
+    {
+     "lon": 74.6,
+     "lat": 70.4,
+     "at": "Gydan shore, east side of the Ob Gulf"
+    },
+    {
+     "lon": 74.5,
+     "lat": 68.4,
+     "at": "Yamburg, east side of the Ob Gulf"
+    },
+    {
+     "lon": 70.6,
+     "lat": 66.7,
+     "at": "Ob delta at the head of the Ob Gulf"
+    },
+    {
+     "lon": 73.6,
+     "lat": 68.5,
+     "at": "Cape Kamennyy, Yamal shore of the Ob Gulf"
+    },
+    {
+     "lon": 72.5,
+     "lat": 70.0,
+     "at": "Ob Gulf, off the Yamal shore"
+    },
+    {
+     "lon": 71.5,
+     "lat": 72.0,
+     "at": "Malygin Strait, north tip of the Yamal Peninsula"
+    },
+    {
+     "lon": 66.8,
+     "lat": 71.2,
+     "at": "Cape Kharasavey, west coast of Yamal"
+    },
+    {
+     "lon": 67.5,
+     "lat": 68.4,
+     "at": "Head of Baydaratskaya Bay"
+    },
+    {
+     "lon": 61.7,
+     "lat": 69.8,
+     "at": "Amderma, Kara Sea coast"
+    },
+    {
+     "lon": 59.1,
+     "lat": 70.4,
+     "at": "Cape Bolvansky Nos, north tip of Vaygach Island"
+    },
+    {
+     "lon": 58.5,
+     "lat": 70.3,
+     "at": "Kara Gate (Karskiye Vorota)"
+    },
+    {
+     "lon": 59.7,
+     "lat": 69.6,
+     "at": "Cape Belyy Nos, western entrance of Yugorsky Shar"
+    },
+    {
+     "lon": 58.0,
+     "lat": 68.9,
+     "at": "Cape Medynskiy Zavorot, Pechora Sea"
+    },
+    {
+     "lon": 54.4,
+     "lat": 68.9,
+     "at": "Cape Russkiy Zavorot, mouth of Pechora Bay"
+    },
+    {
+     "lon": 53.5,
+     "lat": 68.1,
+     "at": "Pechora delta, head of Pechora Bay"
+    },
+    {
+     "lon": 52.3,
+     "lat": 68.3,
+     "at": "Cape Bolvansky Nos, west side of Pechora Bay"
+    },
+    {
+     "lon": 49.0,
+     "lat": 67.7,
+     "at": "Indiga, Timan coast"
+    },
+    {
+     "lon": 46.5,
+     "lat": 67.0,
+     "at": "Head of Cheshskaya Bay"
+    },
+    {
+     "lon": 46.6,
+     "lat": 67.8,
+     "at": "Cape Mikulkin, east coast of the Kanin Peninsula"
+    },
+    {
+     "lon": 43.3,
+     "lat": 68.6,
+     "at": "Kanin Nos"
+    },
+    {
+     "lon": 44.2,
+     "lat": 65.9,
+     "at": "Mezen, head of Mezen Bay"
+    },
+    {
+     "lon": 42.5,
+     "lat": 66.7,
+     "at": "Cape Voronov, west entrance of Mezen Bay"
+    },
+    {
+     "lon": 40.5,
+     "lat": 64.6,
+     "at": "Arkhangelsk, Northern Dvina delta in Dvina Bay"
+    },
+    {
+     "lon": 38.0,
+     "lat": 64.0,
+     "at": "Onega, head of Onega Bay"
+    },
+    {
+     "lon": 34.8,
+     "lat": 64.5,
+     "at": "Belomorsk, Pomor coast"
+    },
+    {
+     "lon": 32.4,
+     "lat": 67.1,
+     "at": "Kandalaksha, head of Kandalaksha Gulf"
+    },
+    {
+     "lon": 34.3,
+     "lat": 66.7,
+     "at": "Umba, Tersky coast"
+    },
+    {
+     "lon": 41.2,
+     "lat": 67.1,
+     "at": "Ponoy river mouth, south-east Kola"
+    },
+    {
+     "lon": 39.8,
+     "lat": 68.1,
+     "at": "Cape Svyatoy Nos, north-east corner of the Kola Peninsula"
+    },
+    {
+     "lon": 35.1,
+     "lat": 69.2,
+     "at": "Teriberka, Murman coast"
+    },
+    {
+     "lon": 33.4,
+     "lat": 69.4,
+     "at": "Mouth of Kola Bay, Murmansk"
+    },
+    {
+     "lon": 31.9,
+     "lat": 69.9,
+     "at": "Cape Nemetsky, Rybachy Peninsula"
+    },
+    {
+     "lon": 30.0,
+     "lat": 69.7,
+     "at": "Kirkenes, head of Varangerfjord"
+    },
+    {
+     "lon": 31.1,
+     "lat": 70.4,
+     "at": "Vardo, tip of the Varanger Peninsula"
+    },
+    {
+     "lon": 27.7,
+     "lat": 71.1,
+     "at": "Cape Nordkinn (Kinnarodden)"
+    },
+    {
+     "lon": 25.8,
+     "lat": 71.2,
+     "at": "North Cape (Nordkapp)"
+    }
+   ]
+  }
+ ]
+}

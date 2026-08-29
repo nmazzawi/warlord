@@ -1,34 +1,54 @@
-// MapScene.ts — the world chart. One parchment Earth you can pan and zoom continuously: far out,
-// the world and its twelve regions; zoomed in, the roads and settlements of the territory you are
-// in. Your warband is a token; tap a place to travel there (days pass, wages are paid, tribute comes
-// in), then raid it, enter it, visit it — or get stopped on the road. The steppe has camps that
-// move, and riders that hunt camp-raiders.
+// MapScene.ts — the world chart: an atlas of empires on one sheet of parchment. Pan and zoom freely
+// from the whole Earth (coastlines and the names of twelve realms) through their capitals and cities,
+// down to the roads and villages of the small borderland you actually rule. Your warband is a token;
+// tap a place to travel there (days pass, wages are paid, tribute comes in), then raid it, enter it,
+// visit it — or get stopped on the road. The steppe has camps that move and riders that hunt raiders.
+// Everything outside your reach is drawn muted: it is the content plan, visible from day one.
 import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
 import { INFAMY, SIEGE, STEPPE, TRAVEL } from '../config/balance';
-import { EDGES, edgeBetween, findPath, nodeById, NODES, type MapNode } from '../world/WorldMap';
+import { EDGES, edgeBetween, findPath, nodeById, NODES, type MapNode, type Territory } from '../world/WorldMap';
 import { campBattle, patrolBattle, siegeBattle, steppePatrolBattle, villageBattle } from '../world/Battles';
 import { LAYOUTS } from '../world/Layouts';
 import { CAMPS, campAt, campById, campLocation } from '../world/Steppe';
-import { centroid, CHART, chartTexture, distToPolyline, regionAt, REGIONS, SEA_ROUTES, type Region } from '../world/WorldChart';
+import { CHART, chartTexture, distToPolyline, drawChart, regionAt, REGIONS, SEA_ROUTES, type ChartLayers, type Region } from '../world/WorldChart';
+import type { AtlasPlace } from '../world/AtlasData';
 import { TEX } from '../systems/Textures';
 import { Sound } from '../systems/Sound';
 import type { MapHudScene } from './MapHudScene';
 import { CSS, DISPLAY, FONT, PAL } from './ui';
 
 interface LabelRef { t: Phaser.GameObjects.Text; css: number; }
-const TERRITORY_ZOOM = 2.2;
+interface Marker { place: AtlasPlace; empire: Region; icon: Phaser.GameObjects.Image; k: number; major: boolean; }
+/** A settlement name and how many rows it has been dropped to clear its neighbours. */
+interface StackedName { t: Phaser.GameObjects.Text; baseY: number; row: number; major: boolean; }
+/** Anything the level of detail can fade out (Graphics and Containers only have a single alpha). */
+interface Fadeable { alpha: number; visible: boolean; setAlpha(v: number): unknown; setVisible(v: boolean): unknown; }
+
+const MAX_ZOOM = 5;
+/** How far in the chart is drawn: the whole Earth, then capitals, then every road and hut. */
+const BAND = { major: [0.55, 0.85], minor: [1.3, 1.8], empire: [1.15, 1.95] };
+/** One line of a stacked place name, in the same units the names are drawn at. */
+const ROW = 20;
 
 export class MapScene extends Phaser.Scene {
   private token!: Phaser.GameObjects.Container;
+  private chart!: ChartLayers;
   private status = new Map<string, Phaser.GameObjects.Text>();
   private names = new Map<string, Phaser.GameObjects.Text>();
   private badges = new Map<string, Phaser.GameObjects.Image>();
   private flags = new Map<string, Phaser.GameObjects.Image>();
   private campIcons = new Map<string, Phaser.GameObjects.Container>();
   private labels: LabelRef[] = [];
-  private regionLabels: Phaser.GameObjects.Text[] = [];
-  private territoryObjects: Phaser.GameObjects.GameObject[] = [];
+  private empireLabels: Phaser.GameObjects.Text[] = [];
+  private territoryObjects: Fadeable[] = [];
+  private majorObjects: Fadeable[] = [];
+  private minorObjects: Fadeable[] = [];
+  /** Palisade rings and your own banners: the game state decides whether they are shown at all, the
+   *  zoom only decides how strongly they are drawn. */
+  private stateObjects: Fadeable[] = [];
+  private markers: Marker[] = [];
+  private stacked: StackedName[] = [];
   private icons: Phaser.GameObjects.Image[] = [];
   private traveling = false;
   private dragStart = new Phaser.Math.Vector2();
@@ -45,16 +65,22 @@ export class MapScene extends Phaser.Scene {
 
   create() {
     this.status.clear(); this.names.clear(); this.badges.clear(); this.flags.clear(); this.campIcons.clear();
-    this.labels = []; this.regionLabels = []; this.territoryObjects = []; this.icons = [];
+    this.labels = []; this.empireLabels = []; this.territoryObjects = []; this.majorObjects = []; this.minorObjects = []; this.stateObjects = [];
+    this.markers = []; this.stacked = []; this.icons = [];
     this.traveling = false; this.pinchDist = 0;
 
-    // the chart itself (baked at half resolution, shown at full size)
+    // the chart: a baked sea with its hatching, monsters and rose, then land and empires as sharp vectors
+    this.cameras.main.setBackgroundColor(0x241c12);
     this.add.image(0, 0, chartTexture(this)).setOrigin(0).setDisplaySize(CHART.w, CHART.h).setDepth(0);
+    this.chart = drawChart(this);
+
     for (const r of REGIONS) {
-      const [cx, cy] = centroid(r.poly);
-      const t = this.add.text(cx, cy, r.name.toUpperCase(), { fontFamily: DISPLAY, fontSize: '26px', color: r.enterable ? CSS.ink : '#5a4a32', fontStyle: 'bold', letterSpacing: 3 })
-        .setOrigin(0.5).setAlpha(r.enterable ? 0.9 : 0.55).setDepth(3);
-      this.regionLabels.push(t);
+      const [cx, cy] = r.labelAt;
+      this.empireLabels.push(this.add.text(cx, cy, MapScene.titleLines(r.name), {
+        fontFamily: DISPLAY, fontSize: '64px', color: r.enterable ? CSS.ink : '#5c4b33', fontStyle: 'bold', letterSpacing: 6, align: 'center',
+      }).setOrigin(0.5).setDepth(3).setLineSpacing(-10));
+      const named = r.places.map(p => this.drawPlace(r, p));
+      MapScene.stackNames(named, this.scale.displayScale.x || 1);
     }
     this.drawRoads();
     for (const n of NODES) this.drawNode(n);
@@ -67,13 +93,12 @@ export class MapScene extends Phaser.Scene {
     this.tweens.add({ targets: img, y: -4, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
 
     this.cameras.main.setBounds(0, 0, CHART.w, CHART.h);
-    this.setZoom(TERRITORY_ZOOM);
-    this.cameras.main.centerOn(this.token.x, this.token.y);
+    this.zoomToTerritory();
     this.scale.on('resize', this.onResize, this);
 
     this.scene.launch('MapHud');
     this.hud = this.scene.get('MapHud') as MapHudScene;
-    this.hud.onZoom = dir => this.zoomBy(dir > 0 ? 1.4 : 1 / 1.4);
+    this.hud.onZoom = dir => this.zoomBy(dir > 0 ? 1.5 : 1 / 1.5);
 
     // a battle won just before a reload: offer the sack/occupy choice again
     const pv = GameState.pendingVictory;
@@ -126,24 +151,72 @@ export class MapScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------- zoom & level of detail
-  private minZoom() { const { width, height } = this.scale; return Math.max(width / CHART.w, height / CHART.h); }
+  /** Zoomed all the way out, the whole chart fits on the screen with the table showing round it. */
+  private minZoom() { const { width, height } = this.scale; return Math.min(width / CHART.w, height / CHART.h) * 0.98; }
   private setZoom(z: number) {
-    const zoom = Phaser.Math.Clamp(z, this.minZoom(), 3.2);
-    this.cameras.main.setZoom(zoom);
+    this.cameras.main.setZoom(Phaser.Math.Clamp(z, this.minZoom(), MAX_ZOOM));
     this.applyLOD();
   }
   private zoomBy(f: number) { this.setZoom(this.cameras.main.zoom * f); }
   private onResize() { this.setZoom(this.cameras.main.zoom); }
 
-  /** Far out: regions. Close in: roads, settlements, camps. Labels keep a readable size either way. */
+  /** Close enough to see the roads of whichever territory you are standing in. */
+  private territoryBox(t: Territory) {
+    const ns = NODES.filter(n => n.territory === t);
+    const xs = ns.map(n => n.x), ys = ns.map(n => n.y);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    return { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0 + 190, h: y1 - y0 + 190 };
+  }
+  private zoomToTerritory(t: Territory = GameState.territory) {
+    const b = this.territoryBox(t);
+    const bar = 130 * (this.scale.displayScale.x || 1);   // the status bar covers the top of the screen
+    const fit = Math.min(this.scale.width / b.w, (this.scale.height - bar) / b.h);
+    // never frame a territory below the zoom where its own roads and places are drawn: a narrow phone
+    // screen would otherwise open on blank parchment with nothing to tap
+    const zoom = Phaser.Math.Clamp(Math.max(fit, BAND.minor[1] + 0.05), this.minZoom(), MAX_ZOOM);
+    this.setZoom(zoom);
+    this.cameras.main.centerOn(b.cx, b.cy - bar / 2 / zoom);
+  }
+
+  /** Realm names are wrapped narrow: at world zoom a wide name walks all over its neighbours. */
+  private static titleLines(name: string) {
+    const words = name.toUpperCase().split(' ');
+    const lines: string[] = [];
+    for (const w of words) {
+      const last = lines[lines.length - 1];
+      if (last && last.length + 1 + w.length <= 12) lines[lines.length - 1] = `${last} ${w}`;
+      else lines.push(w);
+    }
+    return lines.join('\n');
+  }
+
+  private static fade(zoom: number, band: number[]) { return Phaser.Math.Clamp((zoom - band[0]) / (band[1] - band[0]), 0, 1); }
+
+  /** Far out: coastlines and the names of empires. Mid: capitals and cities. Close: towns, roads, camps. */
   private applyLOD() {
     const zoom = this.cameras.main.zoom;
     const dpr = this.scale.displayScale.x || 1;
-    const s = Phaser.Math.Clamp(dpr / zoom, 0.5, 2.6);
+    this.chart.setInkZoom(zoom);
+    const s = Phaser.Math.Clamp(dpr / zoom, 0.35, 2.6);
     for (const l of this.labels) l.t.setScale(s);
+    for (const n of this.stacked) n.t.setY(n.baseY + n.row * ROW * s);   // stacked names keep one line apart
     for (const [id, name] of this.names) this.status.get(id)?.setY(name.y + name.displayHeight + 1);
-    const detail = Phaser.Math.Clamp((zoom - 0.7) / 0.5, 0, 1); // 0 at far, 1 at zoom ≥ 1.2
-    for (const o of this.territoryObjects) (o as unknown as Phaser.GameObjects.Components.Alpha & Phaser.GameObjects.Components.Visible).setAlpha(detail).setVisible(detail > 0.02);
+
+    const detail = MapScene.fade(zoom, BAND.minor);
+    const major = MapScene.fade(zoom, BAND.major);
+    const empire = 1 - MapScene.fade(zoom, BAND.empire);
+    const set = (objs: Fadeable[], a: number) => { for (const o of objs) { o.setAlpha(a); o.setVisible(a > 0.02); } };
+    set(this.territoryObjects, detail);
+    for (const o of this.stateObjects) o.setAlpha(detail);   // shown or not is the game state's call
+    set(this.minorObjects, detail);
+    set(this.majorObjects, major);
+    for (const t of this.empireLabels) {
+      // realm names hold 13 CSS px — but never grow past a size that would make twelve of them collide
+      // on a narrow phone showing the whole Earth, so far out they shrink with the world instead
+      t.setScale(Phaser.Math.Clamp(Math.min((dpr * 13) / (zoom * 64), 52 / 64), 0.18, 2.4)).setAlpha(empire * 0.9).setVisible(empire > 0.02);
+    }
+    for (const m of this.markers) m.icon.setScale(Phaser.Math.Clamp((m.k * dpr) / zoom, 0.14, 1.15));
+
     const iconScale = Phaser.Math.Clamp(0.75 / zoom, 0.28, 1.1);
     for (const i of this.icons) {
       const k = i.texture.key;
@@ -151,9 +224,7 @@ export class MapScene extends Phaser.Scene {
       if (k === TEX.shadow) i.setDisplaySize(52 * iconScale, 24 * iconScale);
     }
     for (const [, c] of this.campIcons) c.setScale(iconScale);
-    (this.token.list[0] as Phaser.GameObjects.Image).setScale(Phaser.Math.Clamp(1.1 / zoom, 0.35, 1.6));
-    const regionAlpha = Phaser.Math.Clamp((1.9 - zoom) / 0.8, 0, 1);
-    for (const t of this.regionLabels) t.setScale(Phaser.Math.Clamp(dpr / zoom, 0.6, 3.5)).setAlpha(regionAlpha * 0.85);
+    (this.token.list[0] as Phaser.GameObjects.Image).setScale(Phaser.Math.Clamp((0.9 * dpr) / zoom, 0.3, 2));
   }
 
   /** Days pass: wages, tribute, desertions, camps drift. Anything notable is shown as a toast. */
@@ -164,12 +235,50 @@ export class MapScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------- drawing
-  private label(x: number, y: number, str: string, css: number, color: string, originY = 0) {
+  private label(x: number, y: number, str: string, css: number, color: string, originY = 0, group: Fadeable[] = this.territoryObjects, halo?: string) {
     const dark = color === CSS.ink || color === CSS.inkSoft;
-    const t = this.add.text(x, y, str, { fontFamily: FONT, fontSize: `${css}px`, color, stroke: dark ? '#e7d8b4' : '#000000', strokeThickness: dark ? 0 : Math.max(2, Math.round(css / 4)), fontStyle: 'bold', align: 'center' }).setOrigin(0.5, originY);
+    const stroke = halo ?? (dark ? '#e7d8b4' : '#000000');
+    const thick = halo ? Math.max(3, Math.round(css / 2.6)) : dark ? 0 : Math.max(2, Math.round(css / 4));
+    const t = this.add.text(x, y, str, { fontFamily: FONT, fontSize: `${css}px`, color, stroke, strokeThickness: thick, fontStyle: 'bold', align: 'center' }).setOrigin(0.5, originY);
     this.labels.push({ t, css });
-    this.territoryObjects.push(t);
+    group.push(t);
     return t;
+  }
+
+  /** Names of neighbouring places would sit on top of each other in a compact realm, so each one that
+   *  would collide with a name already placed drops a row — the way a cartographer stacks them. The
+   *  measurement is done at the zoom where that rank of name fades in, because the names hold a
+   *  constant size on screen rather than in the world. */
+  private static stackNames(items: StackedName[], dpr: number) {
+    const scaleFor = (major: boolean) => Phaser.Math.Clamp(dpr / (major ? BAND.major[1] : BAND.minor[1]), 0.35, 2.6);
+    const placed: Array<{ x: number; y: number; hw: number; hh: number }> = [];
+    const order = [...items].sort((a, b) => (a.major === b.major ? a.t.x - b.t.x : a.major ? -1 : 1));
+    for (const it of order) {
+      const s = scaleFor(it.major);
+      const hw = (it.t.width * s) / 2, hh = (it.t.height * s) / 2;
+      for (it.row = 0; it.row < 7; it.row++) {
+        const y = it.baseY + it.row * ROW * s + hh;
+        if (placed.some(q => Math.abs(q.x - it.t.x) < q.hw + hw && Math.abs(q.y - y) < q.hh + hh)) continue;
+        placed.push({ x: it.t.x, y, hw, hh });
+        break;
+      }
+    }
+  }
+
+  /** One of the world's own settlements: a marker you cannot reach yet, drawn as a promise. */
+  private drawPlace(empire: Region, p: AtlasPlace): StackedName {
+    const major = p.kind === 'capital' || p.kind === 'city';
+    const group = major ? this.majorObjects : this.minorObjects;
+    const tex = p.kind === 'capital' ? TEX.mapCapital : p.kind === 'city' ? TEX.mapCity : p.kind === 'town' ? TEX.mapTownSmall : TEX.mapVillageSmall;
+    const icon = this.add.image(p.x, p.y, tex).setOrigin(0.5, 1).setDepth(p.kind === 'capital' ? 3.6 : 3.5).setTint(0x6b5738);
+    group.push(icon);
+    const k = p.kind === 'capital' ? 36 / 50 : p.kind === 'city' ? 29 / 44 : p.kind === 'town' ? 22 / 34 : 17 / 28;
+    this.markers.push({ place: p, empire, icon, k, major });
+    const t = this.label(p.x, p.y + 5, p.name, p.kind === 'capital' ? 21 : p.kind === 'city' ? 18 : 15, '#3d2f1c', 0, group, '#f2e6c8');
+    t.setDepth(3.4).setAlpha(0);
+    const entry: StackedName = { t, baseY: p.y + 5, row: 0, major };
+    this.stacked.push(entry);
+    return entry;
   }
 
   private drawRoads() {
@@ -223,11 +332,11 @@ export class MapScene extends Phaser.Scene {
     if (n.kind === 'village' || n.kind === 'town') {
       const badge = this.add.image(n.x, n.y, TEX.mapPalisade).setDepth(4).setVisible(false);
       this.badges.set(n.id, badge);
-      this.territoryObjects.push(badge);
+      this.stateObjects.push(badge);
       this.icons.push(badge);
       const flag = this.add.image(n.x + 12, n.y - 12, TEX.mapToken).setDepth(7).setVisible(false);
       this.flags.set(n.id, flag);
-      this.territoryObjects.push(flag);
+      this.stateObjects.push(flag);
       this.icons.push(flag);
     }
   }
@@ -333,10 +442,10 @@ export class MapScene extends Phaser.Scene {
     if (this.traveling) return;
     const zoom = this.cameras.main.zoom;
     const wp = this.cameras.main.getWorldPoint(p.x, p.y);
-    // a place?
+    // one of your own places?
     const tapR = Math.max(18, 34 / zoom);
     let best: MapNode | null = null, bd = tapR;
-    if (zoom >= 0.9) {
+    if (MapScene.fade(zoom, BAND.minor) > 0.3) {
       for (const n of NODES) {
         if (n.kind === 'cross') continue;
         const d = Phaser.Math.Distance.Between(wp.x, wp.y, n.x, n.y);
@@ -359,9 +468,26 @@ export class MapScene extends Phaser.Scene {
       this.travelTo(best.id);
       return;
     }
+    // one of the world's places — but only the ones you can actually see right now
+    let mark: Marker | null = null, md = Math.max(16, 30 / zoom);
+    for (const m of this.markers) {
+      if (!m.icon.visible || m.icon.alpha < 0.35) continue;
+      const d = Phaser.Math.Distance.Between(wp.x, wp.y, m.place.x, m.place.y - 6 / zoom);
+      if (d < md) { md = d; mark = m; }
+    }
+    if (mark) { this.showPlacePanel(mark); return; }
+    // the name of a realm, written across it — the most obvious thing on the chart to tap
+    let named: Region | null = null, nd = Infinity;
+    for (let i = 0; i < this.empireLabels.length; i++) {
+      const t = this.empireLabels[i];
+      if (!t.visible || t.alpha <= 0.15 || !t.getBounds().contains(wp.x, wp.y)) continue;
+      const d = Phaser.Math.Distance.Between(wp.x, wp.y, t.x, t.y);   // names overlap when zoomed out
+      if (d < nd) { nd = d; named = REGIONS[i]; }
+    }
+    if (named) { this.showRegionPanel(named); return; }
     // a sea road?
-    for (const r of SEA_ROUTES) if (distToPolyline(wp.x, wp.y, r.pts) < Math.max(14, 24 / zoom)) { this.showSeaPanel(r.name); return; }
-    // a region?
+    for (const r of SEA_ROUTES) if (distToPolyline(wp.x, wp.y, r.pts) < Math.max(14, 30 / zoom)) { this.showSeaPanel(r.name); return; }
+    // an empire?
     const region = regionAt(wp.x, wp.y);
     if (region) this.showRegionPanel(region);
   }
@@ -453,17 +579,39 @@ export class MapScene extends Phaser.Scene {
     return null;
   }
 
+  private zoomInButton(t: Territory) {
+    return { label: 'ZOOM IN', color: 0x2f6b8a, onPress: () => { this.hud.hidePanel(); this.zoomToTerritory(t); } };
+  }
+
+  /** The card for a realm: what it is, who sits on its throne, and whether you can go there. */
   private showRegionPanel(r: Region) {
     const leave = { label: 'Leave', color: 0x555555, onPress: () => this.hud.hidePanel() };
-    if (r.territory === 'homeland') { this.hud.showPanel({ title: r.name.toUpperCase(), lines: [r.note], buttons: [{ label: 'ZOOM IN', color: 0x2f6b8a, onPress: () => { this.hud.hidePanel(); this.setZoom(TERRITORY_ZOOM); this.cameras.main.centerOn(this.token.x, this.token.y); } }, leave] }); return; }
+    if (r.territory === 'homeland') { this.hud.showPanel({ title: r.name.toUpperCase(), lines: [r.note], buttons: [this.zoomInButton('homeland'), leave] }); return; }
     if (r.territory === 'steppe') {
       const here = GameState.territory === 'steppe';
       this.hud.showPanel({ title: r.name.toUpperCase(), lines: [r.note, here ? 'You are on the grass now.' : `The Border Stones are ${this.routeDays('steppe_gate')} days from where you stand.`],
-        buttons: [here ? { label: 'ZOOM IN', color: 0x2f6b8a, onPress: () => { this.hud.hidePanel(); this.setZoom(TERRITORY_ZOOM); this.cameras.main.centerOn(this.token.x, this.token.y); } }
+        buttons: [here ? this.zoomInButton('steppe')
           : { label: `MARCH (${this.routeDays('steppe_gate')}d)`, color: 0xa0341f, onPress: () => this.travelTo('steppe_gate') }, leave] });
       return;
     }
-    this.hud.showPanel({ title: r.name.toUpperCase(), lines: [r.note, 'Not yet — your road ends at the steppe.'], buttons: [leave] });
+    const great = r.places.filter(p => p.kind === 'capital' || p.kind === 'city').map(p => p.name);
+    const lesser = r.places.length - great.length;
+    const lines = [r.note];
+    if (r.throne) lines.push(`Throne: ${r.throne}`);
+    if (great.length) lines.push(`${great.join(' · ')}${lesser > 0 ? `, and ${lesser} lesser places` : ''}`);
+    lines.push('Not yet — your road ends at the steppe.');
+    this.hud.showPanel({ title: r.name.toUpperCase(), lines, buttons: [leave] });
+  }
+
+  /** One of the world's settlements, seen from very far away. */
+  private showPlacePanel(m: Marker) {
+    const rank = m.place.kind === 'capital' ? `The throne of ${m.empire.name}` : m.place.kind === 'city' ? `A great city of ${m.empire.name}`
+      : m.place.kind === 'town' ? `A town of ${m.empire.name}` : `A village of ${m.empire.name}`;
+    this.hud.showPanel({
+      title: m.place.name.toUpperCase(),
+      lines: [m.place.note, rank, 'Not yet — your road ends at the steppe.'],
+      buttons: [{ label: 'Leave', color: 0x555555, onPress: () => this.hud.hidePanel() }],
+    });
   }
 
   private showSeaPanel(name: string) {

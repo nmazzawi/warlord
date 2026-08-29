@@ -1,0 +1,74 @@
+{
+  "empires": [
+    {
+      "id": "china",
+      "name": "The Middle Kingdom",
+      "note": "Numbers you cannot count, and crossbows issued in ranks. Their walled cities are the largest anywhere - a siege becomes a second city camped outside the gate, and they can wait longer than you.",
+      "throne": "Chang'an",
+      "poly": [
+        { "lon": 93.85, "lat": 40.36, "at": "Yumen Pass" },
+        { "lon": 102.6, "lat": 37.9, "at": "Wuwei" },
+        { "lon": 109.7, "lat": 38.3, "at": "Ordos loop" },
+        { "lon": 112.9, "lat": 39.3, "at": "Yanmen Pass" },
+        { "lon": 116.4, "lat": 39.9, "at": "Youzhou" },
+        { "lon": 117.9, "lat": 38.4, "at": "Bohai shore" },
+        { "lon": 122.6, "lat": 37.4, "at": "Shandong headland" },
+        { "lon": 120.3, "lat": 34.0, "at": "Huai coast" },
+        { "lon": 121.5, "lat": 31.4, "at": "Yangtze mouth" },
+        { "lon": 120.2, "lat": 30.3, "at": "Qiantang bay" },
+        { "lon": 119.3, "lat": 26.1, "at": "Min coast" },
+        { "lon": 116.6, "lat": 23.7, "at": "Chao coast" },
+        { "lon": 113.3, "lat": 22.5, "at": "Pearl river mouth" },
+        { "lon": 108.3, "lat": 22.8, "at": "Yong river" },
+        { "lon": 103.8, "lat": 26.9, "at": "Wumeng hills" },
+        { "lon": 103.0, "lat": 30.6, "at": "Min mountains" }
+      ],
+      "places": [
+        { "name": "Chang'an", "kind": "capital", "lon": 108.9, "lat": 34.3, "note": "The throne. A hundred walled wards inside one great wall; the gates shut at the drum and do not open for you." },
+        { "name": "Luoyang", "kind": "city", "lon": 112.45, "lat": 34.68, "note": "The eastern capital, burned and rebuilt so often the masons keep a permanent camp outside it." },
+        { "name": "Yangzhou", "kind": "city", "lon": 119.4, "lat": 32.4, "note": "Where the canal meets the river - salt and grain stacked in sheds, guards who count barges instead of men." },
+        { "name": "Guangzhou", "kind": "city", "lon": 113.27, "lat": 23.13, "note": "Southern port thick with foreign silver, and three months of marching from any relief column." },
+        { "name": "Chengdu", "kind": "town", "lon": 104.07, "lat": 30.67, "note": "Rice and brocade behind the gorges; one road in, and a hundred men can hold it." },
+        { "name": "Dunhuang", "kind": "town", "lon": 94.66, "lat": 40.14, "note": "Last water before the sand. Caravans pay the garrison, and the garrison pays nobody." },
+        { "name": "Bianzhou", "kind": "town", "lon": 114.35, "lat": 34.8, "note": "Grown fat on canal transhipment - the wall went up in a hurry and it shows." },
+        { "name": "Jiangling", "kind": "village", "lon": 112.19, "lat": 30.35, "note": "Middle river landing where the winter barges tie up three deep under the bank." },
+        { "name": "Taiyuan", "kind": "town", "lon": 112.55, "lat": 37.87, "note": "Guards the northern road. Horse pasture, and men raised expecting raiders." }
+      ]
+    },
+    {
+      "id": "japan",
+      "name": "The Shogunate of Japan",
+      "note": "Few, but every one of them trained from childhood. A samurai will accept your duel and win it; the ones you never see come over the wall at night and leave before the alarm.",
+      "throne": "Heian-kyo",
+      "poly": [
+        { "lon": 141.92, "lat": 45.52, "at": "Soya cape" },
+        { "lon": 144.95, "lat": 44.25, "at": "Shiretoko cape" },
+        { "lon": 143.25, "lat": 41.93, "at": "Erimo cape" },
+        { "lon": 141.97, "lat": 39.64, "at": "Miyako coast" },
+        { "lon": 140.87, "lat": 35.7, "at": "Inubosaki" },
+        { "lon": 135.76, "lat": 33.44, "at": "Shiono cape" },
+        { "lon": 134.18, "lat": 33.25, "at": "Muroto cape" },
+        { "lon": 133.02, "lat": 32.72, "at": "Ashizuri cape" },
+        { "lon": 130.66, "lat": 31.0, "at": "Sata cape" },
+        { "lon": 129.55, "lat": 33.0, "at": "Hirado" },
+        { "lon": 130.4, "lat": 33.9, "at": "Genkai sea" },
+        { "lon": 132.9, "lat": 35.5, "at": "Izumo coast" },
+        { "lon": 137.0, "lat": 37.3, "at": "Noto" },
+        { "lon": 139.85, "lat": 39.9, "at": "Oga peninsula" },
+        { "lon": 139.4, "lat": 42.0, "at": "Okushiri" },
+        { "lon": 140.4, "lat": 43.3, "at": "Shakotan cape" }
+      ],
+      "places": [
+        { "name": "Heian-kyo", "kind": "capital", "lon": 135.77, "lat": 35.02, "note": "The throne. Wide streets and no city wall - the mountains are the wall, and every pass into them is held." },
+        { "name": "Kamakura", "kind": "city", "lon": 139.55, "lat": 35.32, "note": "The warrior capital, sunk in a bowl of hills; seven narrow cuts are the only ways in." },
+        { "name": "Sakai", "kind": "city", "lon": 135.47, "lat": 34.57, "note": "Free merchant port. It pays for its own ditch, its own wall, and its own spearmen." },
+        { "name": "Hakata", "kind": "city", "lon": 130.4, "lat": 33.6, "note": "The landing beach on the strait, with a stone wall built along it for exactly this." },
+        { "name": "Nara", "kind": "town", "lon": 135.8, "lat": 34.68, "note": "Old capital of temples, and armed monks who answer to no lord at all." },
+        { "name": "Hiraizumi", "kind": "town", "lon": 141.1, "lat": 38.99, "note": "Northern gold paid for the halls here; the roads to them are long, thin and cold." },
+        { "name": "Kagoshima", "kind": "town", "lon": 130.55, "lat": 31.6, "note": "A bay under a smoking mountain. The clan here fights first and reports afterwards." },
+        { "name": "Tosa", "kind": "village", "lon": 133.5, "lat": 33.55, "note": "Rough southern coast of whalers and swordsmen, with no road worth the name." },
+        { "name": "Ise", "kind": "village", "lon": 136.7, "lat": 34.49, "note": "Shrine town, pilgrims all year, and nothing worth taking but the offerings." }
+      ]
+    }
+  ]
+}

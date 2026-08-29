@@ -1,7 +1,6 @@
 // WorldMap.ts — the places you can stand on and the roads between them, in world-chart coordinates.
 // Two territories so far: the homeland (fixed villages, Kingsport) and the Mongol steppe (waypoints
 // that roaming camps drift between, one neutral trade camp). Travel costs days.
-import { STEPPE, TRAVEL } from '../config/balance';
 
 export type NodeKind = 'camp' | 'village' | 'town' | 'cross' | 'waypoint' | 'trade' | 'gate';
 export type Territory = 'homeland' | 'steppe';
@@ -14,9 +13,8 @@ export interface MapNode {
 }
 export interface MapEdge { a: string; b: string; days: number; }
 
-/** The old 1480x1000 homeland map is squeezed into the Borderland region of the chart. */
-const HX = 2150, HY = 545, HS = 0.22;
-const H = (x: number, y: number) => ({ x: Math.round(HX + x * HS), y: Math.round(HY + y * HS) });
+/** The homeland's own little map (the old 1480x1000 layout) squeezed into the Borderland on the chart. */
+const H = (x: number, y: number) => ({ x: Math.round(3590 + ((x - 200) * 220) / 1040), y: Math.round(845 + ((y - 300) * 160) / 420) });
 
 export const NODES: MapNode[] = [
   { id: 'camp', name: 'Bandit Camp', kind: 'camp', ...H(200, 720), territory: 'homeland', blurb: 'Home. Forge, barracks and stables.' },
@@ -27,17 +25,16 @@ export const NODES: MapNode[] = [
   { id: 'greywater', name: 'Greywater', kind: 'village', ...H(1010, 300), territory: 'homeland', tier: 4, layout: 'greywater', blurb: 'Rich, proud, and wide open.' },
   { id: 'kingsport', name: 'Kingsport', kind: 'town', ...H(1240, 520), territory: 'homeland', layout: 'kingsport', blurb: 'A walled town with a standing garrison.' },
   // the steppe
-  { id: 'steppe_gate', name: 'The Border Stones', kind: 'gate', x: 2470, y: 625, territory: 'steppe', blurb: 'Where the last fence ends and the grass begins.' },
-  { id: 'w1', name: 'Red Hill', kind: 'waypoint', x: 2520, y: 520, territory: 'steppe' },
-  { id: 'w2', name: 'The Salt Pan', kind: 'waypoint', x: 2570, y: 450, territory: 'steppe' },
-  { id: 'w3', name: 'Eagle Rocks', kind: 'waypoint', x: 2680, y: 500, territory: 'steppe' },
-  { id: 'w4', name: 'The Long Water', kind: 'waypoint', x: 2740, y: 610, territory: 'steppe' },
-  { id: 'w5', name: 'Bone Pass', kind: 'waypoint', x: 2620, y: 660, territory: 'steppe' },
-  { id: 'w6', name: 'The Grey Wells', kind: 'waypoint', x: 2560, y: 640, territory: 'steppe' },
-  { id: 'steppe_trade', name: "Khoja's Camp", kind: 'trade', x: 2610, y: 560, territory: 'steppe', blurb: 'A neutral trade camp. Everyone is welcome here, and everyone pays.' },
+  { id: 'steppe_gate', name: 'The Border Stones', kind: 'gate', x: 4195, y: 1085, territory: 'steppe', blurb: 'Where the last fence ends and the grass begins.' },
+  { id: 'w1', name: 'Red Hill', kind: 'waypoint', x: 4300, y: 1010, territory: 'steppe' },
+  { id: 'w2', name: 'The Salt Pan', kind: 'waypoint', x: 4430, y: 960, territory: 'steppe' },
+  { id: 'w3', name: 'Eagle Rocks', kind: 'waypoint', x: 4600, y: 1000, territory: 'steppe' },
+  { id: 'w4', name: 'The Long Water', kind: 'waypoint', x: 4680, y: 1110, territory: 'steppe' },
+  { id: 'w5', name: 'Bone Pass', kind: 'waypoint', x: 4520, y: 1180, territory: 'steppe' },
+  { id: 'w6', name: 'The Grey Wells', kind: 'waypoint', x: 4340, y: 1140, territory: 'steppe' },
+  { id: 'steppe_trade', name: "Khoja's Camp", kind: 'trade', x: 4470, y: 1075, territory: 'steppe', blurb: 'A neutral trade camp. Everyone is welcome here, and everyone pays.' },
 ];
 
-function dist(a: MapNode, b: MapNode) { return Math.hypot(a.x - b.x, a.y - b.y); }
 export function nodeById(id: string): MapNode {
   const n = NODES.find(n => n.id === id);
   if (!n) throw new Error(`unknown map node ${id}`);
@@ -45,19 +42,17 @@ export function nodeById(id: string): MapNode {
 }
 export function territoryOf(id: string): Territory { return nodeById(id).territory; }
 
-const LINKS: Array<[string, string]> = [
-  ['camp', 'ashford'], ['ashford', 'x1'], ['x1', 'millbrook'], ['x1', 'thornhill'],
-  ['millbrook', 'greywater'], ['thornhill', 'kingsport'], ['greywater', 'kingsport'], ['x1', 'greywater'],
-  ['greywater', 'steppe_gate'],
-  ['steppe_gate', 'w6'], ['steppe_gate', 'w1'], ['w1', 'w2'], ['w2', 'w3'], ['w3', 'w4'], ['w4', 'w5'], ['w5', 'w6'], ['w6', 'w1'],
-  ['w1', 'steppe_trade'], ['w3', 'steppe_trade'], ['w5', 'steppe_trade'], ['w6', 'steppe_trade'],
+/** Roads, and what each one costs in days. Days are fixed by hand — the chart's geometry can change
+ *  (a redraw, a new continent) without ever changing how long a march takes. */
+const LINKS: Array<[string, string, number]> = [
+  ['camp', 'ashford', 3], ['ashford', 'x1', 3], ['x1', 'millbrook', 3], ['x1', 'thornhill', 3],
+  ['millbrook', 'greywater', 5], ['thornhill', 'kingsport', 4], ['greywater', 'kingsport', 4], ['x1', 'greywater', 5],
+  ['greywater', 'steppe_gate', 5],
+  ['steppe_gate', 'w6', 2], ['steppe_gate', 'w1', 3], ['w1', 'w2', 2], ['w2', 'w3', 3], ['w3', 'w4', 3],
+  ['w4', 'w5', 3], ['w5', 'w6', 1], ['w6', 'w1', 3],
+  ['w1', 'steppe_trade', 2], ['w3', 'steppe_trade', 2], ['w5', 'steppe_trade', 2], ['w6', 'steppe_trade', 2],
 ];
-export const EDGES: MapEdge[] = LINKS.map(([a, b]) => {
-  const na = nodeById(a), nb = nodeById(b);
-  const steppe = na.territory === 'steppe' && nb.territory === 'steppe';
-  const per = steppe ? STEPPE.pxPerDay : TRAVEL.pxPerDay;
-  return { a, b, days: Math.max(1, Math.round(dist(na, nb) / per)) };
-});
+export const EDGES: MapEdge[] = LINKS.map(([a, b, days]) => ({ a, b, days }));
 
 export function edgeBetween(a: string, b: string): MapEdge | null {
   return EDGES.find(e => (e.a === a && e.b === b) || (e.a === b && e.b === a)) ?? null;

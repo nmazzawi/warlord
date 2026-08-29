@@ -15,6 +15,7 @@ export const TEX = {
   hut: (w: number, h: number) => `hut_${w}x${h}`,
   mapCamp: 'map_camp', mapVillage: 'map_village', mapTown: 'map_town', mapToken: 'map_token', mapCross: 'map_cross', mapPalisade: 'map_palisade',
   mapYurts: 'map_yurts', mapWaypoint: 'map_waypoint', mapTrade: 'map_trade', mapGate: 'map_gate',
+  mapCapital: 'map_capital', mapCity: 'map_city', mapTownSmall: 'map_town_s', mapVillageSmall: 'map_village_s',
   forge: 'bld_forge', barracks: 'bld_barracks', stables: 'bld_stables', inn: 'bld_inn', tent: 'tent', campfire: 'campfire', signpost: 'signpost',
 };
 
@@ -220,6 +221,7 @@ export function generateTextures(scene: Phaser.Scene) {
   gr.destroy();
 
   mapIcons(scene);
+  atlasIcons(scene);
   campBuildings(scene);
 }
 
@@ -347,6 +349,48 @@ function mapIcons(scene: Phaser.Scene) {
   s.fillStyle(0x5f6169, 1).fillRect(6, 10, 10, 28).fillRect(26, 6, 10, 32);
   s.fillStyle(0x9a9ca6, 1).fillRect(8, 12, 6, 24).fillRect(28, 8, 6, 28);
   s.generateTexture(TEX.mapGate, 44, 40);
+  s.destroy();
+}
+
+/** The atlas markers: what rank a place holds, readable at a glance. Drawn as ink-and-parchment map
+ *  symbols with the map point itself at the bottom centre of the texture (so they are set origin 0.5,1). */
+function atlasIcons(scene: Phaser.Scene) {
+  const INK = 0x3a2a18, FILL = 0xf6ead0;
+  // a capital: a crown
+  let s = g(scene);
+  s.fillStyle(INK, 1);
+  s.fillTriangle(9, 30, 19, 30, 14, 5).fillTriangle(17, 30, 27, 30, 22, 2).fillTriangle(25, 30, 35, 30, 30, 5);
+  s.fillRect(7, 26, 30, 10).fillRect(20, 34, 4, 10).fillCircle(22, 46, 4);
+  s.fillCircle(14, 5, 3.5).fillCircle(22, 2.5, 3.5).fillCircle(30, 5, 3.5);
+  s.fillStyle(PAL.gold, 1);
+  s.fillTriangle(11, 28, 17, 28, 14, 9).fillTriangle(19, 28, 25, 28, 22, 6).fillTriangle(27, 28, 33, 28, 30, 9);
+  s.fillRect(9, 28, 26, 6);
+  s.fillStyle(PAL.goldHi, 1).fillRect(9, 28, 26, 2).fillCircle(14, 6, 2).fillCircle(22, 3.5, 2).fillCircle(30, 6, 2);
+  s.generateTexture(TEX.mapCapital, 44, 50);
+  s.destroy();
+  // a major city: three towers behind a wall
+  s = g(scene);
+  s.fillStyle(INK, 1).fillRect(1, 16, 34, 20).fillRect(3, 10, 10, 26).fillRect(14, 4, 10, 32).fillRect(25, 10, 10, 26);
+  s.fillRect(16, 34, 4, 6).fillCircle(18, 40, 3.5);
+  s.fillStyle(FILL, 1).fillRect(3, 18, 30, 16).fillRect(5, 12, 6, 22).fillRect(16, 6, 6, 28).fillRect(27, 12, 6, 22);
+  s.fillStyle(INK, 1);
+  for (const x of [5, 9, 16, 20, 27, 31]) s.fillRect(x, 6, 2, 3);
+  s.fillRect(16, 24, 6, 10);
+  s.generateTexture(TEX.mapCity, 36, 44);
+  s.destroy();
+  // a town: one tower with a roof
+  s = g(scene);
+  s.fillStyle(INK, 1).fillTriangle(4, 13, 22, 13, 13, 2).fillRect(5, 12, 16, 16).fillRect(11, 26, 4, 4).fillCircle(13, 30, 3);
+  s.fillStyle(FILL, 1).fillRect(7, 14, 12, 12).fillTriangle(7, 12, 19, 12, 13, 5);
+  s.fillStyle(INK, 1).fillRect(11, 19, 4, 7);
+  s.generateTexture(TEX.mapTownSmall, 26, 34);
+  s.destroy();
+  // a village: two roofs
+  s = g(scene);
+  s.fillStyle(INK, 1).fillTriangle(1, 15, 13, 15, 7, 6).fillTriangle(9, 19, 21, 19, 15, 10);
+  s.fillRect(2, 14, 10, 5).fillRect(10, 18, 10, 4).fillCircle(11, 24, 2.5);
+  s.fillStyle(FILL, 1).fillTriangle(3, 14, 11, 14, 7, 8).fillTriangle(11, 18, 19, 18, 15, 12);
+  s.generateTexture(TEX.mapVillageSmall, 22, 28);
   s.destroy();
 }
 

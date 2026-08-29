@@ -1,0 +1,71 @@
+{
+  "empires": [
+    {
+      "id": "viking",
+      "name": "The Norse Jarldoms",
+      "note": "The sea is their road, not their edge. Longships draw a foot of water - they beach on any coast, row up any river, and are gone before your levy has formed.",
+      "throne": "Uppsala",
+      "poly": [
+        {"lon": 23.3, "lat": 70.0, "at": "Alta"},
+        {"lon": 24.1, "lat": 65.8, "at": "Tornio"},
+        {"lon": 20.3, "lat": 63.8, "at": "Umea"},
+        {"lon": 17.1, "lat": 60.7, "at": "Gavle"},
+        {"lon": 17.9, "lat": 58.75, "at": "Landsort"},
+        {"lon": 16.4, "lat": 56.7, "at": "Kalmar"},
+        {"lon": 12.8, "lat": 55.4, "at": "Skanor"},
+        {"lon": 9.5, "lat": 54.5, "at": "Danevirke"},
+        {"lon": 8.1, "lat": 55.6, "at": "Blavands Huk"},
+        {"lon": 10.6, "lat": 57.7, "at": "Skagen"},
+        {"lon": 7.0, "lat": 58.0, "at": "Lindesnes"},
+        {"lon": 5.3, "lat": 59.3, "at": "Karmoy"},
+        {"lon": 5.1, "lat": 62.2, "at": "Stad"},
+        {"lon": 8.8, "lat": 63.5, "at": "Hitra"},
+        {"lon": 12.1, "lat": 65.4, "at": "Torghatten"},
+        {"lon": 14.0, "lat": 68.2, "at": "Lofoten"}
+      ],
+      "places": [
+        {"name": "Uppsala", "kind": "capital", "lon": 17.6, "lat": 59.9, "note": "The throne. Nine days of sacrifice at the great temple, and every jarl in the north arrives armed."},
+        {"name": "Hedeby", "kind": "city", "lon": 9.6, "lat": 54.5, "note": "Wedged between two seas behind an earth rampart; silver from half the world changes hands here."},
+        {"name": "Birka", "kind": "city", "lon": 17.5, "lat": 59.3, "note": "An island market on the lake - furs, slaves, foreign coin, and a garrison hall smaller than the warehouses."},
+        {"name": "Nidaros", "kind": "city", "lon": 10.4, "lat": 63.4, "note": "A day of rowing up the fjord to reach it; take the shallows wrong and you sit on mud until the tide."},
+        {"name": "Kaupang", "kind": "town", "lon": 10.2, "lat": 59.0, "note": "A summer market and nothing else - come in winter and you burn empty sheds."},
+        {"name": "Ribe", "kind": "town", "lon": 8.8, "lat": 55.3, "note": "Tidal marsh on every approach; ships come up the creek at high water or wait a day."},
+        {"name": "Lund", "kind": "town", "lon": 13.2, "lat": 55.7, "note": "Flat plain all around - they watch you walk inland from the beach for half a morning."},
+        {"name": "Bjorgvin", "kind": "village", "lon": 5.3, "lat": 60.4, "note": "Rain most days, mountains at its back, and dried cod stacked in every shed."},
+        {"name": "Reykjavik", "kind": "village", "lon": -21.9, "lat": 64.1, "note": "Steam off the hot springs, no wall and no lord - the farms lie a day apart."}
+      ]
+    },
+    {
+      "id": "aztecs",
+      "name": "The Aztec Empire",
+      "note": "Across the western ocean, off the edge of every chart you own. They fight the flower wars and take men alive - lose here and you are walked up the temple steps, so a defeat is something you escape from rather than die in.",
+      "throne": "Tenochtitlan",
+      "poly": [
+        {"lon": -99.3, "lat": 20.05, "at": "Tollan"},
+        {"lon": -98.8, "lat": 20.6, "at": "Metztitlan"},
+        {"lon": -97.4, "lat": 21.0, "at": "Tochpan"},
+        {"lon": -96.8, "lat": 20.2, "at": "Nauhtla"},
+        {"lon": -96.4, "lat": 19.45, "at": "Cempoallan"},
+        {"lon": -95.7, "lat": 18.6, "at": "Tlacotalpan"},
+        {"lon": -94.4, "lat": 18.15, "at": "Coatzacoalco"},
+        {"lon": -95.2, "lat": 16.3, "at": "Tehuantepec"},
+        {"lon": -97.6, "lat": 16.15, "at": "Tututepec"},
+        {"lon": -99.9, "lat": 16.85, "at": "Acapolco"},
+        {"lon": -102.2, "lat": 17.95, "at": "Zacatula"},
+        {"lon": -100.5, "lat": 19.7, "at": "Taximaroa"},
+        {"lon": -99.5, "lat": 20.0, "at": "Xilotepec"}
+      ],
+      "places": [
+        {"name": "Tenochtitlan", "kind": "capital", "lon": -99.1, "lat": 19.4, "note": "The throne. An island city on a lake, three causeways in, and every one of them can be cut behind you."},
+        {"name": "Texcoco", "kind": "city", "lon": -98.9, "lat": 19.5, "note": "The east shore - law courts, singers, and the dike that keeps the salt water off the capital."},
+        {"name": "Tlacopan", "kind": "city", "lon": -99.2, "lat": 19.45, "note": "Least of the three thrones and it knows it; the western causeway starts at its gate."},
+        {"name": "Cholollan", "kind": "city", "lon": -98.3, "lat": 19.05, "note": "A pilgrim town under the largest pyramid standing - more priests than warriors, and tribute piled in every court."},
+        {"name": "Tlaxcallan", "kind": "town", "lon": -98.2, "lat": 19.3, "note": "Ringed by the empire on all sides and never taken; they hate Tenochtitlan more than they will ever hate you."},
+        {"name": "Xochimilco", "kind": "town", "lon": -99.1, "lat": 19.25, "note": "Garden plots floating in the shallows - the city's larder, defended by mud and canals."},
+        {"name": "Huaxyacac", "kind": "town", "lon": -96.7, "lat": 17.05, "note": "A garrison planted far down the southern road, holding a valley that resents it."},
+        {"name": "Tepeyacac", "kind": "village", "lon": -97.9, "lat": 18.95, "note": "Every carrier train bound for the coast halts here; the market runs whether there is a war or not."},
+        {"name": "Malinalco", "kind": "village", "lon": -99.5, "lat": 18.95, "note": "A temple cut into the cliff above the houses, and the path up takes men one at a time."}
+      ]
+    }
+  ]
+}

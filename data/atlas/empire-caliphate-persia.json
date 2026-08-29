@@ -1,0 +1,72 @@
+{
+  "empires": [
+    {
+      "id": "arabia",
+      "name": "The Caliphate",
+      "note": "The richest trade cities on the chart, ringed by desert that starves an army before it arrives. Their coin buys assassins, and their camels make your horses bolt.",
+      "throne": "Baghdad",
+      "poly": [
+        {"lon": 36.2, "lat": 36.2, "at": "Antakiya"},
+        {"lon": 40.2, "lat": 37.9, "at": "Amid"},
+        {"lon": 43.1, "lat": 36.3, "at": "Al-Mawsil"},
+        {"lon": 46.1, "lat": 34.3, "at": "Hulwan"},
+        {"lon": 48.7, "lat": 31.3, "at": "Al-Ahwaz"},
+        {"lon": 48.3, "lat": 30.0, "at": "Abbadan"},
+        {"lon": 50.0, "lat": 26.6, "at": "Al-Qatif"},
+        {"lon": 51.5, "lat": 24.6, "at": "the Qatar shore"},
+        {"lon": 56.0, "lat": 25.8, "at": "Julfar"},
+        {"lon": 59.5, "lat": 22.6, "at": "Sur"},
+        {"lon": 57.7, "lat": 19.6, "at": "the Duqm shore"},
+        {"lon": 54.1, "lat": 17.0, "at": "Zafar"},
+        {"lon": 45.0, "lat": 12.8, "at": "Adan"},
+        {"lon": 39.2, "lat": 21.5, "at": "Juddah"},
+        {"lon": 35.0, "lat": 29.5, "at": "Aylah"},
+        {"lon": 34.5, "lat": 31.5, "at": "Ghazzah"}
+      ],
+      "places": [
+        {"name": "Baghdad", "kind": "capital", "lon": 44.4, "lat": 33.31, "note": "The throne. Round walls, four gates, and a treasury deep enough to hire whoever you just beat."},
+        {"name": "Dimashq", "kind": "city", "lon": 36.3, "lat": 33.51, "note": "The good steel comes from here, and the orchards outside the wall mean no siege ever starves it."},
+        {"name": "Al-Basrah", "kind": "city", "lon": 47.81, "lat": 30.51, "note": "Every cargo out of the east is stacked in these warehouses; the reed marsh around it eats horses."},
+        {"name": "Makkah", "kind": "city", "lon": 39.83, "lat": 21.42, "note": "Pilgrim caravans arrive loaded. Touch it and every tribe between here and the sea rides at you."},
+        {"name": "Al-Madinah", "kind": "town", "lon": 39.61, "lat": 24.47, "note": "Date groves and mudbrick, grain in cellars, and they already know the only well you can camp on."},
+        {"name": "Al-Kufah", "kind": "town", "lon": 44.4, "lat": 32.03, "note": "Garrison town, half in revolt against Baghdad in any given year."},
+        {"name": "Halab", "kind": "town", "lon": 37.16, "lat": 36.2, "note": "Caravans unload under a citadel on bare rock - the climb is the whole fight."},
+        {"name": "Al-Quds", "kind": "town", "lon": 35.23, "lat": 31.78, "note": "Pilgrims and moneychangers behind a ridge wall, with no water outside it for you."},
+        {"name": "Hit", "kind": "village", "lon": 42.83, "lat": 33.64, "note": "Bitumen wells. They boil pitch here, and pour it on whatever comes up the ladder."}
+      ]
+    },
+    {
+      "id": "persia",
+      "name": "The Persian Empire",
+      "note": "The Immortals - kill ten thousand and ten thousand stand in the same line by morning. Satraps feed the war from provinces you have not reached, and the Royal Road brings their army to your border before your scouts get home.",
+      "throne": "Persepolis",
+      "poly": [
+        {"lon": 45.5, "lat": 37.6, "at": "Lake Urmiyah"},
+        {"lon": 49.6, "lat": 37.4, "at": "the Caspian shore at Gilan"},
+        {"lon": 54.4, "lat": 36.9, "at": "Zadrakarta"},
+        {"lon": 58.2, "lat": 38.0, "at": "Nisa"},
+        {"lon": 64.0, "lat": 38.9, "at": "the Oxus crossing at Amul"},
+        {"lon": 67.2, "lat": 37.2, "at": "Termez on the Oxus"},
+        {"lon": 67.8, "lat": 34.8, "at": "the Hindu Kush at Bamiyan"},
+        {"lon": 65.7, "lat": 31.6, "at": "the Arachosian plain"},
+        {"lon": 61.3, "lat": 29.8, "at": "the Hamun marsh"},
+        {"lon": 56.3, "lat": 27.1, "at": "Hurmuz"},
+        {"lon": 52.3, "lat": 27.7, "at": "Siraf"},
+        {"lon": 50.8, "lat": 29.0, "at": "Rishahr"},
+        {"lon": 47.6, "lat": 31.6, "at": "the Susiana plain"},
+        {"lon": 47.0, "lat": 34.2, "at": "Bisitun"}
+      ],
+      "places": [
+        {"name": "Persepolis", "kind": "capital", "lon": 52.89, "lat": 29.94, "note": "The throne. Terraces cut into the mountainside, one ramp up, and the treasury behind all of it."},
+        {"name": "Susa", "kind": "city", "lon": 48.25, "lat": 32.19, "note": "West end of the Royal Road; the plain is flat and hot and the couriers leave before you are in sight."},
+        {"name": "Ecbatana", "kind": "city", "lon": 48.51, "lat": 34.8, "note": "The summer court, ringed by walls in the high Zagros, and snow shuts the passes half the year."},
+        {"name": "Marv", "kind": "city", "lon": 62.19, "lat": 37.66, "note": "An oasis in dead sand. You arrive thirsty and their horse archers are already fed and mounted."},
+        {"name": "Pasargadae", "kind": "town", "lon": 53.17, "lat": 30.19, "note": "The old capital: small garrison, more buried gold than most walled cities hold."},
+        {"name": "Rhagae", "kind": "town", "lon": 51.43, "lat": 35.59, "note": "Where the road forks north and east - whoever holds it hears about you first."},
+        {"name": "Gabae", "kind": "town", "lon": 51.68, "lat": 32.65, "note": "River town in the middle of everything, with remounts and fodder for any army passing through."},
+        {"name": "Nishapur", "kind": "town", "lon": 58.8, "lat": 36.21, "note": "Turquoise mines in the hills above; the town itself has no wall worth the name."},
+        {"name": "Zarang", "kind": "village", "lon": 61.88, "lat": 30.96, "note": "Mudbrick at the edge of a marsh, in a wind that blows four months without stopping."}
+      ]
+    }
+  ]
+}

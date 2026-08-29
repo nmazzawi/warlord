@@ -1,0 +1,74 @@
+{
+  "empires": [
+    {
+      "id": "rome",
+      "name": "The Roman Empire",
+      "note": "They do not need to beat you in one season. Roads that carry a legion faster than your riders, siege engines that arrive assembled, and a fortified camp dug fresh every night they march.",
+      "throne": "Roma",
+      "poly": [
+        {"lon": -0.99, "lat": 37.60, "at": "Carthago Nova"},
+        {"lon": 1.25, "lat": 41.12, "at": "Tarraco"},
+        {"lon": 3.12, "lat": 42.13, "at": "Emporiae"},
+        {"lon": -0.58, "lat": 44.84, "at": "Burdigala"},
+        {"lon": -1.55, "lat": 47.22, "at": "Portus Namnetum"},
+        {"lon": 1.10, "lat": 49.44, "at": "Rotomagus"},
+        {"lon": 6.96, "lat": 50.94, "at": "Colonia Agrippina"},
+        {"lon": 7.75, "lat": 48.58, "at": "Argentoratum"},
+        {"lon": 13.37, "lat": 45.78, "at": "Aquileia"},
+        {"lon": 16.44, "lat": 43.54, "at": "Salona"},
+        {"lon": 18.29, "lat": 42.65, "at": "Epidaurum"},
+        {"lon": 19.49, "lat": 40.47, "at": "Aulon"},
+        {"lon": 14.50, "lat": 35.90, "at": "Melita"},
+        {"lon": 14.29, "lat": 32.64, "at": "Leptis Magna"},
+        {"lon": 10.10, "lat": 33.88, "at": "Tacape"},
+        {"lon": 3.05, "lat": 36.75, "at": "Icosium"}
+      ],
+      "places": [
+        {"name": "Roma", "kind": "capital", "lon": 12.50, "lat": 41.90, "note": "The throne. Seven hills behind stone, and every road you would run away on was built by them."},
+        {"name": "Mediolanum", "kind": "city", "lon": 9.19, "lat": 45.46, "note": "Where the legions winter until the passes open. Come in the wrong month and they are all still here."},
+        {"name": "Lugdunum", "kind": "city", "lon": 4.84, "lat": 45.76, "note": "The mint. Silver leaves by cart under a guard of clerks and one bored cohort."},
+        {"name": "Carthago", "kind": "city", "lon": 10.32, "lat": 36.85, "note": "Rebuilt on the ashes of the old city. Grain sheds, tax chests, a garrison that has not fought in a generation."},
+        {"name": "Ostia", "kind": "town", "lon": 12.29, "lat": 41.76, "note": "Rome's mouth. Warehouses stacked with Egyptian grain and no wall worth the name."},
+        {"name": "Capua", "kind": "town", "lon": 14.25, "lat": 41.10, "note": "Gladiator schools and fat farmland - armed men everywhere, and none of them loyal."},
+        {"name": "Massilia", "kind": "town", "lon": 5.37, "lat": 43.30, "note": "Old Greek stock paying Roman taxes. The market is rich, the walls are an afterthought."},
+        {"name": "Pompeii", "kind": "town", "lon": 14.49, "lat": 40.75, "note": "Wine, fish sauce, and rich villas under a mountain that has been quiet a long while."},
+        {"name": "Tibur", "kind": "village", "lon": 12.80, "lat": 41.96, "note": "Senators keep summer houses up by the waterfalls. Plate and silver, no soldiers."}
+      ]
+    },
+    {
+      "id": "greece",
+      "name": "The Greek City-States",
+      "note": "Long spears in close order - a wall from the front, ruin from the flank. They have been cutting each other's throats for a hundred years, so whichever city you burn, the next one over will call it justice.",
+      "throne": "Athenai",
+      "poly": [
+        {"lon": 20.79, "lat": 39.55, "at": "Dodona"},
+        {"lon": 22.35, "lat": 40.09, "at": "Mount Olympos"},
+        {"lon": 22.94, "lat": 40.64, "at": "Therme"},
+        {"lon": 23.83, "lat": 40.82, "at": "Amphipolis"},
+        {"lon": 24.98, "lat": 40.94, "at": "Abdera"},
+        {"lon": 26.40, "lat": 40.30, "at": "Thracian Chersonesos"},
+        {"lon": 26.94, "lat": 39.50, "at": "Adramyttion"},
+        {"lon": 28.04, "lat": 38.49, "at": "Sardeis"},
+        {"lon": 27.78, "lat": 37.30, "at": "Mylasa"},
+        {"lon": 28.23, "lat": 36.43, "at": "Rhodos"},
+        {"lon": 26.26, "lat": 35.26, "at": "Itanos"},
+        {"lon": 24.02, "lat": 35.51, "at": "Kydonia"},
+        {"lon": 23.00, "lat": 36.15, "at": "Kythera"},
+        {"lon": 21.70, "lat": 36.82, "at": "Methone"},
+        {"lon": 20.90, "lat": 37.79, "at": "Zakynthos"},
+        {"lon": 19.92, "lat": 39.62, "at": "Kerkyra"}
+      ],
+      "places": [
+        {"name": "Athenai", "kind": "capital", "lon": 23.73, "lat": 37.98, "note": "The throne. Silver from the hill mines pays for the walls, and the walls are new."},
+        {"name": "Sparta", "kind": "city", "lon": 22.43, "lat": 37.07, "note": "No walls at all. They think the men standing in front of the town are the walls, and so far they have been right."},
+        {"name": "Korinthos", "kind": "city", "lon": 22.93, "lat": 37.94, "note": "Sits on the neck of land everything must cross. Rich on tolls, and a fortress rock above it."},
+        {"name": "Miletos", "kind": "city", "lon": 27.28, "lat": 37.53, "note": "Far from Athenai and it knows it. Wool, pottery kilns, and a garrison that answers slowly."},
+        {"name": "Thebai", "kind": "town", "lon": 23.32, "lat": 38.32, "note": "The best spearmen in the field and the worst neighbours. They will march on Sparta the week you arrive."},
+        {"name": "Argos", "kind": "town", "lon": 22.72, "lat": 37.63, "note": "Old horse country in the plain. It has hated Sparta longer than anyone can remember."},
+        {"name": "Mytilene", "kind": "town", "lon": 26.55, "lat": 39.11, "note": "Olive presses and wine on a wide bay. Pays Athenai in coin and grudges."},
+        {"name": "Delphoi", "kind": "village", "lon": 22.50, "lat": 38.48, "note": "A goat track up a cliff to a shrine every city has filled with gold. Guarded by priests."},
+        {"name": "Marathon", "kind": "village", "lon": 23.96, "lat": 38.15, "note": "Fennel plain and a burial mound. A day's march from Athenai, which is the whole problem."}
+      ]
+    }
+  ]
+}

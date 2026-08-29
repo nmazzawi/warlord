@@ -1,0 +1,506 @@
+{
+  "segments": [
+    {
+      "id": "africa",
+      "closed": true,
+      "points": [
+        {
+          "lon": 32.6,
+          "lat": 29.8,
+          "at": "Head of the Gulf of Suez (Suez)"
+        },
+        {
+          "lon": 33.81,
+          "lat": 27.26,
+          "at": "Hurghada, Egyptian Red Sea coast"
+        },
+        {
+          "lon": 35.48,
+          "lat": 23.92,
+          "at": "Berenice / Ras Banas, Egypt"
+        },
+        {
+          "lon": 37.22,
+          "lat": 19.62,
+          "at": "Port Sudan"
+        },
+        {
+          "lon": 39.47,
+          "lat": 15.61,
+          "at": "Massawa, Eritrea"
+        },
+        {
+          "lon": 43.3,
+          "lat": 12.6,
+          "at": "Bab el-Mandeb (Ras Siyan)"
+        },
+        {
+          "lon": 43.15,
+          "lat": 11.6,
+          "at": "Djibouti, Gulf of Tadjoura"
+        },
+        {
+          "lon": 45.02,
+          "lat": 10.44,
+          "at": "Berbera, Gulf of Aden"
+        },
+        {
+          "lon": 49.18,
+          "lat": 11.28,
+          "at": "Bosaso (Bender Cassim), Somalia"
+        },
+        {
+          "lon": 51.3,
+          "lat": 11.8,
+          "at": "Cape Guardafui (Ras Asir), the Horn"
+        },
+        {
+          "lon": 51.42,
+          "lat": 10.44,
+          "at": "Ras Hafun, easternmost point of Africa"
+        },
+        {
+          "lon": 48.53,
+          "lat": 5.35,
+          "at": "Hobyo, Somalia"
+        },
+        {
+          "lon": 45.34,
+          "lat": 2.04,
+          "at": "Mogadishu"
+        },
+        {
+          "lon": 42.55,
+          "lat": -0.36,
+          "at": "Kismayo, Somalia"
+        },
+        {
+          "lon": 39.67,
+          "lat": -4.05,
+          "at": "Mombasa, Kenya"
+        },
+        {
+          "lon": 39.28,
+          "lat": -6.82,
+          "at": "Dar es Salaam, opposite Zanzibar"
+        },
+        {
+          "lon": 40.63,
+          "lat": -10.68,
+          "at": "Cape Delgado, Mozambique"
+        },
+        {
+          "lon": 40.73,
+          "lat": -15.03,
+          "at": "Mozambique Island (Ilha de Mocambique)"
+        },
+        {
+          "lon": 36.47,
+          "lat": -18.58,
+          "at": "Zambezi delta (Chinde mouth)"
+        },
+        {
+          "lon": 34.8,
+          "lat": -19.95,
+          "at": "Sofala / Beira"
+        },
+        {
+          "lon": 35.35,
+          "lat": -21.85,
+          "at": "Bazaruto, Vilanculos"
+        },
+        {
+          "lon": 35.38,
+          "lat": -23.87,
+          "at": "Inhambane, Mozambique"
+        },
+        {
+          "lon": 32.6,
+          "lat": -25.97,
+          "at": "Delagoa Bay (Maputo)"
+        },
+        {
+          "lon": 31.05,
+          "lat": -29.87,
+          "at": "Durban"
+        },
+        {
+          "lon": 27.9,
+          "lat": -33.02,
+          "at": "East London"
+        },
+        {
+          "lon": 25.6,
+          "lat": -33.96,
+          "at": "Algoa Bay (Port Elizabeth)"
+        },
+        {
+          "lon": 22.15,
+          "lat": -34.18,
+          "at": "Mossel Bay"
+        },
+        {
+          "lon": 20.0,
+          "lat": -34.8,
+          "at": "Cape Agulhas, southern tip of Africa"
+        },
+        {
+          "lon": 18.5,
+          "lat": -34.4,
+          "at": "Cape of Good Hope"
+        },
+        {
+          "lon": 18.42,
+          "lat": -33.9,
+          "at": "Table Bay, Cape Town"
+        },
+        {
+          "lon": 16.45,
+          "lat": -28.6,
+          "at": "Orange River mouth (Alexander Bay)"
+        },
+        {
+          "lon": 15.15,
+          "lat": -26.65,
+          "at": "Luederitz, Namibia"
+        },
+        {
+          "lon": 14.5,
+          "lat": -22.95,
+          "at": "Walvis Bay, Namibia"
+        },
+        {
+          "lon": 12.0,
+          "lat": -18.43,
+          "at": "Cape Frio, Skeleton Coast"
+        },
+        {
+          "lon": 11.75,
+          "lat": -17.25,
+          "at": "Cunene River mouth"
+        },
+        {
+          "lon": 13.55,
+          "lat": -12.35,
+          "at": "Lobito, Angola"
+        },
+        {
+          "lon": 13.23,
+          "lat": -8.83,
+          "at": "Luanda"
+        },
+        {
+          "lon": 12.3,
+          "lat": -6.0,
+          "at": "Congo River mouth (Ponta do Padrao)"
+        },
+        {
+          "lon": 11.85,
+          "lat": -4.78,
+          "at": "Pointe-Noire, Congo"
+        },
+        {
+          "lon": 8.7,
+          "lat": -0.6,
+          "at": "Cape Lopez, Port-Gentil, Gabon"
+        },
+        {
+          "lon": 9.32,
+          "lat": 0.6,
+          "at": "Cape Esterias, Libreville"
+        },
+        {
+          "lon": 9.5,
+          "lat": 3.95,
+          "at": "Douala estuary, Bight of Biafra"
+        },
+        {
+          "lon": 8.35,
+          "lat": 4.55,
+          "at": "Calabar, Cross River mouth"
+        },
+        {
+          "lon": 5.5,
+          "lat": 4.3,
+          "at": "Cape Formoso, apex of the Niger delta"
+        },
+        {
+          "lon": 5.35,
+          "lat": 5.35,
+          "at": "Forcados mouth, western Niger delta"
+        },
+        {
+          "lon": 3.4,
+          "lat": 6.43,
+          "at": "Lagos, Bight of Benin"
+        },
+        {
+          "lon": 1.22,
+          "lat": 6.13,
+          "at": "Lome, Togo"
+        },
+        {
+          "lon": -0.2,
+          "lat": 5.55,
+          "at": "Accra, Gold Coast"
+        },
+        {
+          "lon": -2.09,
+          "lat": 4.75,
+          "at": "Cape Three Points, Ghana"
+        },
+        {
+          "lon": -4.02,
+          "lat": 5.3,
+          "at": "Abidjan lagoon mouth"
+        },
+        {
+          "lon": -7.7,
+          "lat": 4.4,
+          "at": "Cape Palmas, southern corner of West Africa"
+        },
+        {
+          "lon": -10.8,
+          "lat": 6.3,
+          "at": "Cape Mesurado, Monrovia"
+        },
+        {
+          "lon": -13.25,
+          "lat": 8.48,
+          "at": "Freetown, Sierra Leone estuary"
+        },
+        {
+          "lon": -15.6,
+          "lat": 11.85,
+          "at": "Bissau, Geba estuary"
+        },
+        {
+          "lon": -16.57,
+          "lat": 13.45,
+          "at": "Banjul, Gambia River mouth"
+        },
+        {
+          "lon": -17.5,
+          "lat": 14.7,
+          "at": "Cape Verde peninsula (Dakar), westernmost Africa"
+        },
+        {
+          "lon": -16.5,
+          "lat": 16.03,
+          "at": "Senegal River mouth (Saint-Louis)"
+        },
+        {
+          "lon": -16.03,
+          "lat": 18.08,
+          "at": "Nouakchott, Mauritania"
+        },
+        {
+          "lon": -16.4,
+          "lat": 19.38,
+          "at": "Cape Timiris, Banc d'Arguin"
+        },
+        {
+          "lon": -17.05,
+          "lat": 20.85,
+          "at": "Cape Blanc, Nouadhibou"
+        },
+        {
+          "lon": -15.93,
+          "lat": 23.7,
+          "at": "Dakhla (Rio de Oro)"
+        },
+        {
+          "lon": -14.5,
+          "lat": 26.13,
+          "at": "Cape Bojador"
+        },
+        {
+          "lon": -12.92,
+          "lat": 27.94,
+          "at": "Cape Juby, Tarfaya"
+        },
+        {
+          "lon": -9.6,
+          "lat": 30.42,
+          "at": "Agadir, Morocco"
+        },
+        {
+          "lon": -7.6,
+          "lat": 33.6,
+          "at": "Casablanca"
+        },
+        {
+          "lon": -5.93,
+          "lat": 35.79,
+          "at": "Cape Spartel, Tangier"
+        },
+        {
+          "lon": -5.6,
+          "lat": 35.9,
+          "at": "Strait of Gibraltar (Ceuta)"
+        },
+        {
+          "lon": -2.95,
+          "lat": 35.42,
+          "at": "Cape Tres Forcas, Melilla"
+        },
+        {
+          "lon": -0.63,
+          "lat": 35.7,
+          "at": "Oran, Algeria"
+        },
+        {
+          "lon": 3.06,
+          "lat": 36.78,
+          "at": "Algiers"
+        },
+        {
+          "lon": 7.77,
+          "lat": 36.9,
+          "at": "Annaba, Algeria"
+        },
+        {
+          "lon": 11.0,
+          "lat": 37.1,
+          "at": "Cape Bon, Tunisia"
+        },
+        {
+          "lon": 10.76,
+          "lat": 34.74,
+          "at": "Sfax, Gulf of Gabes"
+        },
+        {
+          "lon": 11.1,
+          "lat": 33.5,
+          "at": "Zarzis, by Djerba"
+        },
+        {
+          "lon": 13.19,
+          "lat": 32.9,
+          "at": "Tripoli, Libya"
+        },
+        {
+          "lon": 15.2,
+          "lat": 32.4,
+          "at": "Misrata, Libya"
+        },
+        {
+          "lon": 18.0,
+          "lat": 30.4,
+          "at": "Gulf of Sirte (Ras Lanuf)"
+        },
+        {
+          "lon": 20.07,
+          "lat": 32.12,
+          "at": "Benghazi"
+        },
+        {
+          "lon": 22.19,
+          "lat": 32.91,
+          "at": "Ras al-Hilal, Cyrenaica"
+        },
+        {
+          "lon": 23.95,
+          "lat": 32.07,
+          "at": "Tobruk"
+        },
+        {
+          "lon": 25.15,
+          "lat": 31.55,
+          "at": "Sallum, Egyptian border"
+        },
+        {
+          "lon": 29.92,
+          "lat": 31.2,
+          "at": "Alexandria"
+        },
+        {
+          "lon": 31.0,
+          "lat": 31.4,
+          "at": "Nile delta, Burullus mouth"
+        },
+        {
+          "lon": 32.3,
+          "lat": 31.26,
+          "at": "Port Said"
+        }
+      ]
+    },
+    {
+      "id": "madagascar",
+      "closed": true,
+      "points": [
+        {
+          "lon": 49.27,
+          "lat": -11.95,
+          "at": "Cap d'Ambre, northern tip of Madagascar"
+        },
+        {
+          "lon": 50.0,
+          "lat": -13.37,
+          "at": "Vohemar, northeast Madagascar"
+        },
+        {
+          "lon": 50.5,
+          "lat": -15.28,
+          "at": "Cape Est, Masoala peninsula"
+        },
+        {
+          "lon": 49.4,
+          "lat": -18.15,
+          "at": "Toamasina (Tamatave)"
+        },
+        {
+          "lon": 48.35,
+          "lat": -21.23,
+          "at": "Mananjary, east coast"
+        },
+        {
+          "lon": 47.83,
+          "lat": -22.82,
+          "at": "Farafangana"
+        },
+        {
+          "lon": 47.0,
+          "lat": -25.03,
+          "at": "Tolanaro (Fort Dauphin), southeast cape"
+        },
+        {
+          "lon": 45.17,
+          "lat": -25.6,
+          "at": "Cape Sainte-Marie (Vohimena), southern tip"
+        },
+        {
+          "lon": 43.67,
+          "lat": -23.35,
+          "at": "Toliara (Tulear)"
+        },
+        {
+          "lon": 43.35,
+          "lat": -21.75,
+          "at": "Morombe, westernmost Madagascar"
+        },
+        {
+          "lon": 44.28,
+          "lat": -20.28,
+          "at": "Morondava, Mozambique Channel coast"
+        },
+        {
+          "lon": 44.0,
+          "lat": -16.18,
+          "at": "Cape Saint-Andre"
+        },
+        {
+          "lon": 46.32,
+          "lat": -15.72,
+          "at": "Mahajanga (Majunga), Bombetoka Bay"
+        },
+        {
+          "lon": 48.28,
+          "lat": -13.4,
+          "at": "Nosy Be (Hell-Ville), northwest coast"
+        }
+      ]
+    }
+  ]
+}
