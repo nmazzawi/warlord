@@ -389,6 +389,7 @@ async function desktopRun(browser) {
   await page.evaluate(() => { const S = window.__GameState; const n = window.__NODES.find(k => k.id === 'camp');
     S.pos = { x: n.x, y: n.y }; S.location = 'camp'; S.hunters = []; S.save(); });
   await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); m.token.setPosition(window.__GameState.pos.x, window.__GameState.pos.y - 12); m.zoomToTerritory(); });
+  await hidePanel(page);      // the map reopens on Kiev's card, and a leftover card eats the next tap
   await sleep(400);
 
   // --- raid Ashford and just leave
