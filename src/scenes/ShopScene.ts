@@ -130,7 +130,7 @@ export class ShopScene extends Phaser.Scene {
         : 'A drink for the innkeeper and a true word about the world — patrols, palisades, Kingsport.',
         button: { label: `${RUMOR_PRICE} gold`, enabled: g.gold >= RUMOR_PRICE, onPress: () => this.buy(RUMOR_PRICE, () => { g.rumorsHeard.push(`${this.settlementId}:${rumor.id}`); this.rumorShown = rumor.text; }) } });
       else rows.push({ name: 'Nothing new', desc: foreign
-        ? 'He has told you everything he knows about his own country. Another city, another story.'
+        ? 'You have had the whole of this country from its innkeepers. Another realm, another story.'
         : 'You have heard everything this inn knows. Try another.', button: null });
       const heard = g.rumorsHeard.length;
       return { title: (foreign ? foreign.inn.name : 'the inn').toUpperCase(), blurb: heard ? `${heard} rumor${heard === 1 ? '' : 's'} heard so far${markup}` : `Travellers talk here${markup}`, rows };

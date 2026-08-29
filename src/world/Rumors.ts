@@ -1,5 +1,6 @@
 // Rumors.ts — what the inn sells: one true thing about the world, drawn from the live game state.
 import { INFAMY, SIEGE, STEPPE } from '../config/balance';
+import { wanted } from './Hunters';
 import { GameState } from '../state/GameState';
 import { LAYOUTS } from './Layouts';
 import { NODES } from './WorldMap';
@@ -11,10 +12,9 @@ export interface Rumor { id: string; text: string; }
 export function currentRumors(): Rumor[] {
   const out: Rumor[] = [];
   const tier = GameState.infamyTier;
-  const chance = Math.round(GameState.patrolChance * 100);
-  out.push({ id: 'patrols', text: chance > 0
-    ? `Riders are out on every road looking for someone with your name — about ${chance} in 100 stretches, never twice within ${INFAMY.patrolCooldownDays} days. Raider-tier patrols bring a captain.`
-    : `The roads are quiet. Patrols only ride once a name is worth a bounty — at infamy ${INFAMY.tiers[1].min} they start looking (1 stretch in 4).` });
+  out.push({ id: 'patrols', text: tier > 0
+    ? `There are ${wanted(tier, GameState.hunted)} part${wanted(tier, GameState.hunted) === 1 ? 'y' : 'ies'} out after you at your name's price. They set out a few days' ride away, move every day you do, and close once they have your scent — but they tire of it inside a fortnight. Ride hard, or ride around them.`
+    : `Nobody is looking for you yet. At infamy ${INFAMY.tiers[1].min} the first party sets out, and after that you can watch them coming across the map.` });
   const steps = GameState.fortifySteps();
   out.push({ id: 'fortify', text: tier >= 1
     ? `Villages you have not touched are hiring: +${steps} militia so far, one more every ${INFAMY.fortifyDays[tier]} days, up to +${INFAMY.fortifyMax}. At +${INFAMY.palisadeAt} they raise a palisade; at +${INFAMY.archerAt} an archer joins.`
@@ -49,9 +49,10 @@ export function nextRumor(settlementId: string): Rumor | null {
   // abroad, the innkeeper talks about where you ARE — that is what you walked all this way for
   const node = NODES.find(n => n.id === settlementId);
   if (node?.kind === 'foreign') {
-    const own = realmRumors(node.territory).filter(r => !heard.has(`${settlementId}:${r.id}`));
-    if (own.length) return own[0];
-    return null;
+    // a country only has one story to tell: hear it in Kiev and Novgorod will not sell it to you again
+    const told = new Set(GameState.rumorsHeard.map(k => k.slice(k.indexOf(':') + 1)));
+    const own = realmRumors(node.territory).filter(r => !told.has(r.id));
+    return own.length ? own[0] : null;
   }
   const pool = currentRumors().filter(r => !heard.has(`${settlementId}:${r.id}`));
   if (!pool.length) return null;

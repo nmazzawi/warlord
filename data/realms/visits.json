@@ -99,10 +99,10 @@
    "items": [
     "leather",
     "round",
-    "bow"
+    "composite"
    ],
    "swordMaxTier": 3,
-   "note": "Dimashq folds eastern iron until the blade shows watermarks. Nowhere is a sword finished better than here."
+   "note": "Dimashq folds eastern iron until the blade shows watermarks, and the bowyers glue horn to sinew for a bow a man looses from the saddle."
   },
   "stables": {
    "horses": [
@@ -189,11 +189,11 @@
   "forge": {
    "items": [
     "leather",
-    "round",
+    "kite",
     "bow"
    ],
    "swordMaxTier": 1,
-   "note": "The Meroe furnaces pour more iron than any smith can use, and near all of it is beaten into arrowheads, not blades."
+   "note": "More iron comes off the Meroe furnaces than the smiths can use, and most of it goes into arrowheads. The shields are hide, and taller than a man."
   },
   "stables": {
    "horses": [
@@ -219,10 +219,11 @@
   "forge": {
    "items": [
     "leather",
+    "plate",
     "bow"
    ],
    "swordMaxTier": 3,
-   "note": "Crucible steel that goes west as bars and comes back as famous blades. The cane bow is drawn braced under the foot."
+   "note": "Crucible steel out of the south, sold twice before it reaches the west, and mail and plate beaten for men who fight beside elephants."
   },
   "stables": {
    "horses": [],
@@ -246,11 +247,11 @@
   "forge": {
    "items": [
     "leather",
-    "round",
+    "plate",
     "composite"
    ],
    "swordMaxTier": 2,
-   "note": "Blades come out of the state arsenals by the thousand, each the same as the last. Armour and crossbows are not sold."
+   "note": "State arsenals turn out lamellar and the saddle bow by the thousand, each piece the same as the last. The crossbows are counted out and counted back, and never sold."
   },
   "stables": {
    "horses": [],

@@ -89,7 +89,7 @@ export const REALM_VISITS: Record<string, RealmVisit> = {
     enter: "Palms line the road into the Caliph's country. Every well is owned, and the caravan ahead of you is longer than your warband.",
     warLocked: "The Caliph's treasury hires a new army the week you break the last one, and the sand starves whoever marches on Baghdad. War here comes in a later age.",
     barracksLocked: "the guard was bought as boys and raised to it - there is no hiring in",
-    forge: { items: ["leather", "round", "bow"], swordMaxTier: 3, note: "Dimashq folds eastern iron until the blade shows watermarks. Nowhere is a sword finished better than here." },
+    forge: { items: ["leather", "round", "composite"], swordMaxTier: 3, note: "Dimashq folds eastern iron until the blade shows watermarks, and the bowyers glue horn to sinew for a bow a man looses from the saddle." },
     stables: { horses: ["courser"], note: "Desert mares, light and long-winded, bred where the next well is a day off. Nothing here is built to carry armour." },
     inn: {
       name: "the khan by the Khurasan gate",
@@ -140,7 +140,7 @@ export const REALM_VISITS: Record<string, RealmVisit> = {
     enter: "You come south past the last cataract into the Land of the Bow. Iron smoke stands over Meroe, and the cliffs have eyes.",
     warLocked: "Their bowmen kill at a range you cannot answer, and six cataracts break the river above Aswan while they shoot down on you. You settle that in a later age.",
     barracksLocked: "no bowman here bends his bow for a stranger's coin",
-    forge: { items: ["leather", "round", "bow"], swordMaxTier: 1, note: "The Meroe furnaces pour more iron than any smith can use, and near all of it is beaten into arrowheads, not blades." },
+    forge: { items: ["leather", "kite", "bow"], swordMaxTier: 1, note: "More iron comes off the Meroe furnaces than the smiths can use, and most of it goes into arrowheads. The shields are hide, and taller than a man." },
     stables: { horses: ["courser"], note: "Kawa breeds the light river horses the northern kings pay gold for. Nothing here is bred to carry a man in armour." },
     inn: {
       name: "the red pot",
@@ -157,7 +157,7 @@ export const REALM_VISITS: Record<string, RealmVisit> = {
     enter: "The heat closes on you a mile inside the Kingdoms of India, and the road to Pataliputra is never empty.",
     warLocked: "Every raja fields elephants, and elephants walk through a shield wall like standing wheat. Your warband would not slow one. Come back in a later age.",
     barracksLocked: "no raja's spearmen will march under a foreigner's banner",
-    forge: { items: ["leather", "bow"], swordMaxTier: 3, note: "Crucible steel that goes west as bars and comes back as famous blades. The cane bow is drawn braced under the foot." },
+    forge: { items: ["leather", "plate", "bow"], swordMaxTier: 3, note: "Crucible steel out of the south, sold twice before it reaches the west, and mail and plate beaten for men who fight beside elephants." },
     stables: { horses: [], note: "Every warhorse here was walked down the passes at a price, and the heat kills them off. None leaves the raja's stable." },
     inn: {
       name: "the toddy house by the ghats",
@@ -174,7 +174,7 @@ export const REALM_VISITS: Record<string, RealmVisit> = {
     enter: "You cross into the Middle Kingdom. Before the first gate a clerk writes down your name, your men and your horses.",
     warLocked: "Ten thousand crossbows loose on one drumbeat, and their walls outlast any siege you could sit through. The Middle Kingdom is shut until a later age.",
     barracksLocked: "a magistrate calls soldiers up by household; nobody sells you any",
-    forge: { items: ["leather", "round", "composite"], swordMaxTier: 2, note: "Blades come out of the state arsenals by the thousand, each the same as the last. Armour and crossbows are not sold." },
+    forge: { items: ["leather", "plate", "composite"], swordMaxTier: 2, note: "State arsenals turn out lamellar and the saddle bow by the thousand, each piece the same as the last. The crossbows are counted out and counted back, and never sold." },
     stables: { horses: [], note: "Their warhorses are bought off the steppe and counted by clerks. None is sold on to a man riding back north." },
     inn: {
       name: "the wineshop under the drum tower",

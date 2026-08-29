@@ -42,9 +42,9 @@ interface SaveData {
   location: string; patrolPending: boolean;
   pos?: { x: number; y: number }; hunters?: Hunter[];
   settlements: Record<string, SettlementState>; garrisons: Record<string, TroopRecord[]>;
-  fortifyStepsDone: number; fortifyCarry: number; lastPatrolDay: number; unpaidDays: number; seenMapHint: boolean;
+  fortifyStepsDone: number; fortifyCarry: number; unpaidDays: number; seenMapHint: boolean;
   rumorsHeard: string[]; pendingVictory: PendingVictory | null;
-  steppeInfamy: number; campScattered: Record<string, number>; huntedUntil: number; lastSteppePatrolDay: number;
+  steppeInfamy: number; campScattered: Record<string, number>; huntedUntil: number;
   realmInfamy?: Record<string, number>;
 }
 
@@ -72,7 +72,6 @@ class GameStateStore {
   garrisons: Record<string, TroopRecord[]> = {};
   fortifyStepsDone = 0;
   fortifyCarry = 0;
-  lastPatrolDay = -99;
   unpaidDays = 0;
   seenMapHint = false;
   rumorsHeard: string[] = [];
@@ -84,7 +83,6 @@ class GameStateStore {
   realmInfamy: Record<string, number> = {};
   campScattered: Record<string, number> = {};
   huntedUntil = -1;
-  lastSteppePatrolDay = -99;
   private nextId = 1;
   private nameCursor = 0;
   private snapshot: SaveData | null = null;
@@ -98,9 +96,9 @@ class GameStateStore {
     this.gold = UPKEEP.startingGold; this.day = 1; this.infamy = 0; this.weaponTier = 1; this.equippedWeapon = 'sword'; this.horse = 'none';
     this.armor = 'none'; this.shield = 'none';
     this.owned = { leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false, composite: false };
-    this.steppeInfamy = 0; this.realmInfamy = {}; this.campScattered = {}; this.huntedUntil = -1; this.lastSteppePatrolDay = -99;
+    this.steppeInfamy = 0; this.realmInfamy = {}; this.campScattered = {}; this.huntedUntil = -1;
     this.troops = []; this.fallen = []; this.deserted = []; this.raidsDone = 0; this.location = 'camp';
-    this.patrolPending = false; this.pos = { x: nodeById('camp').x, y: nodeById('camp').y }; this.hunters = []; this.settlements = {}; this.garrisons = {}; this.fortifyStepsDone = 0; this.fortifyCarry = 0; this.lastPatrolDay = -99;
+    this.patrolPending = false; this.pos = { x: nodeById('camp').x, y: nodeById('camp').y }; this.hunters = []; this.settlements = {}; this.garrisons = {}; this.fortifyStepsDone = 0; this.fortifyCarry = 0;
     this.unpaidDays = 0; this.seenMapHint = false; this.rumorsHeard = []; this.pendingVictory = null;
     this.nextId = 1; this.nameCursor = 0; this.snapshot = null;
     for (let i = 0; i < TROOP.starting; i++) this.recruit('raider');
@@ -202,10 +200,7 @@ class GameStateStore {
       territory: this.territory, mounted: !!this.horse, rnd: Math.random,
     });
     this.hunters = res.hunters;
-    if (res.caught) {
-      this.hunters = this.hunters.filter(h => h.id !== res.caught!.id);
-      if (this.territory === 'steppe') this.lastSteppePatrolDay = this.day; else this.lastPatrolDay = this.day;
-    }
+    if (res.caught) this.hunters = this.hunters.filter(h => h.id !== res.caught!.id);
     return res.caught;
   }
 
@@ -383,10 +378,10 @@ class GameStateStore {
       location: this.location,
       patrolPending: this.patrolPending, pos: { ...this.pos }, hunters: this.hunters.map(h => ({ ...h })),
       settlements: JSON.parse(JSON.stringify(this.settlements)), garrisons: JSON.parse(JSON.stringify(this.garrisons)),
-      fortifyStepsDone: this.fortifyStepsDone, fortifyCarry: this.fortifyCarry, lastPatrolDay: this.lastPatrolDay,
+      fortifyStepsDone: this.fortifyStepsDone, fortifyCarry: this.fortifyCarry,
       unpaidDays: this.unpaidDays, seenMapHint: this.seenMapHint,
       rumorsHeard: [...this.rumorsHeard], pendingVictory: this.pendingVictory ? JSON.parse(JSON.stringify(this.pendingVictory)) : null,
-      steppeInfamy: this.steppeInfamy, realmInfamy: { ...this.realmInfamy }, campScattered: { ...this.campScattered }, huntedUntil: this.huntedUntil, lastSteppePatrolDay: this.lastSteppePatrolDay,
+      steppeInfamy: this.steppeInfamy, realmInfamy: { ...this.realmInfamy }, campScattered: { ...this.campScattered }, huntedUntil: this.huntedUntil,
     };
   }
   fromJSON(d: SaveData) {
@@ -402,10 +397,10 @@ class GameStateStore {
     this.hunters = (d.hunters ?? []).map(h => ({ ...h }));
     this.patrolPending = d.patrolPending ?? false;
     this.settlements = JSON.parse(JSON.stringify(d.settlements ?? {})); this.garrisons = JSON.parse(JSON.stringify(d.garrisons ?? {}));
-    this.fortifyStepsDone = d.fortifyStepsDone ?? 0; this.fortifyCarry = d.fortifyCarry ?? 0; this.lastPatrolDay = d.lastPatrolDay ?? -99;
+    this.fortifyStepsDone = d.fortifyStepsDone ?? 0; this.fortifyCarry = d.fortifyCarry ?? 0;
     this.unpaidDays = d.unpaidDays ?? 0; this.seenMapHint = d.seenMapHint ?? false;
     this.rumorsHeard = [...(d.rumorsHeard ?? [])]; this.pendingVictory = d.pendingVictory ? JSON.parse(JSON.stringify(d.pendingVictory)) : null;
-    this.steppeInfamy = d.steppeInfamy ?? 0; this.realmInfamy = { ...(d.realmInfamy ?? {}) }; this.campScattered = { ...(d.campScattered ?? {}) }; this.huntedUntil = d.huntedUntil ?? -1; this.lastSteppePatrolDay = d.lastSteppePatrolDay ?? -99;
+    this.steppeInfamy = d.steppeInfamy ?? 0; this.realmInfamy = { ...(d.realmInfamy ?? {}) }; this.campScattered = { ...(d.campScattered ?? {}) }; this.huntedUntil = d.huntedUntil ?? -1;
     this.owned.composite = this.owned.composite ?? false;
   }
   /** Parse and sanity-check the stored save without touching the live state. */

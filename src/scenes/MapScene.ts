@@ -9,7 +9,7 @@ import { GameState } from '../state/GameState';
 import { INFAMY, SIEGE, STEPPE } from '../config/balance';
 import { capitalOf, EDGES, FOREIGN, nodeById, NODES, type MapNode, type Territory } from '../world/WorldMap';
 import { visitOf } from '../world/Realms';
-import { route as findRoute, terrain, totalLength, type Route } from '../world/Terrain';
+import { route as findRoute, routeToPlace, terrain, totalLength, type Route } from '../world/Terrain';
 import { CONTACT } from '../world/Hunters';
 import type { Pt } from '../world/geo';
 import { campBattle, patrolBattle, siegeBattle, steppePatrolBattle, villageBattle } from '../world/Battles';
@@ -94,10 +94,16 @@ export class MapScene extends Phaser.Scene {
   /** The line drawn for the march being offered or walked. */
   private planLine!: Phaser.GameObjects.Graphics;
   private hunterIcons = new Map<number, Phaser.GameObjects.Container>();
-  private lastTap = 0;
+  // far in the past, so the very first tap after the map opens can never be read as the second half
+  // of a double tap (the scene clock starts at zero)
+  private lastTap = -1e9;
   private lastTapAt = new Phaser.Math.Vector2();
   /** Set by a double click so the pointer-up that ends it cannot also be read as a tap on the map. */
   private swallowTap = false;
+  /** Worked-out marches, thrown away the moment the warband moves. */
+  private routeCache = new Map<string, Route | null>();
+  private marchAt = -1e9;
+  private legsDone = 0;
 
   constructor() { super('Map'); }
 
@@ -144,11 +150,23 @@ export class MapScene extends Phaser.Scene {
     // and swallows the tap that follows it, so you can never zoom in and set off walking by accident.
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       const now = this.time.now;
-      if (now - this.lastTap < 320 && Phaser.Math.Distance.Between(p.x, p.y, this.lastTapAt.x, this.lastTapAt.y) < 40 * (this.scale.displayScale.x || 1)) {
+      // the first half of a double click may have gone into a panel sitting over the map (its MARCH
+      // button, most dangerously) — the HUD is a scene above this one and swallows the pointer, so ask
+      // it when it was last pressed and treat that as the first tap
+      const hudAt = this.hud?.lastPanelPressAt ?? -1e9;
+      const useHud = hudAt > this.lastTap;
+      const prevAt = useHud ? hudAt : this.lastTap;
+      const prev = useHud ? this.hud.lastPanelPress : this.lastTapAt;
+      if (now - prevAt < 320 && Phaser.Math.Distance.Between(p.x, p.y, prev.x, prev.y) < 40 * (this.scale.displayScale.x || 1)) {
         if (this.hud?.panelOpen && !this.hud.panelModal) this.hud.hidePanel();
-        this.clearPlan();
+        // the first click of a double click can land on the MARCH button of a panel that is sitting
+        // over the map. If a march has only just been ordered and not a single day of it has been
+        // walked yet, this was that click: take it back.
+        if (this.traveling && this.legsDone === 0 && this.time.now - this.marchAt < 600) this.abortMarch();
+        else if (!this.traveling) this.clearPlan();
         this.zoomAt(p.x, p.y, 1.6);              // double tap: a step in, toward what you pointed at
         this.lastTap = 0;
+        if (this.hud) this.hud.lastPanelPressAt = -1e9;
         this.swallowTap = true;
         return;
       }
@@ -196,6 +214,13 @@ export class MapScene extends Phaser.Scene {
 
     // pick up where we left off: a hunting party on top of you, or standing somewhere
     this.time.delayedCall(30, () => {
+      // the HUD is a scene of its own and had not been built yet when the camera was first fitted, so
+      // on the very first map of a page load its bar height read as zero and the top of the chart sat
+      // under it. Now that it exists, fit again and re-centre on the warband.
+      this.fitViewport();
+      this.cameras.main.centerOn(this.token.x, this.token.y);
+      this.cameras.main.preRender();
+      this.chart.refresh(this.cameras.main);
       this.refresh();
       if (this.pendingToast) { this.hud.toast([this.pendingToast], '#f5c542'); this.pendingToast = null; }
       if (GameState.patrolPending) {
@@ -539,6 +564,15 @@ export class MapScene extends Phaser.Scene {
       this.dragMoved = true;
       return;
     }
+    if (!tf && this.pinchDist > 0) {
+      // one finger came off a pinch. The finger still down has travelled a long way since the pinch
+      // began, and reading that as a drag would fling the map across the world — so start the drag
+      // again from where that finger is now.
+      this.pinchDist = 0;
+      this.dragStart.set(p.x, p.y);
+      this.camStart.set(this.cameras.main.scrollX, this.cameras.main.scrollY);
+      return;
+    }
     if (this.hud.barContains(this.dragStart.x, this.dragStart.y) || this.hud.zoomContains(this.dragStart.x, this.dragStart.y)) return;
     if (this.hud.panelOpen && this.hud.panelContains(this.dragStart.x, this.dragStart.y)) return;
     const dx = p.x - this.dragStart.x, dy = p.y - this.dragStart.y;
@@ -585,7 +619,7 @@ export class MapScene extends Phaser.Scene {
     if (best) {
       // every tap shows you what you are looking at, and what the march would cost, before you commit
       if (best.id !== GameState.location) {
-        const r = findRoute([GameState.pos.x, GameState.pos.y], [best.x, best.y], !!GameState.horse);
+        const r = this.planTo(best.id);
         if (r) this.drawPlan(r); else this.clearPlan();
       } else this.clearPlan();
       this.showNodePanel(best);
@@ -618,6 +652,19 @@ export class MapScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------- travel: march where you like
+  /** Which place you are standing on, if any. The NEAREST one — Abdju and Waset, Korinthos and
+   *  Athenai, Kawa and Kerma are real neighbours a few units apart, and taking whichever came first
+   *  in the list would have put you in the wrong city. */
+  private static placeAt(x: number, y: number, r = 22): MapNode | null {
+    let best: MapNode | null = null, bd = r;
+    for (const n of NODES) {
+      if (n.kind === 'cross') continue;
+      const d = Math.hypot(n.x - x, n.y - y);
+      if (d < bd) { bd = d; best = n; }
+    }
+    return best;
+  }
+
   /** The road network, as line segments, so the terrain grid knows where a road speeds you up. */
   private static roadSegments() {
     return EDGES.map(e => {
@@ -632,7 +679,7 @@ export class MapScene extends Phaser.Scene {
     if (!r) { this.hud.toast(['No way through — there is water in the way.'], '#ff9a8a'); return; }
     this.drawPlan(r);
     const end = r.points[r.points.length - 1];
-    const at = NODES.find(n => n.kind !== 'cross' && Math.hypot(n.x - end[0], n.y - end[1]) < 22);
+    const at = MapScene.placeAt(end[0], end[1]);
     this.hud.showPanel({
       title: at ? at.name.toUpperCase() : 'MARCH',
       lines: [at ? (at.blurb ?? 'A place worth the walk.') : 'Open country. Your warband can be there and make camp.',
@@ -642,6 +689,16 @@ export class MapScene extends Phaser.Scene {
         { label: 'Leave', color: 0x555555, onPress: () => { this.hud.hidePanel(); this.clearPlan(); } },
       ],
     });
+  }
+
+  /** Put the warband back where it was standing and forget the march. Only ever called before the
+   *  first day of it has passed, so there is nothing else to undo. */
+  private abortMarch() {
+    this.tweens.killTweensOf(this.token);
+    this.token.setPosition(GameState.pos.x, GameState.pos.y - 12);
+    this.cameras.main.stopFollow();
+    this.traveling = false;
+    this.clearPlan();
   }
 
   private drawPlan(r: Route) {
@@ -656,6 +713,8 @@ export class MapScene extends Phaser.Scene {
   /** Walk it, a day at a time: wages are paid, hunters move, and one of them may catch you on the way. */
   private walk(r: Route) {
     this.traveling = true;
+    this.marchAt = this.time.now;
+    this.legsDone = 0;
     this.cameras.main.startFollow(this.token, true, 0.08, 0.08);
     const legs = Math.max(1, r.days);
     const total = totalLength(r.points);
@@ -668,8 +727,9 @@ export class MapScene extends Phaser.Scene {
       this.tweens.add({
         targets: this.token, x: at[0], y: at[1] - 12, duration: dur, ease: 'Sine.InOut',
         onComplete: () => {
+          this.legsDone++;
           GameState.pos = { x: at[0], y: at[1] };
-          const here = NODES.find(n => n.kind !== 'cross' && Math.hypot(n.x - at[0], n.y - at[1]) < 22);
+          const here = MapScene.placeAt(at[0], at[1]);
           GameState.location = here ? here.id : '';
           const crossed = GameState.noteRealm();
           if (crossed) this.hud.toast([crossed, 'Nobody here has heard of you.'], '#f5c542');
@@ -700,18 +760,28 @@ export class MapScene extends Phaser.Scene {
 
   /** March to one of the places on the map (the settlement panels still work this way). */
   private travelTo(id: string) {
-    const n = nodeById(id);
-    const r = findRoute([GameState.pos.x, GameState.pos.y], [n.x, n.y], !!GameState.horse);
+    const r = this.planTo(id);
     if (!r) { this.hud.toast(['No way through — there is water in the way.'], '#ff9a8a'); return; }
     this.hud.hidePanel();
     this.drawPlan(r);
     this.walk(r);
   }
 
+  /** The march to a place, worked out once. A panel asks for the cost, then the button asks again, and
+   *  the tap that opened it asked already — over a grid this size that is three searches of the whole
+   *  world for one tap, which a phone feels. They are all the same answer until you move. */
+  private planTo(id: string): Route | null {
+    const key = `${Math.round(GameState.pos.x)},${Math.round(GameState.pos.y)},${id},${GameState.horse ? 1 : 0}`;
+    if (!this.routeCache.has(key)) {
+      if (this.routeCache.size > 40) this.routeCache.clear();
+      const n = nodeById(id);
+      this.routeCache.set(key, routeToPlace([GameState.pos.x, GameState.pos.y], [n.x, n.y], !!GameState.horse));
+    }
+    return this.routeCache.get(key) ?? null;
+  }
+
   private routeDays(to: string) {
-    const n = nodeById(to);
-    const r = findRoute([GameState.pos.x, GameState.pos.y], [n.x, n.y], !!GameState.horse);
-    return r ? r.days : 0;
+    return this.planTo(to)?.days ?? 0;
   }
 
   /** Smoothly bring the camera back to the warband. Pressing it again while it is already flying
@@ -730,6 +800,7 @@ export class MapScene extends Phaser.Scene {
   /** Zoom a step, keeping whatever is under the pointer roughly under the pointer. */
   private zoomAt(sx: number, sy: number, factor: number) {
     const cam = this.cameras.main;
+    cam.panEffect.reset();                       // zooming takes the camera off the LOCATE flight
     const before = cam.getWorldPoint(sx, sy);
     this.setZoom(cam.zoom * factor);
     cam.preRender();

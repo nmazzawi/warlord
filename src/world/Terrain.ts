@@ -175,6 +175,21 @@ function costPerUnit(i: number, g: Grid, mounted: boolean) {
 export interface Route { points: Pt[]; days: number; }
 
 /**
+ * A march to a NAMED PLACE, which must end standing on it. The grid is 18 units to a cell and a real
+ * port sits right on the water's edge — Rome's own coordinate lands on a cell this map calls sea — so
+ * A* can only get within a cell or two and then stops. That last short step is walked anyway: the
+ * route is extended onto the place itself, and paid for in days like any other ground.
+ */
+export function routeToPlace(from: Pt, to: Pt, mounted = false): Route | null {
+  const r = route(from, to, mounted);
+  if (!r) return null;
+  const end = r.points[r.points.length - 1];
+  const gap = Math.hypot(end[0] - to[0], end[1] - to[1]);
+  if (gap < 1 || gap > CELL * 2.5) return r;
+  return { points: [...r.points, [to[0], to[1]] as Pt], days: r.days + Math.max(1, Math.round(gap / DAY)) };
+}
+
+/**
  * A march from one point to another: A* over the grid, never leaving the land, preferring open ground
  * and roads to mountains and marsh. Returns the route and what it costs in days.
  */

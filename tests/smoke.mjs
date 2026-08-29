@@ -47,8 +47,12 @@ async function clickBtn(page, scene, prefix, touch = false) {
 }
 async function autoPlay(page, seconds, { weaken = true } = {}) {
   const end = Date.now() + seconds * 1000;
-  let lastX = -1, lastY = -1, stuckTicks = 0, tick = 0;
+  let lastX = -1, lastY = -1, stuckTicks = 0, tick = 0, stuckSpells = 0;
   while (Date.now() < end) {
+    // when the hero is pinned on a hut, sidestep — but alternate WHICH way round, or a hero wedged
+    // against the wrong side of a building slides along it for the rest of the fight and the run
+    // times out with two archers alive and untouched
+    const wiggleDir = stuckTicks >= 3 ? (stuckSpells % 2 === 0 ? 1 : -1) : 0;
     const st = await page.evaluate(([wiggle, weaken]) => {
       const r = window.__warlord.scene.getScene('Raid');
       if (!r || !r.hero || !r.hero.alive || !r.playerInput || !r.scene.isActive()) return null;
@@ -58,15 +62,17 @@ async function autoPlay(page, seconds, { weaken = true } = {}) {
       else for (const e of r.enemies) { if (e.onWall || e.dormant) continue; const d = Math.hypot(e.x - r.hero.x, e.y - r.hero.y); if (d < bd) { bd = d; best = e; } }
       if (!best) { r.playerInput.joyX = 0; r.playerInput.joyY = 0; return { enemies: r.enemies.length, x: r.hero.x, y: r.hero.y, idle: true }; }
       let dx = (best.x - r.hero.x) / (bd || 1), dy = (best.y - r.hero.y) / (bd || 1);
-      if (wiggle) { const t = dx; dx = -dy; dy = t; }
+      if (wiggle) { const t = dx; dx = -dy * wiggle; dy = t * wiggle; }
       const go = bd > (r.hero.mode === 'bow' ? 150 : 34);
       r.playerInput.joyX = go ? dx : 0; r.playerInput.joyY = go ? dy : 0;
-      return { enemies: r.enemies.length, x: r.hero.x, y: r.hero.y };
-    }, [stuckTicks >= 3, weaken]);
+      return { enemies: r.enemies.length, x: r.hero.x, y: r.hero.y, go };
+    }, [wiggleDir, weaken]);
     if (!st) break;
     if (st.enemies === 0 && tick > 4) break;
-    if (Math.abs(st.x - lastX) < 3 && Math.abs(st.y - lastY) < 3) stuckTicks++; else stuckTicks = 0;
-    if (stuckTicks > 5) stuckTicks = 0;
+    // standing still to swing at the gate or at a man in reach is not being stuck — only count it
+    // when the hero is trying to CLOSE the distance and getting nowhere
+    if (st.go && Math.abs(st.x - lastX) < 3 && Math.abs(st.y - lastY) < 3) stuckTicks++; else stuckTicks = 0;
+    if (stuckTicks > 8) { stuckTicks = 0; stuckSpells++; }
     lastX = st.x; lastY = st.y; tick++;
     await sleep(200);
   }
@@ -344,6 +350,38 @@ async function desktopRun(browser) {
     'realms across water stay shut');
   const romaDays = await page.evaluate(() => window.__warlord.scene.getScene('Map').routeDays('f_rome_roma'));
   check(romaDays >= 21, `Rome is honestly far: ${romaDays} days' march from the camp`);
+  // every gate must be a place the march actually ENDS on — Rome's own point is on a cell this map
+  // calls sea, and Korinthos, Kawa and Abdju each stand a few units from a bigger neighbour
+  const landsOn = await page.evaluate(() => {
+    const m = window.__warlord.scene.getScene('Map');
+    const bad = [];
+    for (const n of window.__NODES.filter(x => x.kind === 'foreign')) {
+      const r = m.planTo(n.id);
+      if (!r) { bad.push(`${n.name}: no route`); continue; }
+      const end = r.points[r.points.length - 1];
+      const at = m.constructor.placeAt(end[0], end[1]);
+      if (!at || at.id !== n.id) bad.push(`${n.name} -> ${at ? at.name : 'open country'}`);
+    }
+    return bad;
+  });
+  check(landsOn.length === 0, `every foreign gate is a place a march lands on${landsOn.length ? ': ' + landsOn.join(', ') : ''}`);
+  // the camera must sit below the status bar on the FIRST map of a page load, not just later ones
+  const fitted = await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); const h = window.__warlord.scene.getScene('MapHud');
+    return { cam: Math.round(m.cameras.main.y), bar: Math.round(h.mapTop) }; });
+  check(Math.abs(fitted.cam - fitted.bar) < 2, `the map starts below the status bar (camera ${fitted.cam}, bar ${fitted.bar})`);
+  // a double click that lands on an open panel's MARCH button takes the march back instead of walking
+  await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); m.setZoom(1.5); m.cameras.main.centerOn(3400, 1100); m.cameras.main.preRender(); });
+  await sleep(500);
+  await page.mouse.click(700, 300);
+  await sleep(500);
+  const marchBtn = await buttonPos(page, 'MapHud', 'MARCH');
+  const preDbl = await page.evaluate(() => ({ day: window.__GameState.day, x: window.__GameState.pos.x }));
+  if (marchBtn) { await page.mouse.dblclick(marchBtn.x, marchBtn.y); await sleep(1300); }
+  const postDbl = await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map');
+    return { day: window.__GameState.day, x: window.__GameState.pos.x, traveling: m.traveling }; });
+  check(!!marchBtn && postDbl.day === preDbl.day && postDbl.x === preDbl.x && !postDbl.traveling,
+    'a double click on the MARCH button takes the march back rather than walking');
+  await hidePanel(page);
 
   // walk into Rus, the nearest realm, and be a customer in Kiev
   await page.evaluate(() => { const S = window.__GameState; const n = window.__NODES.find(k => k.id === 'f_rus_kiev');
@@ -449,7 +487,7 @@ async function desktopRun(browser) {
   await sleep(200);
   check(await waitPanel(page, 5000), 'Millbrook panel again');
   r = await raidHere(page);
-  await autoPlay(page, 80);
+  await autoPlay(page, 120);
   await sleep(1800);
   await waitScene(page, 'Result');
   if (!(await activeScenes(page)).includes('Result')) console.log('DIAG raid unfinished:', JSON.stringify(await raidState(page)));
@@ -623,7 +661,9 @@ async function desktopRun(browser) {
   }
   check(gallopShot, 'horse archers draw and shoot while galloping');
   await page.evaluate(() => { const rr = window.__warlord.scene.getScene('Raid'); rr.hero.maxHp = 130; rr.hero.hp = 130; });
-  await autoPlay(page, 90);
+  // ten mounted enemies that keep their distance is the longest fight in the game, and a headless
+  // software renderer runs it slower than a phone does — give it the same budget as the ambush
+  await autoPlay(page, 150);
   await sleep(1800);
   check(await waitScene(page, 'Result', 8000), 'camp plundered');
   const campBtns = await page.evaluate(() => window.__warlord.scene.getScene('Result').children.list.filter(c => c.type === 'Container').map(c => c.list.find(t => t.type === 'Text')?.text));
@@ -782,6 +822,26 @@ async function phoneRun(browser) {
   await page.evaluate(() => window.__warlord.scene.getScene('Map').zoomToTerritory());
   await sleep(400);
   await noPatrols(page);
+  // lifting one finger out of a pinch must not read that finger's whole travel as a drag
+  {
+    const scroll = () => page.evaluate(() => { const c = window.__warlord.scene.getScene('Map').cameras.main; return [Math.round(c.scrollX), Math.round(c.scrollY)]; });
+    const cdp = await page.context().newCDPSession(page);
+    const T = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts });
+    await T('touchStart', [{ x: 150, y: 400, id: 1 }, { x: 250, y: 400, id: 2 }]);
+    await T('touchMove', [{ x: 100, y: 400, id: 1 }, { x: 300, y: 400, id: 2 }]);
+    await T('touchMove', [{ x: 60, y: 400, id: 1 }, { x: 340, y: 400, id: 2 }]);
+    await T('touchEnd', [{ x: 340, y: 400, id: 2 }]);
+    const mid = await scroll();
+    await T('touchMove', [{ x: 344, y: 402, id: 2 }]);
+    await sleep(200);
+    const end = await scroll();
+    await T('touchEnd', []);
+    const jump = Math.round(Math.hypot(end[0] - mid[0], end[1] - mid[1]));
+    check(jump < 60, `phone: coming out of a pinch does not fling the map (${jump} units)`);
+    await page.evaluate(() => window.__warlord.scene.getScene('Map').zoomToTerritory());
+    await sleep(300);
+    await hidePanel(page);
+  }
   check(await marchTo(page, 'ashford', true), 'phone: tap-to-march reached Ashford');
   await page.screenshot({ path: `${OUT}/p-ashford.png` });
   await clickBtn(page, 'MapHud', 'RAID', true);

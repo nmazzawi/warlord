@@ -32,10 +32,20 @@ export class MapHudScene extends Phaser.Scene {
   private panelObjects: Phaser.GameObjects.GameObject[] = [];
   private panelRect: Phaser.Geom.Rectangle | null = null;
   private spec: PanelSpec | null = null;
+  /** When a press last landed on a pop-up panel, and where. A scene above the map SWALLOWS the pointer
+   *  — the map never sees it — so the map cannot tell that the first half of a double click went into
+   *  a panel button. It reads these instead. */
+  lastPanelPressAt = -1e9;
+  lastPanelPress = new Phaser.Math.Vector2();
 
   constructor() { super('MapHud'); }
 
   create() {
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (!this.panelContains(p.x, p.y)) return;
+      this.lastPanelPressAt = this.time.now;
+      this.lastPanelPress.set(p.x, p.y);
+    });
     this.panelObjects = [];
     this.panelRect = null;
     this.spec = null;
