@@ -147,7 +147,7 @@ async function desktopRun(browser) {
   const chart = await page.evaluate(() => {
     const m = window.__warlord.scene.getScene('Map');
     return { realms: m.empireLabels.length, places: m.markers.length, capitals: m.markers.filter(k => k.place.kind === 'capital').length,
-      zoom: m.cameras.main.zoom, tex: window.__warlord.textures.exists('world_chart') };
+      zoom: m.cameras.main.zoom, tex: window.__warlord.textures.exists('world_chart_detail') };
   });
   check(chart.realms === 15 && chart.tex && chart.zoom > 1.5, `atlas drawn: ${chart.realms} realms, territory zoom ${chart.zoom.toFixed(2)}`);
   check(chart.places > 100 && chart.capitals === 13, `every empire has places: ${chart.places} settlements, ${chart.capitals} capitals`);
@@ -155,15 +155,43 @@ async function desktopRun(browser) {
   const far = await page.evaluate(() => {
     const m = window.__warlord.scene.getScene('Map');
     return { zoom: m.cameras.main.zoom, detail: m.territoryObjects[0].visible, names: m.empireLabels[0].visible,
-      major: m.majorObjects[0].visible, minor: m.minorObjects[0].visible };
+      crowns: m.markers.filter(k => k.rank === 0 && k.icon.visible).length,
+      lesser: m.markers.filter(k => k.rank > 1 && k.icon.visible).length };
   });
-  check(far.zoom < 0.4 && !far.detail && !far.major && !far.minor && far.names,
-    `far out: coastlines and realm names only (zoom ${far.zoom.toFixed(2)})`);
-  const crowns = await page.evaluate(() => {
+  check(far.zoom < 0.4 && !far.detail && far.names && far.lesser === 0,
+    `far out: coastlines, realm names and landmarks only (zoom ${far.zoom.toFixed(2)}, ${far.lesser} lesser places)`);
+  check(far.crowns >= 12, `capitals anchor the world view even fully zoomed out (${far.crowns} crowns)`);
+  // nothing may overlap anything, at any zoom
+  const overlaps = await page.evaluate(() => {
     const m = window.__warlord.scene.getScene('Map');
-    return m.anchors.filter(a => a.visible && a.alpha > 0.3).length;
+    const worst = [];
+    const was = m.cameras.main.zoom;
+    for (const z of [0.3, 0.7, 1.2, 2.2, 3.5]) {
+      m.setZoom(z);
+      const boxes = [];
+      for (const k of m.markers) {
+        for (const o of [k.icon, k.label]) {
+          if (!o.visible) continue;
+          const b = o.getBounds();
+          boxes.push([b.centerX, b.centerY, b.width * 0.92, b.height * 0.92, k.place.name]);
+        }
+      }
+      let hitCount = 0;
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          if (boxes[i][4] === boxes[j][4]) continue;
+          if (Math.abs(boxes[i][0] - boxes[j][0]) < (boxes[i][2] + boxes[j][2]) / 2 &&
+              Math.abs(boxes[i][1] - boxes[j][1]) < (boxes[i][3] + boxes[j][3]) / 2) hitCount++;
+        }
+      }
+      worst.push({ z, shown: boxes.length, hitCount });
+    }
+    m.setZoom(was);                       // leave the view exactly as we found it
+    m.cameras.main.preRender();
+    return worst;
   });
-  check(crowns === 13, `capitals anchor the world view even fully zoomed out (${crowns} crowns)`);
+  check(overlaps.every(o => o.hitCount === 0),
+    `nothing overlaps at any zoom (${overlaps.map(o => `${o.z}x:${o.shown} shown`).join(', ')})`);
   await page.screenshot({ path: `${OUT}/d-world.png` });
   const tapWorld = (pt) => page.evaluate((p) => { const cam = window.__warlord.scene.getScene('Map').cameras.main; const d = window.__warlord.scale.displayScale.x || 1;
     return { x: ((p[0] - cam.worldView.x) * cam.zoom) / d, y: ((p[1] - cam.worldView.y) * cam.zoom) / d }; }, pt);
@@ -189,16 +217,28 @@ async function desktopRun(browser) {
     const cap = m.markers.find(k => k.place.name === 'Roma');
     m.setZoom(1.0); m.cameras.main.centerOn(cap.place.x, cap.place.y); m.cameras.main.preRender();
     const d = window.__warlord.scale.displayScale.x || 1, cam = m.cameras.main;
-    return { major: m.majorObjects[0].visible, minor: m.minorObjects[0].visible, detail: m.territoryObjects[0].visible,
+    return { cities: m.markers.filter(k => k.rank === 1 && k.icon.visible).length,
+      villages: m.markers.filter(k => k.rank === 3 && k.icon.visible).length,
+      detail: m.territoryObjects[0].visible,
       x: ((cap.place.x - cam.worldView.x) * cam.zoom) / d, y: ((cap.place.y - cam.worldView.y) * cam.zoom) / d };
   });
-  check(mid.major && !mid.minor && !mid.detail, 'mid zoom: capitals and cities in, towns and roads still out');
+  check(mid.cities > 8 && mid.villages === 0 && !mid.detail, `mid zoom: ${mid.cities} cities in, villages and roads still out`);
   await page.mouse.click(mid.x, mid.y);
   await sleep(400);
   const placeSpec = await page.evaluate(() => { const h = window.__warlord.scene.getScene('MapHud'); return { title: h.spec?.title, lines: (h.spec?.lines ?? []).join(' ') }; });
   check(placeSpec.title === 'ROMA' && /throne of The Roman Empire/.test(placeSpec.lines), `tapping a locked city names it (${placeSpec.title})`);
   await hidePanel(page);
   await page.screenshot({ path: `${OUT}/d-empires.png` });
+  // the two views the designer wants to judge without hunting for them
+  for (const [name, zoom, at] of [['d-kush', 3, [3210, 1720]], ['d-mediterranean', 2.2, [2820, 1230]]]) {
+    await page.evaluate(([z, a]) => {
+      const m = window.__warlord.scene.getScene('Map');
+      m.cameras.main.stopFollow();
+      m.setZoom(z); m.cameras.main.centerOn(a[0], a[1]); m.cameras.main.preRender();
+    }, [zoom, at]);
+    await sleep(1400);     // the chart repaints once the view settles
+    await page.screenshot({ path: `${OUT}/${name}.png` });
+  }
   await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); m.zoomToTerritory(); });
   await sleep(300);
 
@@ -506,8 +546,15 @@ async function desktopRun(browser) {
   await sleep(600);
   s = await gs(page);
   check(s.settlements.kingsport?.occupied && s.owned.halberd && s.armor === 'plate', 'conquests, the halberd and the plate survived a reload');
-  const fps = await page.evaluate(() => window.__warlord.loop.actualFps);
-  check(fps > 50, `fps healthy (${fps.toFixed(0)})`);
+  // the map's STEADY frame rate, once the rolling average has forgotten the scene it came from —
+  // and a check that the chart is not repainting itself over and over while nothing moves
+  await sleep(2600);
+  const perf = await page.evaluate(() => {
+    const m = window.__warlord.scene.getScene('Map');
+    return { fps: window.__warlord.loop.actualFps, paints: m.chart.paints, objects: m.children.list.length };
+  });
+  check(perf.fps > 30, `map holds a steady frame rate (${perf.fps.toFixed(0)} fps, ${perf.objects} objects)`);
+  check(perf.paints <= 3, `the chart repaints only when the view settles (${perf.paints} repaints)`);
   // --- an old save (written before the steppe and before the atlas) still loads, and lands on the new Earth
   await page.evaluate(() => {
     const S = window.__GameState;

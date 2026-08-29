@@ -356,41 +356,56 @@ function mapIcons(scene: Phaser.Scene) {
  *  symbols with the map point itself at the bottom centre of the texture (so they are set origin 0.5,1). */
 function atlasIcons(scene: Phaser.Scene) {
   const INK = 0x3a2a18, FILL = 0xf6ead0;
+  // drawn four times bigger than they are ever shown, so a marker is always scaled DOWN and stays crisp
+  const K = 4;
+  const rect = (s: Phaser.GameObjects.Graphics, x: number, y: number, w: number, h: number) => s.fillRect(x * K, y * K, w * K, h * K);
+  const tri = (s: Phaser.GameObjects.Graphics, ax: number, ay: number, bx: number, by: number, cx: number, cy: number) =>
+    s.fillTriangle(ax * K, ay * K, bx * K, by * K, cx * K, cy * K);
+  const circ = (s: Phaser.GameObjects.Graphics, x: number, y: number, r: number) => s.fillCircle(x * K, y * K, r * K);
+
   // a capital: a crown
   let s = g(scene);
   s.fillStyle(INK, 1);
-  s.fillTriangle(9, 30, 19, 30, 14, 5).fillTriangle(17, 30, 27, 30, 22, 2).fillTriangle(25, 30, 35, 30, 30, 5);
-  s.fillRect(7, 26, 30, 10).fillRect(20, 34, 4, 10).fillCircle(22, 46, 4);
-  s.fillCircle(14, 5, 3.5).fillCircle(22, 2.5, 3.5).fillCircle(30, 5, 3.5);
+  tri(s, 9, 30, 19, 30, 14, 5); tri(s, 17, 30, 27, 30, 22, 2); tri(s, 25, 30, 35, 30, 30, 5);
+  rect(s, 7, 26, 30, 10); rect(s, 20, 34, 4, 10); circ(s, 22, 46, 4);
+  circ(s, 14, 5, 3.5); circ(s, 22, 2.5, 3.5); circ(s, 30, 5, 3.5);
   s.fillStyle(PAL.gold, 1);
-  s.fillTriangle(11, 28, 17, 28, 14, 9).fillTriangle(19, 28, 25, 28, 22, 6).fillTriangle(27, 28, 33, 28, 30, 9);
-  s.fillRect(9, 28, 26, 6);
-  s.fillStyle(PAL.goldHi, 1).fillRect(9, 28, 26, 2).fillCircle(14, 6, 2).fillCircle(22, 3.5, 2).fillCircle(30, 6, 2);
-  s.generateTexture(TEX.mapCapital, 44, 50);
+  tri(s, 11, 28, 17, 28, 14, 9); tri(s, 19, 28, 25, 28, 22, 6); tri(s, 27, 28, 33, 28, 30, 9);
+  rect(s, 9, 28, 26, 6);
+  s.fillStyle(PAL.goldHi, 1);
+  rect(s, 9, 28, 26, 2); circ(s, 14, 6, 2); circ(s, 22, 3.5, 2); circ(s, 30, 6, 2);
+  s.generateTexture(TEX.mapCapital, 44 * K, 50 * K);
   s.destroy();
   // a major city: three towers behind a wall
   s = g(scene);
-  s.fillStyle(INK, 1).fillRect(1, 16, 34, 20).fillRect(3, 10, 10, 26).fillRect(14, 4, 10, 32).fillRect(25, 10, 10, 26);
-  s.fillRect(16, 34, 4, 6).fillCircle(18, 40, 3.5);
-  s.fillStyle(FILL, 1).fillRect(3, 18, 30, 16).fillRect(5, 12, 6, 22).fillRect(16, 6, 6, 28).fillRect(27, 12, 6, 22);
   s.fillStyle(INK, 1);
-  for (const x of [5, 9, 16, 20, 27, 31]) s.fillRect(x, 6, 2, 3);
-  s.fillRect(16, 24, 6, 10);
-  s.generateTexture(TEX.mapCity, 36, 44);
+  rect(s, 1, 16, 34, 20); rect(s, 3, 10, 10, 26); rect(s, 14, 4, 10, 32); rect(s, 25, 10, 10, 26);
+  rect(s, 16, 34, 4, 6); circ(s, 18, 40, 3.5);
+  s.fillStyle(FILL, 1);
+  rect(s, 3, 18, 30, 16); rect(s, 5, 12, 6, 22); rect(s, 16, 6, 6, 28); rect(s, 27, 12, 6, 22);
+  s.fillStyle(INK, 1);
+  for (const x of [5, 9, 16, 20, 27, 31]) rect(s, x, 6, 2, 3);
+  rect(s, 16, 24, 6, 10);
+  s.generateTexture(TEX.mapCity, 36 * K, 44 * K);
   s.destroy();
   // a town: one tower with a roof
   s = g(scene);
-  s.fillStyle(INK, 1).fillTriangle(4, 13, 22, 13, 13, 2).fillRect(5, 12, 16, 16).fillRect(11, 26, 4, 4).fillCircle(13, 30, 3);
-  s.fillStyle(FILL, 1).fillRect(7, 14, 12, 12).fillTriangle(7, 12, 19, 12, 13, 5);
-  s.fillStyle(INK, 1).fillRect(11, 19, 4, 7);
-  s.generateTexture(TEX.mapTownSmall, 26, 34);
+  s.fillStyle(INK, 1);
+  tri(s, 4, 13, 22, 13, 13, 2); rect(s, 5, 12, 16, 16); rect(s, 11, 26, 4, 4); circ(s, 13, 30, 3);
+  s.fillStyle(FILL, 1);
+  rect(s, 7, 14, 12, 12); tri(s, 7, 12, 19, 12, 13, 5);
+  s.fillStyle(INK, 1);
+  rect(s, 11, 19, 4, 7);
+  s.generateTexture(TEX.mapTownSmall, 26 * K, 34 * K);
   s.destroy();
   // a village: two roofs
   s = g(scene);
-  s.fillStyle(INK, 1).fillTriangle(1, 15, 13, 15, 7, 6).fillTriangle(9, 19, 21, 19, 15, 10);
-  s.fillRect(2, 14, 10, 5).fillRect(10, 18, 10, 4).fillCircle(11, 24, 2.5);
-  s.fillStyle(FILL, 1).fillTriangle(3, 14, 11, 14, 7, 8).fillTriangle(11, 18, 19, 18, 15, 12);
-  s.generateTexture(TEX.mapVillageSmall, 22, 28);
+  s.fillStyle(INK, 1);
+  tri(s, 1, 15, 13, 15, 7, 6); tri(s, 9, 19, 21, 19, 15, 10);
+  rect(s, 2, 14, 10, 5); rect(s, 10, 18, 10, 4); circ(s, 11, 24, 2.5);
+  s.fillStyle(FILL, 1);
+  tri(s, 3, 14, 11, 14, 7, 8); tri(s, 11, 18, 19, 18, 15, 12);
+  s.generateTexture(TEX.mapVillageSmall, 22 * K, 28 * K);
   s.destroy();
 }
 

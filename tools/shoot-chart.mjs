@@ -14,6 +14,8 @@ const VIEWS = [
   { name: 'asia', zoom: 0.9, at: [4150, 1050] },
   { name: 'americas', zoom: 0.9, at: [800, 1300] },
   { name: 'capitals', zoom: 0.62, at: [3050, 1150] },
+  { name: 'kush', zoom: 3.0, at: [3210, 1720] },
+  { name: 'mediterranean', zoom: 2.2, at: [2820, 1230] },
   { name: 'steppe', zoom: 2.2, at: [4437, 1070] },
   { name: 'homeland', zoom: null, at: null },
 ];
@@ -55,7 +57,7 @@ for (const v of VIEWS) {
     else if (zoom === 0) cam.centerOn(2700, 1620);
     cam.preRender();
   }, [v.zoom, v.at]);
-  await sleep(700);
+  await sleep(1400);   // the chart repaints when the view settles
   await page.screenshot({ path: `${OUT}/${v.name}.png` });
   const z = await page.evaluate(() => window.__warlord.scene.getScene('Map').cameras.main.zoom);
   await sleep(900);

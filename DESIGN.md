@@ -217,3 +217,25 @@ The chart should stop feeling empty and start feeling like a fully OWNED world. 
 - **Twelve landmasses were missing** and are now drawn — Australia, Greenland, New Guinea, Sumatra, Java, Borneo, Sulawesi, Luzon, Mindanao, Hainan, Tasmania, Kamchatka.
 - **Capitals are always drawn**, at half strength when zoomed out and full strength once cities fade in, so the world view has landmarks. A marker's tap target is the size it is drawn, so a crown seen from orbit is not a giant hitbox.
 - **Polish:** realm names now wrap at 14 characters (THE CALIPHATE was being split in two) and carry right-hand padding, because Phaser under-measures letter-spaced text and was shaving the last glyph. Realm tints went up a step against the fog. `node tools/check-chart.mjs` grew checks for realm overlap, the Mongol border, ink drawn in the sea, and how much of the world is claimed.
+
+## RENDERING (designer, 2026-08-29)
+
+The chart must be crisp at every zoom. Fix the architecture, not just the art.
+
+1. **VECTOR REDRAW, NOT SCALED BITMAP.** Coastlines, realm tints, borders and geography ink are re-rendered at the current zoom so edges stay sharp at any magnification. A cached texture is fine for performance, but it must be regenerated per zoom band (throttled to zoom-end is fine; keep the phone smooth).
+2. **SCREEN-SPACE LABELS AND ICONS.** Settlement icons and names render at constant screen size, anchored to their map point — icon exactly on the spot, label consistently offset — never scaled or blurred with the map. One icon per settlement. No orphan labels.
+3. **LABEL LOD + COLLISION.** Type size follows settlement rank (capital > city > town > village). When labels would collide, the lower rank hides until you zoom closer. Nothing overlaps, at any zoom.
+4. **WATER IS WATER.** The Red Sea — and any strait — draws as ocean: the same water colour and coastline treatment as the rest of the sea, not a hatched green band.
+5. **CLOSE-ZOOM GEOGRAPHY.** Zooming into a realm reveals detail that rewards it: the Nile drawn as a real river through Egypt and Kush, crisp desert stippling, realm borders thinning and hugging terrain. Blurry background blotches are replaced by detail that re-renders cleanly.
+
+## Milestone 4.7 — Rendering (built 2026-08-29)
+
+**Designer-specified:** re-render the chart at the current zoom instead of magnifying a bitmap; screen-space labels and icons; label level-of-detail with collision; water that reads as water; close-zoom geography worth zooming into.
+
+**Working assumptions made by the build — overrule by feel:**
+- **The chart is drawn for a view, not for the world.** `ChartPainter` paints one rectangle of the world at a given number of pixels per world unit, and every width, spacing and stipple in it is written in SCREEN pixels and divided by that scale. So a coastline is the same weight of ink at the world view and among your own villages — it simply follows a finer line — and realm borders thin down onto the terrain as you come in.
+- **Two layers.** A small picture of the whole world is always there (it costs little and is only glimpsed at the edge of a fast drag), and a detail sheet the size of your screen is repainted at the zoom you settled on, 130 ms after the view stops moving. Nothing repaints mid-pinch. The sheet is capped at 2.2 million pixels, so a phone paints at about four-fifths of device resolution and a desktop exactly at it.
+- **Names and markers never scale with the map.** A marker is drawn from a texture four times larger than it is ever shown, so it is always scaled DOWN; a name is rendered once at 22 px with extra resolution and only ever scaled down too. The marker stands exactly on its point; the name sits a constant two pixels beneath it.
+- **A settlement asks for its marker and its name together.** Working from capitals down, each one claims a box; where there is no room for both it keeps the marker and gives up the name, and it steps aside entirely only when even the marker will not fit. A realm's name outranks every settlement in it, and your own places outrank everybody. That is what stops Kerma and Pnubs — real neighbours three units apart — from ever printing on top of each other, and it is why no name is ever orphaned from its marker.
+- **Water.** Two soft bands of darker water hug every coast, the sea carries hatching at a constant spacing, and inland seas get exactly the same treatment. The Red Sea was being fogged as land because the terra-incognita path counted a strait where two realms both overshoot the water; the fog is now clipped to the land first and the realms subtracted inside it.
+- **Close in**, rivers are drawn through a curve fitted to their real towns (so the Nile meanders instead of zigzagging), ground cover thickens as you approach at an even density on screen, and the soft parchment blotches are gone — replaced by grain that is re-drawn at whatever scale you are looking from.
