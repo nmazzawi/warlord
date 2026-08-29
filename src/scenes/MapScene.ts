@@ -49,6 +49,8 @@ export class MapScene extends Phaser.Scene {
   private stateObjects: Fadeable[] = [];
   private markers: Marker[] = [];
   private stacked: StackedName[] = [];
+  /** Crowns: visible at every zoom, so the world view has landmarks and not just floating names. */
+  private anchors: Phaser.GameObjects.Image[] = [];
   private icons: Phaser.GameObjects.Image[] = [];
   private traveling = false;
   private dragStart = new Phaser.Math.Vector2();
@@ -66,7 +68,7 @@ export class MapScene extends Phaser.Scene {
   create() {
     this.status.clear(); this.names.clear(); this.badges.clear(); this.flags.clear(); this.campIcons.clear();
     this.labels = []; this.empireLabels = []; this.territoryObjects = []; this.majorObjects = []; this.minorObjects = []; this.stateObjects = [];
-    this.markers = []; this.stacked = []; this.icons = [];
+    this.markers = []; this.stacked = []; this.anchors = []; this.icons = [];
     this.traveling = false; this.pinchDist = 0;
 
     // the chart: a baked sea with its hatching, monsters and rose, then land and empires as sharp vectors
@@ -78,7 +80,7 @@ export class MapScene extends Phaser.Scene {
       const [cx, cy] = r.labelAt;
       this.empireLabels.push(this.add.text(cx, cy, MapScene.titleLines(r.name), {
         fontFamily: DISPLAY, fontSize: '64px', color: r.enterable ? CSS.ink : '#5c4b33', fontStyle: 'bold', letterSpacing: 6, align: 'center',
-      }).setOrigin(0.5).setDepth(3).setLineSpacing(-10));
+      }).setOrigin(0.5).setDepth(3).setLineSpacing(-10).setPadding(0, 0, 14, 0));
       const named = r.places.map(p => this.drawPlace(r, p));
       MapScene.stackNames(named, this.scale.displayScale.x || 1);
     }
@@ -184,7 +186,7 @@ export class MapScene extends Phaser.Scene {
     const lines: string[] = [];
     for (const w of words) {
       const last = lines[lines.length - 1];
-      if (last && last.length + 1 + w.length <= 12) lines[lines.length - 1] = `${last} ${w}`;
+      if (last && last.length + 1 + w.length <= 14) lines[lines.length - 1] = `${last} ${w}`;
       else lines.push(w);
     }
     return lines.join('\n');
@@ -216,6 +218,7 @@ export class MapScene extends Phaser.Scene {
       t.setScale(Phaser.Math.Clamp(Math.min((dpr * 13) / (zoom * 64), 52 / 64), 0.18, 2.4)).setAlpha(empire * 0.9).setVisible(empire > 0.02);
     }
     for (const m of this.markers) m.icon.setScale(Phaser.Math.Clamp((m.k * dpr) / zoom, 0.14, 1.15));
+    for (const a of this.anchors) a.setAlpha(Phaser.Math.Clamp(0.55 + major * 0.45, 0, 1)).setVisible(true);
 
     const iconScale = Phaser.Math.Clamp(0.75 / zoom, 0.28, 1.1);
     for (const i of this.icons) {
@@ -271,7 +274,7 @@ export class MapScene extends Phaser.Scene {
     const group = major ? this.majorObjects : this.minorObjects;
     const tex = p.kind === 'capital' ? TEX.mapCapital : p.kind === 'city' ? TEX.mapCity : p.kind === 'town' ? TEX.mapTownSmall : TEX.mapVillageSmall;
     const icon = this.add.image(p.x, p.y, tex).setOrigin(0.5, 1).setDepth(p.kind === 'capital' ? 3.6 : 3.5).setTint(0x6b5738);
-    group.push(icon);
+    if (p.kind === 'capital') this.anchors.push(icon); else group.push(icon);
     const k = p.kind === 'capital' ? 36 / 50 : p.kind === 'city' ? 29 / 44 : p.kind === 'town' ? 22 / 34 : 17 / 28;
     this.markers.push({ place: p, empire, icon, k, major });
     const t = this.label(p.x, p.y + 5, p.name, p.kind === 'capital' ? 21 : p.kind === 'city' ? 18 : 15, '#3d2f1c', 0, group, '#f2e6c8');
@@ -469,11 +472,13 @@ export class MapScene extends Phaser.Scene {
       return;
     }
     // one of the world's places — but only the ones you can actually see right now
-    let mark: Marker | null = null, md = Math.max(16, 30 / zoom);
+    let mark: Marker | null = null, md = Infinity;
     for (const m of this.markers) {
       if (!m.icon.visible || m.icon.alpha < 0.35) continue;
+      // the target is the size of the marker as drawn, so a crown seen from orbit is not a huge hitbox
+      const r = Math.max(12, 30 * m.icon.scaleX);
       const d = Phaser.Math.Distance.Between(wp.x, wp.y, m.place.x, m.place.y - 6 / zoom);
-      if (d < md) { md = d; mark = m; }
+      if (d < r && d < md) { md = d; mark = m; }
     }
     if (mark) { this.showPlacePanel(mark); return; }
     // the name of a realm, written across it — the most obvious thing on the chart to tap

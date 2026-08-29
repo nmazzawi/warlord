@@ -141,5 +141,61 @@ for (const e of EMPIRES) {
 }
 pass(`${EMPIRES.length} realm borders checked for self-crossing`);
 
+// 7. realms must not overlap: overlapping claims make regionAt() ambiguous and the fog cancel itself
+const sample = (poly, n = 160) => {
+  const b = poly.reduce((a, [x, y]) => [Math.min(a[0], x), Math.min(a[1], y), Math.max(a[2], x), Math.max(a[3], y)], [1e9, 1e9, -1e9, -1e9]);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const x = b[0] + ((i * 37) % 100) / 100 * (b[2] - b[0]);
+    const y = b[1] + ((i * 61) % 100) / 100 * (b[3] - b[1]);
+    if (inPoly(x, y, poly)) out.push([x, y]);
+  }
+  return out;
+};
+for (let i = 0; i < EMPIRES.length; i++) {
+  for (let j = i + 1; j < EMPIRES.length; j++) {
+    const a = EMPIRES[i], b = EMPIRES[j];
+    const pts = sample(a.poly);
+    const hits = pts.filter(([x, y]) => inPoly(x, y, b.poly) && onLand(x, y));
+    if (hits.length > pts.length * 0.04) fail(`${a.name} and ${b.name} overlap (${Math.round((hits.length / Math.max(1, pts.length)) * 100)}% of ${a.name}'s land)`);
+  }
+}
+pass(`${EMPIRES.length} realms checked for overlap`);
+
+// 8. the fiction says the Borderland touches the Mongols
+const home = chart.match(/const BORDERLAND: Pt\[\] = \(\[([\s\S]*?)\] as Array/);
+if (home) {
+  const ring = eval(`[${home[1]}]`).map(([lon, lat]) => ll(lon, lat));
+  const mongolia = EMPIRES.find(e => e.id === 'mongolia');
+  if (!mongolia) fail('there is no Mongol realm on the chart');
+  else {
+    const shared = ring.filter(p => mongolia.poly.some(q => Math.hypot(p[0] - q[0], p[1] - q[1]) < 2));
+    shared.length >= 2
+      ? pass(`the Borderland and the Mongol Khanates share a real border (${shared.length} points)`)
+      : fail(`the Borderland and the Mongol Khanates do not touch (${shared.length} shared points)`);
+  }
+}
+
+// 9. the ink must lie on land, and there should not be too much of the world left unclaimed
+const inkBlock = atlas.slice(atlas.indexOf('export const RIVERS'), atlas.indexOf('export const EXTRA_CREATURES'));
+const lines = [...inkBlock.matchAll(/\{ name: "([^"]*)", (?:size: \d+|kind: "[a-z]+"), pts: (\[\[[^\]]*\](?:,\[[^\]]*\])*\]) \}/g)]
+  .map(m => ({ name: m[1], pts: eval(m[2]) }));
+let strayed = 0;
+for (const l of lines) {
+  const off = l.pts.filter(([x, y]) => !onLand(x, y)).length;
+  if (off > Math.max(2, l.pts.length * 0.34)) { fail(`"${l.name}" is mostly drawn in the sea (${off}/${l.pts.length} points)`); strayed++; }
+}
+if (!strayed) pass(`${lines.length} rivers, ranges and cover areas all sit on land`);
+
+let land = 0, claimed = 0;
+for (let x = 100; x < 5400; x += 40) {
+  for (let y = 100; y < 3240; y += 40) {
+    if (!onLand(x, y)) continue;
+    land++;
+    if (EMPIRES.some(e => inPoly(x, y, e.poly)) || inPoly(x, y, eval(`[${(chart.match(/const BORDERLAND: Pt\[\] = \(\[([\s\S]*?)\] as Array/) || [0, '[0,0]'])[1]}]`).map(([lon, lat]) => ll(lon, lat)))) claimed++;
+  }
+}
+console.log(`ok   ${Math.round((claimed / land) * 100)}% of the world's land belongs to someone (the rest is terra incognita)`);
+
 console.log(bad ? `\n${bad} PROBLEM(S)` : '\nchart is clean');
 process.exit(bad ? 1 : 0);

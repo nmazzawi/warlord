@@ -149,8 +149,8 @@ async function desktopRun(browser) {
     return { realms: m.empireLabels.length, places: m.markers.length, capitals: m.markers.filter(k => k.place.kind === 'capital').length,
       zoom: m.cameras.main.zoom, tex: window.__warlord.textures.exists('world_chart') };
   });
-  check(chart.realms === 13 && chart.tex && chart.zoom > 1.5, `atlas drawn: ${chart.realms} realms, territory zoom ${chart.zoom.toFixed(2)}`);
-  check(chart.places > 80 && chart.capitals === 11, `every empire has places: ${chart.places} settlements, ${chart.capitals} capitals`);
+  check(chart.realms === 15 && chart.tex && chart.zoom > 1.5, `atlas drawn: ${chart.realms} realms, territory zoom ${chart.zoom.toFixed(2)}`);
+  check(chart.places > 100 && chart.capitals === 13, `every empire has places: ${chart.places} settlements, ${chart.capitals} capitals`);
   for (let i = 0; i < 8; i++) await clickBtn(page, 'MapHud', '−');
   const far = await page.evaluate(() => {
     const m = window.__warlord.scene.getScene('Map');
@@ -159,6 +159,11 @@ async function desktopRun(browser) {
   });
   check(far.zoom < 0.4 && !far.detail && !far.major && !far.minor && far.names,
     `far out: coastlines and realm names only (zoom ${far.zoom.toFixed(2)})`);
+  const crowns = await page.evaluate(() => {
+    const m = window.__warlord.scene.getScene('Map');
+    return m.anchors.filter(a => a.visible && a.alpha > 0.3).length;
+  });
+  check(crowns === 13, `capitals anchor the world view even fully zoomed out (${crowns} crowns)`);
   await page.screenshot({ path: `${OUT}/d-world.png` });
   const tapWorld = (pt) => page.evaluate((p) => { const cam = window.__warlord.scene.getScene('Map').cameras.main; const d = window.__warlord.scale.displayScale.x || 1;
     return { x: ((p[0] - cam.worldView.x) * cam.zoom) / d, y: ((p[1] - cam.worldView.y) * cam.zoom) / d }; }, pt);

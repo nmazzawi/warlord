@@ -192,3 +192,28 @@ Arrows continue through the first target at reduced damage (~60%). The bow's ide
 - **Performance.** The whole chart — sea, hatching, land, every realm's tint clipped to its coast, the ink, the dashed sea roads, the monsters and the compass — is painted once into a single texture. Only the borders of the two realms you can walk into stay live vectors, so they are still razor sharp when you dive down to your own roads. (Live vector shapes are re-tessellated every frame; drawing the chart that way cost more than half the frame rate.)
 - **Mongolia has no cities** — waypoints and camps that move, as before. The Aztec Empire sits across the western ocean, and every sea road to it is still dashed.
 - Nothing about raiding, upkeep, infamy or the steppe changed. Existing saves load and keep every settlement's state; only where they are drawn moved.
+
+## MAP DENSITY (designer, 2026-08-29)
+
+The chart should stop feeling empty and start feeling like a fully OWNED world. No new gameplay.
+
+1. **EMPIRES CLAIM THEIR HISTORICAL EXTENTS.** Realm tints grow from small patches to stylized-historical territories that follow geography. Rome wraps the Mediterranean rim; the Caliphate spans Arabia plus the North African coast until they meet; Persia fills its plateau; the Mongol Khanates sweep the whole steppe and **share a real border with The Borderland** (no gap — the fiction says we touch); Rus reaches the Urals; the Middle Kingdom fills its river plains; the Kingdoms of India take the subcontinent; Egypt and Kush divide the Nile; the Shogunate tints exactly the archipelago; the Aztecs Mesoamerica; the Inca the Andes spine. Most land the player looks at should belong to someone.
+2. **GEOGRAPHY INK LAYER.** Hand-drawn rivers (Nile, Tigris–Euphrates, Volga, Danube, Ganges, Yangtze), mountain chains (Alps, Urals, Himalayas, Andes), desert stippling (Sahara, Gobi), forest scatter (northern Rus) — all faint ink beneath the realm tints. Oceans get subtle rhumb lines, a few more sea creatures, and dashed future trade lanes.
+3. **TERRA INCOGNITA.** Unclaimed interiors get parchment fog and sparse "here be dragons" flourishes, clearly distinct from realm land.
+4. **MISSING REALMS.** The Kingdom of Kush (capital Meroë, south of Egypt) and The Inca Empire (capital Cusco, the Andes) belong on the chart.
+5. **ANCHORS AT EVERY ZOOM.** Capitals (crown markers) stay visible even fully zoomed out, so the world view has landmarks rather than floating names.
+6. **POLISH.** Fix the Caliphate label's clipped render; borders trace coasts, rivers and ranges instead of blobby polygons; realm tint contrast up one step against unclaimed land; fix label collisions (Kingdom of the Nile).
+
+## Milestone 4.6 — Map Density (built 2026-08-29)
+
+**Designer-specified:** historical realm extents that follow geography, a geography ink layer, terra incognita, the Kingdom of Kush and the Inca Empire, capitals visible at every zoom, and a list of polish items.
+
+**Working assumptions made by the build — overrule by feel:**
+- **Borders are drawn generously and then clipped to the coast.** Every realm outline deliberately overshoots into the water, and the chart clips both the tint and the border ink to the land — so a border traces the real coastline exactly, and inland borders can be routed down a river or along a mountain crest without any coast-tracing by hand. That one trick is what turned blobby polygons into an atlas.
+- **The Borderland and the Mongol Khanates share three exact vertices**, so the two realms touch with no gap — the fiction says you are neighbours, and now the chart says it too. A lint check enforces it.
+- **Terra incognita** is painted by erasing every realm out of a fog laid over all the land, so it never mis-reads however the realms overlap. Unclaimed land is duller and stippled, with sparse dragons and one old warning where the fog is widest. About a quarter of the world's land is claimed once you count Siberia, the Americas, central Africa and Australia — the *inhabited* Old World the player looks at is nearly all owned.
+- **The ink layer** is 35 rivers (drawn broad at the mouth and tapering to a hair at the source), 33 mountain crests (peak marks marching along the ridge), and 34 areas of ground cover (desert stipple, forest scatter, steppe ticks, marsh reeds), all under the tints. The sea gets portolan rhumb lines from five hubs, four more monsters and three dashed trade lanes.
+- **Kush** holds the Nile above the first cataract at Aswan and shares that line with Egypt; **the Inca** take the Andes spine from Quito to central Chile. Both come with a capital, cities, towns and flavour, like every other realm.
+- **Twelve landmasses were missing** and are now drawn — Australia, Greenland, New Guinea, Sumatra, Java, Borneo, Sulawesi, Luzon, Mindanao, Hainan, Tasmania, Kamchatka.
+- **Capitals are always drawn**, at half strength when zoomed out and full strength once cities fade in, so the world view has landmarks. A marker's tap target is the size it is drawn, so a crown seen from orbit is not a giant hitbox.
+- **Polish:** realm names now wrap at 14 characters (THE CALIPHATE was being split in two) and carry right-hand padding, because Phaser under-measures letter-spaced text and was shaving the last glyph. Realm tints went up a step against the fog. `node tools/check-chart.mjs` grew checks for realm overlap, the Mongol border, ink drawn in the sea, and how much of the world is claimed.

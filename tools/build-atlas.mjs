@@ -77,6 +77,8 @@ for (const f of files) {
   catch (e) { console.error(`! ${f}: ${e.message}`); process.exitCode = 1; }
 }
 
+const byPrefix = (pre) => Object.entries(packs).filter(([f]) => f.startsWith(pre));
+
 /** Every segment we were given, by its id. */
 const segs = new Map();
 for (const [file, data] of Object.entries(packs)) {
@@ -143,12 +145,21 @@ const ashore = (xy, name) => {
   return xy;
 };
 
+// ---- realms claim their historical extents: the extent packs replace a realm's outline, and may
+// ---- introduce a realm of their own (with its own name, note, throne and settlements)
+const extents = new Map();
+for (const [, data] of byPrefix('extent-')) for (const e of data.empires ?? []) extents.set(e.id, e);
+
 // ---- the empires
 const empires = [];
-for (const [file, data] of Object.entries(packs)) {
+const seen = new Set();
+for (const [file, data] of byPrefix('empire-')) {
   for (const e of data.empires ?? []) {
-    const poly = (e.poly ?? []).map(p => (Array.isArray(p) ? p : [p.lon, p.lat]));
+    const ext = extents.get(e.id);
+    const src = ext?.poly?.length >= 3 ? ext : e;
+    const poly = (src.poly ?? []).map(p => (Array.isArray(p) ? p : [p.lon, p.lat]));
     if (poly.length < 3) { console.warn(`! ${file}: empire ${e.id} has no polygon`); continue; }
+    seen.add(e.id);
     empires.push({
       id: e.id, name: e.name, note: e.note, throne: e.throne,
       poly: poly.map(([lon, lat]) => ll(lon, lat)),
@@ -156,6 +167,24 @@ for (const [file, data] of Object.entries(packs)) {
     });
   }
 }
+for (const [id, e] of extents) {
+  if (seen.has(id)) continue;                        // a realm that exists only in an extent pack
+  const poly = (e.poly ?? []).map(p => (Array.isArray(p) ? p : [p.lon, p.lat]));
+  if (poly.length < 3 || !e.name) { console.warn(`! new realm ${id} is missing a polygon or a name`); continue; }
+  empires.push({
+    id, name: e.name, note: e.note, throne: e.throne,
+    poly: poly.map(([lon, lat]) => ll(lon, lat)),
+    places: (e.places ?? []).map(p => ({ name: p.name, kind: p.kind, xy: ashore(ll(p.lon, p.lat), p.name), note: p.note })),
+  });
+}
+
+// ---- the ink under the tints: rivers run mouth to source, ranges are crest lines, cover is stippled
+const pts2 = (arr) => (arr ?? []).map(p => (Array.isArray(p) ? p : [p.lon, p.lat])).map(([lon, lat]) => ll(lon, lat));
+const rivers = byPrefix('ink-').flatMap(([, d]) => (d.rivers ?? []).map(r => ({ name: r.name, size: r.size ?? 2, pts: pts2(r.points) }))).filter(r => r.pts.length > 1);
+const ranges = byPrefix('ink-').flatMap(([, d]) => (d.ranges ?? []).map(r => ({ name: r.name, size: r.size ?? 2, pts: pts2(r.points) }))).filter(r => r.pts.length > 1);
+const cover = byPrefix('ink-').flatMap(([, d]) => (d.cover ?? []).map(c => ({ name: c.name, kind: c.kind, pts: pts2(c.poly) }))).filter(c => c.pts.length > 2);
+const creatures = Object.values(packs).flatMap(d => (d.creatures ?? []).map(c => ({ kind: c.kind, scale: c.scale ?? 1, xy: ll(c.lon, c.lat) })));
+const lanes = Object.values(packs).flatMap(d => (d.lanes ?? []).map(l => ({ name: l.name, pts: pts2(l.points) }))).filter(l => l.pts.length > 1);
 
 const fmt = (pts) => `[${pts.map(([x, y]) => `[${x},${y}]`).join(',')}]`;
 const esc = (s) => JSON.stringify(String(s ?? ''));
@@ -178,6 +207,24 @@ export const SEAS: Array<{ id: string; pts: Pt[] }> = [
 ${seas.map(s => `  { id: ${esc(s.id)}, pts: ${fmt(s.pts.map(([lon, lat]) => ll(lon, lat)))} },`).join('\n')}
 ];
 
+/** Rivers (mouth first), mountain crests, and ground cover — the ink that goes under the realm tints. */
+export const RIVERS: Array<{ name: string; size: number; pts: Pt[] }> = [
+${rivers.map(r => `  { name: ${esc(r.name)}, size: ${r.size}, pts: ${fmt(r.pts)} },`).join('\n')}
+];
+export const RANGES: Array<{ name: string; size: number; pts: Pt[] }> = [
+${ranges.map(r => `  { name: ${esc(r.name)}, size: ${r.size}, pts: ${fmt(r.pts)} },`).join('\n')}
+];
+export const COVER: Array<{ name: string; kind: string; pts: Pt[] }> = [
+${cover.map(c => `  { name: ${esc(c.name)}, kind: ${esc(c.kind)}, pts: ${fmt(c.pts)} },`).join('\n')}
+];
+/** Extra sea monsters and the dashed trade lanes no ship of yours can follow yet. */
+export const EXTRA_CREATURES: Array<{ kind: string; scale: number; xy: Pt }> = [
+${creatures.map(c => `  { kind: ${esc(c.kind)}, scale: ${c.scale}, xy: [${c.xy[0]},${c.xy[1]}] },`).join('\n')}
+];
+export const TRADE_LANES: Array<{ name: string; pts: Pt[] }> = [
+${lanes.map(l => `  { name: ${esc(l.name)}, pts: ${fmt(l.pts)} },`).join('\n')}
+];
+
 export const ATLAS_EMPIRES: AtlasEmpire[] = [
 ${empires.map(e => `  {
     id: ${esc(e.id)}, name: ${esc(e.name)}, throne: ${esc(e.throne)},
@@ -194,4 +241,5 @@ writeFileSync(join(ROOT, 'src/world/AtlasData.ts'), out);
 const pts = land.reduce((n, l) => n + l.pts.length, 0) + seas.reduce((n, s) => n + s.pts.length, 0);
 console.log(`AtlasData.ts: ${land.length} landmasses, ${seas.length} inland seas, ${pts} coast points, ${empires.length} empires, ${empires.reduce((n, e) => n + e.places.length, 0)} places`);
 if (nudged) console.log(`${nudged} coastal settlement(s) nudged ashore`);
+console.log(`ink: ${rivers.length} rivers, ${ranges.length} ranges, ${cover.length} cover areas, ${creatures.length} extra creatures, ${lanes.length} trade lanes`);
 console.log(`chart ${CHART.w}x${CHART.h}, lon ${PROJ.lon0}..${PROJ.lon1}, lat ${PROJ.lat0}..${PROJ.lat1}`);
