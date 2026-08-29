@@ -4,6 +4,8 @@
 import { CONQUEST, DEFENSE_SOFTCAP, EQUIPMENT, HERO, HORSES, INFAMY, PATROLS, RERAID, SIEGE, STEPPE, TRIBUTE, TROOP, UPKEEP, VILLAGE_TIERS } from '../config/balance';
 import { nameAt } from '../utils/names';
 import { NODES, nodeById, territoryOf, type Territory } from '../world/WorldMap';
+import type { Hunter } from '../world/Hunters';
+import { advanceHunters, nearestTerritory } from '../world/Hunters';
 
 export type TroopKind = 'raider' | 'levy' | 'guard' | 'rider';
 export interface TroopRecord { id: number; name: string; kind: TroopKind; }
@@ -38,6 +40,7 @@ interface SaveData {
   armor: ArmorKind; shield: ShieldKind; owned: Owned; troops: TroopRecord[]; fallen: FallenRecord[]; deserted: string[];
   nextId: number; nameCursor: number; raidsDone: number;
   location: string; pendingPath: string[]; resumeTravel: TravelResume | null; patrolPending: boolean;
+  pos?: { x: number; y: number }; hunters?: Hunter[];
   settlements: Record<string, SettlementState>; garrisons: Record<string, TroopRecord[]>;
   fortifyStepsDone: number; fortifyCarry: number; lastPatrolDay: number; unpaidDays: number; seenMapHint: boolean;
   rumorsHeard: string[]; pendingVictory: PendingVictory | null;
@@ -59,6 +62,10 @@ class GameStateStore {
   deserted: string[] = [];
   raidsDone = 0;
   location = 'camp';
+  /** Where the warband actually stands. `location` is the place you are AT, or '' out in the field. */
+  pos: { x: number; y: number } = { ...nodeById('camp') };
+  /** Hunter parties on the map: they know your face and they are looking for you. */
+  hunters: Hunter[] = [];
   pendingPath: string[] = [];
   resumeTravel: TravelResume | null = null;
   patrolPending = false;
@@ -91,7 +98,7 @@ class GameStateStore {
     this.owned = { leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false, composite: false };
     this.steppeInfamy = 0; this.campScattered = {}; this.huntedUntil = -1; this.lastSteppePatrolDay = -99;
     this.troops = []; this.fallen = []; this.deserted = []; this.raidsDone = 0; this.location = 'camp'; this.pendingPath = []; this.resumeTravel = null;
-    this.patrolPending = false; this.settlements = {}; this.garrisons = {}; this.fortifyStepsDone = 0; this.fortifyCarry = 0; this.lastPatrolDay = -99;
+    this.patrolPending = false; this.pos = { x: nodeById('camp').x, y: nodeById('camp').y }; this.hunters = []; this.settlements = {}; this.garrisons = {}; this.fortifyStepsDone = 0; this.fortifyCarry = 0; this.lastPatrolDay = -99;
     this.unpaidDays = 0; this.seenMapHint = false; this.rumorsHeard = []; this.pendingVictory = null;
     this.nextId = 1; this.nameCursor = 0; this.snapshot = null;
     for (let i = 0; i < TROOP.starting; i++) this.recruit('raider');
@@ -147,7 +154,7 @@ class GameStateStore {
   get siegeUnlocked() { return this.infamyTier >= SIEGE.unlockTier; }
 
   // ------------------------------------------------------------ territories
-  get territory(): Territory { return territoryOf(this.location); }
+  get territory(): Territory { return this.location ? territoryOf(this.location) : nearestTerritory(this.pos.x, this.pos.y); }
   /** Infamy as the territory you are standing in sees it. */
   territoryInfamy(t: Territory = this.territory) { return t === 'steppe' ? this.steppeInfamy : this.infamy; }
   tierOf(value: number) { let t = 0; INFAMY.tiers.forEach((tier, i) => { if (value >= tier.min) t = i; }); return t; }
@@ -170,6 +177,21 @@ class GameStateStore {
    * Time passes: tribute comes in, wages go out, unraided villages fortify. If the men can't be
    * paid there is one day of grumbling, then they desert one by one. Returns what happened.
    */
+  /** A day (or several) of hunting: every party out looking for you moves. Returns the one that
+   *  reaches you, if any — there is no dodging that fight. */
+  runHunters(days: number) {
+    const res = advanceHunters(this.hunters, this.pos, days, {
+      tier: this.infamyTier, steppeTier: this.steppeTier, hunted: this.hunted,
+      territory: this.territory, mounted: !!this.horse, rnd: Math.random,
+    });
+    this.hunters = res.hunters;
+    if (res.caught) {
+      this.hunters = this.hunters.filter(h => h.id !== res.caught!.id);
+      if (this.territory === 'steppe') this.lastSteppePatrolDay = this.day; else this.lastPatrolDay = this.day;
+    }
+    return res.caught;
+  }
+
   advanceDays(n: number): DayEvent[] {
     const events: DayEvent[] = [];
     for (let i = 0; i < n; i++) {
@@ -340,7 +362,7 @@ class GameStateStore {
       troops: this.troops.map(t => ({ ...t })), fallen: this.fallen.map(f => ({ ...f })), deserted: [...this.deserted],
       nextId: this.nextId, nameCursor: this.nameCursor, raidsDone: this.raidsDone,
       location: this.location, pendingPath: [...this.pendingPath], resumeTravel: this.resumeTravel ? { ...this.resumeTravel } : null,
-      patrolPending: this.patrolPending,
+      patrolPending: this.patrolPending, pos: { ...this.pos }, hunters: this.hunters.map(h => ({ ...h })),
       settlements: JSON.parse(JSON.stringify(this.settlements)), garrisons: JSON.parse(JSON.stringify(this.garrisons)),
       fortifyStepsDone: this.fortifyStepsDone, fortifyCarry: this.fortifyCarry, lastPatrolDay: this.lastPatrolDay,
       unpaidDays: this.unpaidDays, seenMapHint: this.seenMapHint,
@@ -355,6 +377,10 @@ class GameStateStore {
     this.troops = d.troops.map(t => ({ ...t, kind: t.kind ?? 'raider' })); this.fallen = (d.fallen ?? []).map(f => ({ ...f })); this.deserted = [...(d.deserted ?? [])];
     this.nextId = d.nextId; this.nameCursor = d.nameCursor; this.raidsDone = d.raidsDone;
     this.location = d.location; this.pendingPath = [...(d.pendingPath ?? [])]; this.resumeTravel = d.resumeTravel ? { ...d.resumeTravel } : null;
+    // a save from before free movement only knows which place you were standing at; start you there
+    const at = d.location && NODES.some(n => n.id === d.location) ? nodeById(d.location) : nodeById('camp');
+    this.pos = d.pos ? { ...d.pos } : { x: at.x, y: at.y };
+    this.hunters = (d.hunters ?? []).map(h => ({ ...h }));
     this.patrolPending = d.patrolPending ?? false;
     this.settlements = JSON.parse(JSON.stringify(d.settlements ?? {})); this.garrisons = JSON.parse(JSON.stringify(d.garrisons ?? {}));
     this.fortifyStepsDone = d.fortifyStepsDone ?? 0; this.fortifyCarry = d.fortifyCarry ?? 0; this.lastPatrolDay = d.lastPatrolDay ?? -99;

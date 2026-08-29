@@ -6,18 +6,36 @@
 // Everything outside your reach is drawn muted: it is the content plan, visible from day one.
 import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
-import { INFAMY, SIEGE, STEPPE, TRAVEL } from '../config/balance';
-import { EDGES, edgeBetween, findPath, nodeById, NODES, type MapNode, type Territory } from '../world/WorldMap';
+import { INFAMY, SIEGE, STEPPE } from '../config/balance';
+import { EDGES, nodeById, NODES, type MapNode, type Territory } from '../world/WorldMap';
+import { route as findRoute, terrain, totalLength, type Route } from '../world/Terrain';
+import { CONTACT } from '../world/Hunters';
+import type { Pt } from '../world/geo';
 import { campBattle, patrolBattle, siegeBattle, steppePatrolBattle, villageBattle } from '../world/Battles';
 import { LAYOUTS } from '../world/Layouts';
 import { CAMPS, campAt, campById, campLocation } from '../world/Steppe';
-import { CHART, distToPolyline, regionAt, REGIONS, SEA_ROUTES, type Region } from '../world/WorldChart';
+import { bbox, CHART, distToPolyline, REGIONS, SEA_ROUTES, type Region } from '../world/WorldChart';
 import { ChartLayer } from '../world/ChartLayer';
 import type { AtlasPlace } from '../world/AtlasData';
 import { TEX } from '../systems/Textures';
 import { Sound } from '../systems/Sound';
 import type { MapHudScene } from './MapHudScene';
 import { CSS, DISPLAY, FONT, PAL } from './ui';
+
+/** How far the sea is painted beyond the chart's own frame. */
+const EDGE = 520;
+
+/** The point a given distance along a polyline. */
+function pointAt(pts: Pt[], want: number): Pt {
+  let left = want;
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = pts[i - 1], [bx, by] = pts[i];
+    const len = Math.hypot(bx - ax, by - ay);
+    if (left <= len) return [ax + ((bx - ax) * left) / len, ay + ((by - ay) * left) / len];
+    left -= len;
+  }
+  return pts[pts.length - 1];
+}
 
 interface LabelRef { t: Phaser.GameObjects.Text; css: number; }
 /** One of the world's settlements on the chart: a marker pinned to its exact spot and a name under it,
@@ -54,6 +72,8 @@ export class MapScene extends Phaser.Scene {
   private campIcons = new Map<string, Phaser.GameObjects.Container>();
   private labels: LabelRef[] = [];
   private empireLabels: Phaser.GameObjects.Text[] = [];
+  /** Which realm's name gets the ground when two would collide: the largest claim wins. */
+  private empireOrder: number[] = [];
   private territoryObjects: Fadeable[] = [];
 
   /** Palisade rings and your own banners: the game state decides whether they are shown at all, the
@@ -70,6 +90,12 @@ export class MapScene extends Phaser.Scene {
   private pinchZoom = 1;
   private pendingToast: string | null = null;
   private hud!: MapHudScene;
+  /** The line drawn for the march being offered or walked. */
+  private planLine!: Phaser.GameObjects.Graphics;
+  private hunterIcons = new Map<number, Phaser.GameObjects.Container>();
+  private lastTap = 0;
+  private lastTapAt = new Phaser.Math.Vector2();
+  private edgePan = new Phaser.Math.Vector2();
 
   constructor() { super('Map'); }
 
@@ -84,6 +110,7 @@ export class MapScene extends Phaser.Scene {
     // the chart itself, repainted at whatever zoom you settle on
     this.cameras.main.setBackgroundColor(0x241c12);
     this.chart = new ChartLayer(this);
+    terrain(MapScene.roadSegments());
 
     for (const r of REGIONS) {
       const [cx, cy] = r.labelAt;
@@ -92,25 +119,41 @@ export class MapScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(3).setLineSpacing(-10).setPadding(0, 0, 14, 0));
       for (const p of r.places) this.drawPlace(r, p);
     }
+    const claimArea = (r: Region) => { const bb = bbox(r.poly); return bb.w * bb.h * (r.enterable ? 1e6 : 1); };
+    this.empireOrder = REGIONS.map((_r, i) => i).sort((a, b) => claimArea(REGIONS[b]) - claimArea(REGIONS[a]));
     this.drawRoads();
     for (const n of NODES) this.drawNode(n);
     for (const c of CAMPS) this.drawCamp(c.id, c.name);
 
     // the token is a container so the idle bob (on the image) never fights the travel tween (on the container)
-    const here = nodeById(GameState.location);
+    this.planLine = this.add.graphics().setDepth(9);
     const img = this.add.image(0, 0, TEX.mapToken).setScale(1.1);
-    this.token = this.add.container(here.x, here.y - 12, [img]).setDepth(10);
+    this.token = this.add.container(GameState.pos.x, GameState.pos.y - 12, [img]).setDepth(10);
     this.tweens.add({ targets: img, y: -4, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
 
-    this.cameras.main.setBounds(0, 0, CHART.w, CHART.h);
+    // the sea runs past the frame of the chart, so a wide monitor never shows a dead strip beside it
+    this.cameras.main.setBounds(-EDGE, -EDGE, CHART.w + EDGE * 2, CHART.h + EDGE * 2);
     this.zoomToTerritory();
+    this.cameras.main.centerOn(this.token.x, this.token.y);
     this.cameras.main.preRender();
     this.chart.refresh(this.cameras.main);
     this.scale.on('resize', this.onResize, this);
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      const now = this.time.now;
+      if (now - this.lastTap < 320 && Phaser.Math.Distance.Between(p.x, p.y, this.lastTapAt.x, this.lastTapAt.y) < 40 * (this.scale.displayScale.x || 1)) {
+        this.zoomAt(p.x, p.y, 1.6);              // double tap: a step in, toward what you pointed at
+        this.lastTap = 0;
+        return;
+      }
+      this.lastTap = now;
+      this.lastTapAt.set(p.x, p.y);
+    });
 
     this.scene.launch('MapHud');
     this.hud = this.scene.get('MapHud') as MapHudScene;
     this.hud.onZoom = dir => this.zoomBy(dir > 0 ? 1.5 : 1 / 1.5);
+    this.hud.onLocate = () => this.locate();
+    this.fitViewport();
 
     // a battle won just before a reload: offer the sack/occupy choice again
     const pv = GameState.pendingVictory;
@@ -122,7 +165,18 @@ export class MapScene extends Phaser.Scene {
     this.input.on('pointerdown', this.onDown, this);
     this.input.on('pointermove', this.onMove, this);
     this.input.on('pointerup', this.onUp, this);
-    this.input.on('wheel', (_p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => this.zoomBy(dy > 0 ? 1 / 1.12 : 1.12));
+    this.input.on('wheel', (p: Phaser.Input.Pointer, _o: unknown, dx: number, dy: number, _dz: number, ev?: WheelEvent) => {
+      // a trackpad sends small fractional deltas and real sideways movement; a mouse wheel does not
+      const trackpadPan = Math.abs(dx) > 0.5 || (!Number.isInteger(dy) && Math.abs(dy) < 40);
+      if (ev?.ctrlKey) { this.zoomAt(p.x, p.y, dy > 0 ? 1 / 1.06 : 1.06); return; }
+      if (trackpadPan) {
+        const z = this.cameras.main.zoom;
+        this.cameras.main.stopFollow();
+        this.cameras.main.setScroll(this.cameras.main.scrollX + dx / z, this.cameras.main.scrollY + dy / z);
+        return;
+      }
+      this.zoomAt(p.x, p.y, dy > 0 ? 1 / 1.12 : 1.12);
+    });
 
     this.events.once('shutdown', () => {
       this.scale.off('resize', this.onResize, this);
@@ -133,29 +187,9 @@ export class MapScene extends Phaser.Scene {
     this.time.delayedCall(30, () => {
       this.refresh();
       if (this.pendingToast) { this.hud.toast([this.pendingToast], '#f5c542'); this.pendingToast = null; }
-      const rt = GameState.resumeTravel;
-      if (rt && GameState.patrolPending) {
-        const a = nodeById(rt.from), b = nodeById(rt.to);
-        this.token.setPosition(Phaser.Math.Linear(a.x, b.x, 0.5), Phaser.Math.Linear(a.y, b.y, 0.5) - 12);
-        this.cameras.main.centerOn(this.token.x, this.token.y);
-        this.traveling = true;
-        this.showPatrolPanel(a.territory === 'steppe' && b.territory === 'steppe');
-      } else if (rt) {
-        const a = nodeById(rt.from), b = nodeById(rt.to);
-        const edge = edgeBetween(rt.from, rt.to)!;
-        this.traveling = true;
-        this.cameras.main.startFollow(this.token, true, 0.08, 0.08);
-        this.moveToken(a, b, 0.5, 1, () => {
-          GameState.resumeTravel = null;
-          this.passDays(Math.floor(edge.days / 2));
-          GameState.save();
-          Sound.travel();
-          this.refresh();
-          this.stepPath();
-        });
-      } else if (GameState.pendingPath.length) {
-        this.stepPath();
-      } else {
+      if (GameState.patrolPending) {
+        this.showPatrolPanel(GameState.territory === 'steppe');
+      } else if (GameState.location) {
         const node = nodeById(GameState.location);
         if (node.kind !== 'cross' && node.kind !== 'camp') this.showNodePanel(node);
       }
@@ -170,7 +204,7 @@ export class MapScene extends Phaser.Scene {
     this.applyLOD();
   }
   private zoomBy(f: number) { this.setZoom(this.cameras.main.zoom * f); }
-  private onResize() { this.setZoom(this.cameras.main.zoom); }
+  private onResize() { this.fitViewport(); this.setZoom(this.cameras.main.zoom); }
 
   /** Close enough to see the roads of whichever territory you are standing in. */
   private territoryBox(t: Territory) {
@@ -217,10 +251,19 @@ export class MapScene extends Phaser.Scene {
     const set = (objs: Fadeable[], a: number) => { for (const o of objs) { o.setAlpha(a); o.setVisible(a > 0.02); } };
     set(this.territoryObjects, detail);
     for (const o of this.stateObjects) o.setAlpha(detail);   // shown or not is the game state's call
-    for (const t of this.empireLabels) {
-      // realm names hold 13 CSS px — but never grow past a size that would make twelve of them collide
-      // on a narrow phone showing the whole Earth, so far out they shrink with the world instead
-      t.setScale(Phaser.Math.Clamp(Math.min((dpr * 13) / (zoom * 64), 52 / 64), 0.18, 2.4)).setAlpha(empire * 0.9).setVisible(empire > 0.02);
+    // realm names hold 13 CSS px — but never grow past a size that would make twelve of them collide
+    // on a narrow phone showing the whole Earth, so far out they shrink with the world instead. Where
+    // two names would still touch, the smaller realm's name waits until you zoom in far enough for it.
+    const escale = Phaser.Math.Clamp(Math.min((dpr * 13) / (zoom * 64), 52 / 64), 0.18, 2.4);
+    const claimed: Array<[number, number, number, number]> = [];
+    for (const i of this.empireOrder) {
+      const t = this.empireLabels[i];
+      t.setScale(escale).setAlpha(empire * 0.9);
+      if (empire <= 0.02) { t.setVisible(false); continue; }
+      const b: [number, number, number, number] = [t.x, t.y, t.width * escale * 0.9, t.height * escale * 0.85];
+      const clash = claimed.some(q => Math.abs(q[0] - b[0]) < (q[2] + b[2]) / 2 && Math.abs(q[1] - b[1]) < (q[3] + b[3]) / 2);
+      t.setVisible(!clash);
+      if (!clash) claimed.push(b);
     }
     this.layoutMarkers();
 
@@ -231,12 +274,38 @@ export class MapScene extends Phaser.Scene {
       if (k === TEX.shadow) i.setDisplaySize(52 * iconScale, 24 * iconScale);
     }
     for (const [, c] of this.campIcons) c.setScale(iconScale);
+    const hs = Phaser.Math.Clamp((0.8 * dpr) / zoom, 0.25, 1.6);
+    for (const [, c] of this.hunterIcons) c.setScale(hs);
     (this.token.list[0] as Phaser.GameObjects.Image).setScale(Phaser.Math.Clamp((0.9 * dpr) / zoom, 0.3, 2));
   }
 
-  /** Every frame: let the chart notice when we have settled somewhere new and repaint itself sharp. */
-  update() {
+  /** Every frame: nudge the camera if the mouse is resting at a screen edge, and let the chart notice
+   *  when we have settled somewhere new so it can repaint itself sharp. */
+  update(_t: number, dt: number) {
+    if (this.edgePan.x || this.edgePan.y) {
+      const cam = this.cameras.main;
+      cam.stopFollow();
+      const k = (dt / 16) * (14 / cam.zoom);
+      cam.setScroll(cam.scrollX + this.edgePan.x * k, cam.scrollY + this.edgePan.y * k);
+    }
     this.chart?.tick(this.cameras.main);
+  }
+
+  /** The parties out looking for you, drawn where they actually are. */
+  private drawHunters() {
+    const live = new Set<number>();
+    for (const h of GameState.hunters) {
+      live.add(h.id);
+      let c = this.hunterIcons.get(h.id);
+      if (!c) {
+        const img = this.add.image(0, 0, TEX.mapHunters);
+        const ring = this.add.circle(0, 0, CONTACT, 0xa0341f, 0.1).setStrokeStyle(2, 0xa0341f, 0.35);
+        c = this.add.container(h.x, h.y, [ring, img]).setDepth(9.5);
+        this.hunterIcons.set(h.id, c);
+      }
+      c.setPosition(h.x, h.y).setVisible(true);
+    }
+    for (const [id, c] of this.hunterIcons) if (!live.has(id)) { c.destroy(); this.hunterIcons.delete(id); }
   }
 
   /** Days pass: wages, tribute, desertions, camps drift. Anything notable is shown as a toast. */
@@ -434,6 +503,7 @@ export class MapScene extends Phaser.Scene {
       const n = nodeById(at);
       c.setVisible(true).setPosition(n.x + 22, n.y - 26);
     }
+    this.drawHunters();
     this.hud?.refresh();
     this.applyLOD();
   }
@@ -445,6 +515,7 @@ export class MapScene extends Phaser.Scene {
   }
 
   private onDown(p: Phaser.Input.Pointer) {
+    this.edgePan.set(0, 0);
     this.dragStart.set(p.x, p.y);
     this.camStart.set(this.cameras.main.scrollX, this.cameras.main.scrollY);
     this.dragMoved = false;
@@ -453,7 +524,18 @@ export class MapScene extends Phaser.Scene {
   }
 
   private onMove(p: Phaser.Input.Pointer) {
-    if (!p.isDown) return;
+    if (!p.isDown) {
+      // resting near a screen edge nudges the map along (desktop only — a finger is never "resting")
+      const { width, height } = this.scale;
+      const band = 26 * (this.scale.displayScale.x || 1);
+      const top = this.hud?.mapTop ?? 0;
+      this.edgePan.set(
+        p.x < band ? -1 : p.x > width - band ? 1 : 0,
+        p.y < top + band ? (p.y > top ? -1 : 0) : p.y > height - band ? 1 : 0,
+      );
+      return;
+    }
+    this.edgePan.set(0, 0);
     const tf = this.twoFingers();
     if (tf && this.pinchDist > 0) {
       const d = Phaser.Math.Distance.Between(tf[0].x, tf[0].y, tf[1].x, tf[1].y);
@@ -501,12 +583,12 @@ export class MapScene extends Phaser.Scene {
       }
     }
     if (best) {
-      if (best.id === GameState.location) { this.showNodePanel(best); return; }
-      if (best.kind !== 'waypoint' && best.kind !== 'gate' && best.kind !== 'trade') { // grass keeps no settlement record
-        const s = GameState.settlement(best.id);
-        if ((best.kind === 'town' && !s.occupied) || s.sacked) { this.showNodePanel(best); return; }
-      }
-      this.travelTo(best.id);
+      // every tap shows you what you are looking at, and what the march would cost, before you commit
+      if (best.id !== GameState.location) {
+        const r = findRoute([GameState.pos.x, GameState.pos.y], [best.x, best.y], !!GameState.horse);
+        if (r) this.drawPlan(r); else this.clearPlan();
+      } else this.clearPlan();
+      this.showNodePanel(best);
       return;
     }
     // one of the world's places — but only the ones you can actually see right now
@@ -530,82 +612,128 @@ export class MapScene extends Phaser.Scene {
     if (named) { this.showRegionPanel(named); return; }
     // a sea road?
     for (const r of SEA_ROUTES) if (distToPolyline(wp.x, wp.y, r.pts) < Math.max(14, 30 / zoom)) { this.showSeaPanel(r.name); return; }
-    // an empire?
-    const region = regionAt(wp.x, wp.y);
-    if (region) this.showRegionPanel(region);
+    // otherwise: march there, if it is ground a warband can walk
+    if (this.hud.panelOpen) this.hud.hidePanel();
+    this.offerMarch(wp.x, wp.y);
   }
 
-  // ---------------------------------------------------------------- travel
-  private travelTo(id: string) {
-    const path = findPath(GameState.location, id);
-    if (!path.length) return;
-    GameState.pendingPath = path;
-    GameState.save();
-    this.hud.hidePanel();
-    this.stepPath();
-  }
-
-  private stepPath() {
-    const next = GameState.pendingPath[0];
-    if (!next) {
-      this.traveling = false;
-      const node = nodeById(GameState.location);
-      if (node.kind !== 'cross') this.showNodePanel(node);
-      return;
-    }
-    const from = GameState.location, to = next;
-    const edge = edgeBetween(from, to);
-    if (!edge) { GameState.pendingPath = []; GameState.save(); this.traveling = false; return; }
-    this.traveling = true;
-    this.cameras.main.startFollow(this.token, true, 0.08, 0.08);
-    // does a patrol find you on this stretch? (the steppe hunts camp-raiders far harder)
-    const a = nodeById(from), b = nodeById(to);
-    const steppe = b.territory === 'steppe' && a.territory === 'steppe';
-    let intercepted = false;
-    if (steppe) {
-      const canPatrol = GameState.day - GameState.lastSteppePatrolDay >= 2;
-      const chance = GameState.hunted ? STEPPE.huntChance : (INFAMY.interceptChance[GameState.steppeTier] ?? 0);
-      intercepted = chance > 0 && canPatrol && Math.random() < chance;
-    } else {
-      const canPatrol = GameState.day - GameState.lastPatrolDay >= INFAMY.patrolCooldownDays;
-      intercepted = GameState.patrolChance > 0 && canPatrol && Math.random() < GameState.patrolChance;
-    }
-    this.moveToken(a, b, 0, intercepted ? 0.5 : 1, () => {
-      GameState.pendingPath = GameState.pendingPath.slice(1);
-      GameState.location = to;
-      if (intercepted) {
-        this.passDays(Math.ceil(edge.days / 2));
-        GameState.resumeTravel = { from, to };
-        GameState.patrolPending = true;
-        if (steppe) GameState.lastSteppePatrolDay = GameState.day; else GameState.lastPatrolDay = GameState.day;
-        GameState.save();
-        this.refresh();
-        Sound.patrol();
-        this.cameras.main.shake(250, 0.004);
-        this.showPatrolPanel(steppe);
-      } else {
-        this.passDays(edge.days);
-        GameState.save();
-        Sound.travel();
-        this.refresh();
-        this.stepPath();
-      }
+  // ---------------------------------------------------------------- travel: march where you like
+  /** The road network, as line segments, so the terrain grid knows where a road speeds you up. */
+  private static roadSegments() {
+    return EDGES.map(e => {
+      const a = nodeById(e.a), b = nodeById(e.b);
+      return [[a.x, a.y], [b.x, b.y]] as [[number, number], [number, number]];
     });
   }
 
-  private moveToken(a: MapNode, b: MapNode, f0: number, f1: number, done: () => void) {
-    const x0 = Phaser.Math.Linear(a.x, b.x, f0), y0 = Phaser.Math.Linear(a.y, b.y, f0) - 12;
-    const x1 = Phaser.Math.Linear(a.x, b.x, f1), y1 = Phaser.Math.Linear(a.y, b.y, f1) - 12;
-    this.token.setPosition(x0, y0);
-    const dur = (Math.hypot(x1 - x0, y1 - y0) / TRAVEL.tokenSpeed) * 1000;
-    this.tweens.add({ targets: this.token, x: x1, y: y1, duration: Phaser.Math.Clamp(dur, 400, 2600), ease: 'Sine.InOut', onComplete: done });
+  /** Work out the march to a point and offer it, with what it will cost in days. */
+  private offerMarch(x: number, y: number) {
+    const r = findRoute([GameState.pos.x, GameState.pos.y], [x, y], !!GameState.horse);
+    if (!r) { this.hud.toast(['No way through — there is water in the way.'], '#ff9a8a'); return; }
+    this.drawPlan(r);
+    const end = r.points[r.points.length - 1];
+    const at = NODES.find(n => n.kind !== 'cross' && Math.hypot(n.x - end[0], n.y - end[1]) < 22);
+    this.hud.showPanel({
+      title: at ? at.name.toUpperCase() : 'MARCH',
+      lines: [at ? (at.blurb ?? 'A place worth the walk.') : 'Open country. Your warband can be there and make camp.',
+        `${r.days} day${r.days === 1 ? '' : 's'} of marching${GameState.horse ? ', mounted' : ''}.`],
+      buttons: [
+        { label: `MARCH (${r.days}d)`, color: 0x2f6b8a, onPress: () => { this.hud.hidePanel(); this.walk(r); } },
+        { label: 'Leave', color: 0x555555, onPress: () => { this.hud.hidePanel(); this.clearPlan(); } },
+      ],
+    });
+  }
+
+  private drawPlan(r: Route) {
+    const z = this.cameras.main.zoom;
+    this.planLine.clear().lineStyle(3 / z, PAL.goldHi, 0.9);
+    const pts = r.points.map(([x, y]) => new Phaser.Geom.Point(x, y));
+    this.planLine.strokePoints(pts, false, false);
+    this.planLine.fillStyle(PAL.goldHi, 0.9).fillCircle(r.points[r.points.length - 1][0], r.points[r.points.length - 1][1], 5 / z);
+  }
+  private clearPlan() { this.planLine.clear(); }
+
+  /** Walk it, a day at a time: wages are paid, hunters move, and one of them may catch you on the way. */
+  private walk(r: Route) {
+    this.traveling = true;
+    this.cameras.main.startFollow(this.token, true, 0.08, 0.08);
+    const legs = Math.max(1, r.days);
+    const total = totalLength(r.points);
+    let leg = 0;
+    const stepOn = () => {
+      leg++;
+      const want = (leg / legs) * total;
+      const at = pointAt(r.points, want);
+      const dur = Phaser.Math.Clamp((total / legs) * 9, 260, 900);
+      this.tweens.add({
+        targets: this.token, x: at[0], y: at[1] - 12, duration: dur, ease: 'Sine.InOut',
+        onComplete: () => {
+          GameState.pos = { x: at[0], y: at[1] };
+          const here = NODES.find(n => n.kind !== 'cross' && Math.hypot(n.x - at[0], n.y - at[1]) < 22);
+          GameState.location = here ? here.id : '';
+          this.passDays(1);
+          const caught = GameState.runHunters(1);
+          GameState.save();
+          this.refresh();
+          if (caught) {
+            this.clearPlan();
+            this.traveling = false;
+            GameState.patrolPending = true;
+            Sound.patrol();
+            this.cameras.main.shake(250, 0.004);
+            this.showPatrolPanel(caught.kind === 'steppe');
+            return;
+          }
+          if (leg < legs) { stepOn(); return; }
+          this.clearPlan();
+          this.traveling = false;
+          Sound.travel();
+          const node = GameState.location ? nodeById(GameState.location) : null;
+          if (node && node.kind !== 'cross') this.showNodePanel(node);
+        },
+      });
+    };
+    stepOn();
+  }
+
+  /** March to one of the places on the map (the settlement panels still work this way). */
+  private travelTo(id: string) {
+    const n = nodeById(id);
+    const r = findRoute([GameState.pos.x, GameState.pos.y], [n.x, n.y], !!GameState.horse);
+    if (!r) { this.hud.toast(['No way through — there is water in the way.'], '#ff9a8a'); return; }
+    this.hud.hidePanel();
+    this.drawPlan(r);
+    this.walk(r);
   }
 
   private routeDays(to: string) {
-    const path = findPath(GameState.location, to);
-    let days = 0, cur = GameState.location;
-    for (const n of path) { days += edgeBetween(cur, n)?.days ?? 0; cur = n; }
-    return days;
+    const n = nodeById(to);
+    const r = findRoute([GameState.pos.x, GameState.pos.y], [n.x, n.y], !!GameState.horse);
+    return r ? r.days : 0;
+  }
+
+  /** Smoothly bring the camera back to the warband. */
+  private locate() {
+    this.cameras.main.stopFollow();
+    this.cameras.main.pan(this.token.x, this.token.y, 420, 'Sine.InOut');
+  }
+
+  /** Zoom a step, keeping whatever is under the pointer roughly under the pointer. */
+  private zoomAt(sx: number, sy: number, factor: number) {
+    const cam = this.cameras.main;
+    const before = cam.getWorldPoint(sx, sy);
+    this.setZoom(cam.zoom * factor);
+    cam.preRender();
+    const after = cam.getWorldPoint(sx, sy);
+    cam.stopFollow();
+    cam.setScroll(cam.scrollX + (before.x - after.x), cam.scrollY + (before.y - after.y));
+  }
+
+  /** Keep the camera below the status bar, so the bar never covers the map or eats a tap. */
+  private fitViewport() {
+    const top = Math.round(this.hud?.mapTop ?? 0);
+    const { width, height } = this.scale;
+    this.cameras.main.setViewport(0, top, width, Math.max(80, height - top));
   }
 
   // ---------------------------------------------------------------- panels
@@ -616,7 +744,7 @@ export class MapScene extends Phaser.Scene {
       lines.push(here ? 'The gates are open to you — you could trade here, or ask at the inn.' : 'Their gates are open to strangers with coin.');
       return here
         ? { label: 'VISIT', color: 0x2f6b8a, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: n.id, visit: true }); } }
-        : { label: `WALK IN (${this.routeDays(n.id)}d)`, color: 0x2f6b8a, onPress: () => this.travelTo(n.id) };
+        : null;                                 // from afar the march button above already takes you there
     }
     if (access === 'closed') lines.push(GameState.closedReason(n.id));
     return null;
@@ -662,23 +790,25 @@ export class MapScene extends Phaser.Scene {
   }
 
   private showNodePanel(n: MapNode) {
-    const leave = { label: 'Leave', color: 0x555555, onPress: () => this.hud.hidePanel() };
+    const leave = { label: 'Leave', color: 0x555555, onPress: () => { this.hud.hidePanel(); this.clearPlan(); } };
     const here = GameState.location === n.id;
+    // anywhere you are not standing can be marched to, whatever kind of place it is
+    const march = here ? null : { label: `MARCH (${this.routeDays(n.id)}d)`, color: 0x2f6b8a, onPress: () => this.travelTo(n.id) };
     if (n.kind === 'camp') {
       this.hud.showPanel({
         title: 'BANDIT CAMP', lines: ['Your home. Tap the Forge, the Barracks or the Stables to spend your gold. Waiting here still costs wages.'],
-        buttons: [{ label: 'ENTER CAMP', color: 0x3f7a3f, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: 'camp' }); } }, leave],
+        buttons: [...(march ? [march] : [{ label: 'ENTER CAMP', color: 0x3f7a3f, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: 'camp' }); } }]), leave],
       });
       return;
     }
     if (n.kind === 'gate') {
-      this.hud.showPanel({ title: n.name.toUpperCase(), lines: [n.blurb ?? '', 'Beyond here there are no villages — only camps that move, a neutral trader, and riders who shoot at a gallop.'], buttons: [leave] });
+      this.hud.showPanel({ title: n.name.toUpperCase(), lines: [n.blurb ?? '', 'Beyond here there are no villages — only camps that move, a neutral trader, and riders who shoot at a gallop.'], buttons: [...(march ? [march] : []), leave] });
       return;
     }
     if (n.kind === 'trade') {
       this.hud.showPanel({
         title: n.name.toUpperCase(), lines: [n.blurb ?? '', 'Steppe riders for hire, the composite bow, a courser, and an innkeeper who has heard things.'],
-        buttons: [here ? { label: 'ENTER', color: 0x3f7a3f, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: n.id }); } } : { label: `RIDE THERE (${this.routeDays(n.id)}d)`, color: 0x2f6b8a, onPress: () => this.travelTo(n.id) }, leave],
+        buttons: [here ? { label: 'ENTER', color: 0x3f7a3f, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: n.id }); } } : march!, leave],
       });
       return;
     }
@@ -690,7 +820,7 @@ export class MapScene extends Phaser.Scene {
       if (GameState.hunted) lines.push(`Riders are hunting you (${GameState.huntedUntil - GameState.day} more days).`);
       const buttons = [];
       if (camp && here) buttons.push({ label: 'RAID', color: 0xa0341f, onPress: () => { GameState.save(); this.scene.start('Raid', campBattle(camp.id)); } });
-      else if (camp) buttons.push({ label: `RIDE (${this.routeDays(n.id)}d)`, color: 0xa0341f, onPress: () => this.travelTo(n.id) });
+      else if (march) buttons.push(march);
       buttons.push(leave);
       this.hud.showPanel({ title: n.name.toUpperCase(), lines, buttons });
       return;
@@ -705,7 +835,7 @@ export class MapScene extends Phaser.Scene {
       this.hud.showPanel({
         title: n.name.toUpperCase(),
         lines: [`Yours. ${garrison} hold it for you. Tribute +${n.kind === 'town' ? 15 : 4 + (n.tier ?? 1)} gold a day. Its shops are open to you.`],
-        buttons: [here ? { label: 'ENTER', color: 0x3f7a3f, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: n.id }); } } : { label: `GO (${this.routeDays(n.id)}d)`, color: 0x2f6b8a, onPress: () => this.travelTo(n.id) }, leave],
+        buttons: [here ? { label: 'ENTER', color: 0x3f7a3f, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: n.id }); } } : march!, leave],
       });
       return;
     }
@@ -723,7 +853,7 @@ export class MapScene extends Phaser.Scene {
           buttons: [
             here
               ? { label: 'SIEGE', color: 0xa0341f, onPress: () => { GameState.save(); this.scene.start('Raid', siegeBattle()); } }
-              : { label: `MARCH (${this.routeDays(n.id)}d)`, color: 0xa0341f, onPress: () => this.travelTo(n.id) },
+              : march!,
             ...(visit ? [visit] : []), leave],
         });
       }
@@ -744,7 +874,7 @@ export class MapScene extends Phaser.Scene {
       buttons: [
         here
           ? { label: 'RAID', color: 0xa0341f, enabled: !info.ruined, onPress: () => { GameState.save(); this.scene.start('Raid', villageBattle(n.id)); } }
-          : { label: `MARCH (${this.routeDays(n.id)}d)`, color: 0xa0341f, enabled: !info.ruined, onPress: () => this.travelTo(n.id) },
+          : march!,
         ...(visit ? [visit] : []), leave,
       ],
     });

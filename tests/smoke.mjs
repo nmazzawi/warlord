@@ -80,11 +80,34 @@ const tapNode = async (page, id, touch = false) => {
   // bring the place on screen first (a player would drag to it), then tap where it lands
   const pos = await page.evaluate((nid) => { const m = window.__warlord.scene.getScene('Map'); const n = window.__NODES.find(n => n.id === nid); const cam = m.cameras.main; const d = window.__warlord.scale.displayScale.x || 1;
     cam.stopFollow(); cam.centerOn(n.x, n.y); cam.preRender();
-    return { x: ((n.x - cam.worldView.x) * cam.zoom) / d, y: ((n.y - cam.worldView.y) * cam.zoom) / d }; }, id);
+    return { x: (cam.x + (n.x - cam.worldView.x) * cam.zoom) / d, y: (cam.y + (n.y - cam.worldView.y) * cam.zoom) / d }; }, id);
   await sleep(120);
   if (touch) await page.touchscreen.tap(pos.x, pos.y); else await page.mouse.click(pos.x, pos.y);
 };
-const noPatrols = (page) => page.evaluate(() => { Object.defineProperty(window.__GameState, 'patrolChance', { get: () => 0, configurable: true }); });
+// no hunting parties: clear the field and stop new ones setting out
+const noPatrols = (page) => page.evaluate(() => {
+  const S = window.__GameState;
+  S.hunters = [];
+  S.runHunters = () => null;
+});
+/** March to a place: tap it, read the day cost off its panel, then confirm. */
+const marchTo = async (page, id, touch = false) => {
+  await tapNode(page, id, touch);
+  if (!(await waitPanel(page, 8000))) return false;
+  const labels = await page.evaluate(() => window.__warlord.scene.getScene('MapHud').spec.buttons.map(b => b.label));
+  const go = labels.find(l => /^(MARCH|RIDE|WALK IN|GO|ENTER|SIEGE|RAID)/.test(l) && /\(\d+d\)/.test(l));
+  if (!go) return (await page.evaluate(() => window.__GameState.location)) === id;
+  await clickBtn(page, 'MapHud', go.split(' ')[0]);
+  const t0 = Date.now();
+  while (Date.now() - t0 < 90000) {
+    const at = await page.evaluate(() => window.__GameState.location);
+    if (at === id) return true;
+    const modal = await page.evaluate(() => { const h = window.__warlord.scene.getScene('MapHud'); return !!(h.panelOpen && h.panelModal); });
+    if (modal) return false;
+    await sleep(300);
+  }
+  return false;
+};
 async function raidHere(page, expectKind = 'village') {
   await clickBtn(page, 'MapHud', expectKind === 'siege' ? 'SIEGE' : 'RAID');
   check(await waitScene(page, 'Raid'), `${expectKind} battle started`);
@@ -194,7 +217,7 @@ async function desktopRun(browser) {
     `nothing overlaps at any zoom (${overlaps.map(o => `${o.z}x:${o.shown} shown`).join(', ')})`);
   await page.screenshot({ path: `${OUT}/d-world.png` });
   const tapWorld = (pt) => page.evaluate((p) => { const cam = window.__warlord.scene.getScene('Map').cameras.main; const d = window.__warlord.scale.displayScale.x || 1;
-    return { x: ((p[0] - cam.worldView.x) * cam.zoom) / d, y: ((p[1] - cam.worldView.y) * cam.zoom) / d }; }, pt);
+    return { x: (cam.x + (p[0] - cam.worldView.x) * cam.zoom) / d, y: (cam.y + (p[1] - cam.worldView.y) * cam.zoom) / d }; }, pt);
   const rome = await page.evaluate(() => window.__REGIONS.find(r => r.id === 'rome').labelAt);
   let at = await tapWorld(rome);
   await page.mouse.click(at.x, at.y);
@@ -220,7 +243,7 @@ async function desktopRun(browser) {
     return { cities: m.markers.filter(k => k.rank === 1 && k.icon.visible).length,
       villages: m.markers.filter(k => k.rank === 3 && k.icon.visible).length,
       detail: m.territoryObjects[0].visible,
-      x: ((cap.place.x - cam.worldView.x) * cam.zoom) / d, y: ((cap.place.y - cam.worldView.y) * cam.zoom) / d };
+      x: (cam.x + (cap.place.x - cam.worldView.x) * cam.zoom) / d, y: (cam.y + (cap.place.y - cam.worldView.y) * cam.zoom) / d };
   });
   check(mid.cities > 8 && mid.villages === 0 && !mid.detail, `mid zoom: ${mid.cities} cities in, villages and roads still out`);
   await page.mouse.click(mid.x, mid.y);
@@ -230,7 +253,8 @@ async function desktopRun(browser) {
   await hidePanel(page);
   await page.screenshot({ path: `${OUT}/d-empires.png` });
   // the two views the designer wants to judge without hunting for them
-  for (const [name, zoom, at] of [['d-kush', 3, [3210, 1720]], ['d-mediterranean', 2.2, [2820, 1230]]]) {
+  for (const [name, zoom, at] of [['d-kush', 3, [3210, 1720]], ['d-mediterranean', 2.2, [2820, 1230]],
+    ['d-europe', 1.0, [2950, 1150]], ['d-americas', 0.9, [800, 1300]]]) {
     await page.evaluate(([z, a]) => {
       const m = window.__warlord.scene.getScene('Map');
       m.cameras.main.stopFollow();
@@ -243,8 +267,7 @@ async function desktopRun(browser) {
   await sleep(300);
 
   // --- raid Ashford and just leave
-  await tapNode(page, 'ashford');
-  check(await waitPanel(page, 15000), 'reached Ashford');
+  check(await marchTo(page, 'ashford'), 'marched to Ashford');
   let r = await raidHere(page);
   check(r && r.enemies === 11, `Ashford: ${r && r.enemies} defenders`);
   await autoPlay(page, 60);
@@ -271,8 +294,7 @@ async function desktopRun(browser) {
 
   // --- occupy Millbrook
   await hidePanel(page);
-  await tapNode(page, 'millbrook');
-  check(await waitPanel(page, 20000), 'reached Millbrook');
+  check(await marchTo(page, 'millbrook'), 'marched to Millbrook');
   // --- VISIT as a customer: markup, no recruiting, a rumor at the inn
   await clickBtn(page, 'MapHud', 'VISIT');
   check(await waitScene(page, 'Settlement'), 'visited Millbrook peacefully');
@@ -298,6 +320,7 @@ async function desktopRun(browser) {
   await waitScene(page, 'Map');
   await sleep(600);
   if (!(await waitPanel(page, 1500))) await tapNode(page, 'millbrook');
+  await sleep(200);
   check(await waitPanel(page, 5000), 'Millbrook panel again');
   r = await raidHere(page);
   await autoPlay(page, 80);
@@ -332,8 +355,7 @@ async function desktopRun(browser) {
   // --- upkeep: too many mouths, no gold → desertion on the road
   await page.evaluate(() => { const S = window.__GameState; S.gold = 0; while (S.troops.length < 6) S.recruit('raider'); S.save(); });
   await hidePanel(page);
-  await tapNode(page, 'camp');
-  check(await waitPanel(page, 30000), 'travelled home broke with 6 mouths to feed');
+  check(await marchTo(page, 'camp'), 'marched home broke with 6 mouths to feed');
   s = await gs(page);
   console.log('after the broke trip:', JSON.stringify({ day: s.day, gold: s.gold, unpaid: s.unpaid, deserted: s.deserted, troops: s.troops, tribute: s.tribute, wages: s.wages, loc: s.location, title: await panelTitle(page) }));
   check(s.deserted >= 1 && s.troops < 6, `unpaid troops deserted on the road (${s.deserted} gone, ${s.troops} left)`);
@@ -345,7 +367,7 @@ async function desktopRun(browser) {
   check(s.siege, `siege unlocked at ${s.tier}`);
   await hidePanel(page);
   await tapNode(page, 'kingsport');
-  check(await waitPanel(page, 5000) && /MARCH/.test((await page.evaluate(() => window.__warlord.scene.getScene('MapHud').spec.buttons.map(b => b.label).join(' ')))), 'Kingsport panel offers MARCH with the route cost before travelling');
+  check(await waitPanel(page, 5000) && /MARCH \(\d+d\)/.test((await page.evaluate(() => window.__warlord.scene.getScene('MapHud').spec.buttons.map(b => b.label).join(' ')))), 'Kingsport panel previews the march with its day cost before you commit');
   await clickBtn(page, 'MapHud', 'MARCH');
   await sleep(300);
   check(await waitPanel(page, 60000), 'reached Kingsport');
@@ -442,8 +464,7 @@ async function desktopRun(browser) {
   await noPatrols(page);
   await hidePanel(page);
   const campsBefore = await page.evaluate(() => window.__CAMPS.map(c => window.__campLocation(c)));
-  await tapNode(page, 'steppe_gate');
-  check(await waitPanel(page, 30000), 'reached the Border Stones');
+  check(await marchTo(page, 'steppe_gate'), 'marched to the Border Stones');
   s = await gs(page);
   check(s.location === 'steppe_gate', `on the steppe (${s.location})`);
   const campsAfter = await page.evaluate(() => window.__CAMPS.map(c => window.__campLocation(c)));
@@ -454,10 +475,10 @@ async function desktopRun(browser) {
   // ride to wherever Böke's camp stands and raid it
   await hidePanel(page);
   const target = await page.evaluate(() => window.__campLocation(window.__CAMPS[0]));
-  await tapNode(page, target);
+  await marchTo(page, target);
   check(await waitPanel(page, 30000), `rode to ${target}`);
   const there = await page.evaluate(() => { const S = window.__GameState; const c = window.__CAMPS.find(c => window.__campLocation(c) === S.location); return c ? c.id : null; });
-  if (!there) { await hidePanel(page); const t2 = await page.evaluate(() => window.__campLocation(window.__CAMPS[0])); await tapNode(page, t2); await waitPanel(page, 30000); }
+  if (!there) { await hidePanel(page); const t2 = await page.evaluate(() => window.__campLocation(window.__CAMPS[0])); await marchTo(page, t2); }
   const hereCamp = await page.evaluate(() => { const S = window.__GameState; const c = window.__CAMPS.find(c => window.__campLocation(c) === S.location); return c ? c.name : null; });
   check(!!hereCamp, `standing at a camp (${hereCamp})`);
   await clickBtn(page, 'MapHud', 'RAID');
@@ -488,22 +509,31 @@ async function desktopRun(browser) {
   const hunted = await page.evaluate(() => ({ hunted: window.__GameState.hunted, steppe: window.__GameState.steppeInfamy, scattered: Object.keys(window.__GameState.campScattered).length }));
   check(hunted.hunted && hunted.steppe === 8 && hunted.scattered === 1, `raiding a camp: scattered, hunted, steppe infamy ${hunted.steppe}`);
   // hunted riders: force the intercept on the next stretch
-  await page.evaluate(() => { const S = window.__GameState; S.lastSteppePatrolDay = -99; window.__STEPPE.huntChance = 1; });
+  await page.evaluate(() => {
+    const S = window.__GameState;
+    delete S.runHunters;                       // let the real hunters run again
+    S.hunters = [{ id: 1, x: S.pos.x + 12, y: S.pos.y + 8, kind: 'steppe', age: 0 }];
+  });
   await hidePanel(page);
-  await tapNode(page, 'steppe_trade');
+  await marchTo(page, 'steppe_trade');
   check(await waitPanel(page, 30000) && (await panelTitle(page)) === 'RIDERS', `hunted on the grass: ${await panelTitle(page)}`);
-  await page.evaluate(() => { window.__STEPPE.huntChance = 0; });
   await clickBtn(page, 'MapHud', 'FIGHT');
   await waitScene(page, 'Raid');
   await sleep(700);
   r = await raidState(page);
   check(r && r.kind === 'steppePatrol' && r.layout === 'steppeField', `riders' ambush on the open steppe (${r && r.kinds.length} riders)`);
-  await autoPlay(page, 90);
+  await autoPlay(page, 150);                  // eight mounted riders on open ground: the longest fight there is
   await sleep(1800);
   await waitScene(page, 'Result', 8000);
   await clickBtn(page, 'Result', 'BACK');
   await waitScene(page, 'Map');
-  check(await waitPanel(page, 30000), 'travel resumed to Khoja\'s camp');
+  // no "resume": you are standing where they caught you, and you carry on under your own steam
+  const stood = await page.evaluate(() => ({ ...window.__GameState.pos }));
+  check(Number.isFinite(stood.x), `the warband holds the ground it fought on (${Math.round(stood.x)},${Math.round(stood.y)})`);
+  await noPatrols(page);
+  check(await marchTo(page, 'steppe_trade'), "marched on to Khoja's camp");
+  await sleep(900);                                  // let the arrival panel settle before touching it
+  if ((await panelTitle(page)) !== "KHOJA'S CAMP") { await hidePanel(page); await tapNode(page, 'steppe_trade'); await waitPanel(page, 8000); }
   await clickBtn(page, 'MapHud', 'ENTER');
   check(await waitScene(page, 'Settlement'), 'entered the neutral trade camp');
   await sleep(400);
@@ -625,8 +655,7 @@ async function phoneRun(browser) {
   await page.evaluate(() => window.__warlord.scene.getScene('Map').zoomToTerritory());
   await sleep(400);
   await noPatrols(page);
-  await tapNode(page, 'ashford', true);
-  check(await waitPanel(page, 15000), 'phone: tap-to-travel reached Ashford');
+  check(await marchTo(page, 'ashford', true), 'phone: tap-to-march reached Ashford');
   await page.screenshot({ path: `${OUT}/p-ashford.png` });
   await clickBtn(page, 'MapHud', 'RAID', true);
   check(await waitScene(page, 'Raid'), 'phone: raid from the panel');

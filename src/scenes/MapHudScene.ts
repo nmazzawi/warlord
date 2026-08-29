@@ -21,9 +21,12 @@ export class MapHudScene extends Phaser.Scene {
   private infamyFg!: Phaser.GameObjects.Rectangle;
   private bountyText!: Phaser.GameObjects.Text;
   private titleBtn!: Phaser.GameObjects.Container;
+  private locate!: Phaser.GameObjects.Container;
   private zoomIn!: Phaser.GameObjects.Container;
   private zoomOut!: Phaser.GameObjects.Container;
   onZoom: ((dir: number) => void) | null = null;
+  /** Take me back to my warband. */
+  onLocate: (() => void) | null = null;
   private hintText: Phaser.GameObjects.Text | null = null;
   private toastText: Phaser.GameObjects.Text | null = null;
   private panelObjects: Phaser.GameObjects.GameObject[] = [];
@@ -52,8 +55,9 @@ export class MapHudScene extends Phaser.Scene {
       onPress: () => { GameState.save(); this.scene.stop('Map'); this.scene.start('Title'); } });
     this.zoomIn = makeButton(this, 0, 0, { width: 44, height: 44, label: '+', tone: 'neutral', fontSize: 24, onPress: () => this.onZoom?.(1) });
     this.zoomOut = makeButton(this, 0, 0, { width: 44, height: 44, label: '−', tone: 'neutral', fontSize: 24, onPress: () => this.onZoom?.(-1) });
+    this.locate = makeButton(this, 0, 0, { width: 44, height: 44, label: '⌖', tone: 'neutral', fontSize: 24, onPress: () => this.onLocate?.() });
     if (!GameState.seenMapHint) {
-      this.hintText = this.add.text(0, 0, 'Tap a place to travel there. Drag to look around; pinch or + / − to zoom out to the world.', uiStyle(14, CSS.goldHi, { stroke: true })).setOrigin(0.5, 0).setDepth(30);
+      this.hintText = this.add.text(0, 0, 'Tap anywhere on land to march there. Drag to look around, double-tap to zoom in, ⌖ to find yourself.', uiStyle(14, CSS.goldHi, { stroke: true })).setOrigin(0.5, 0).setDepth(30);
       this.tweens.add({ targets: this.hintText, alpha: 0, delay: 6000, duration: 700, onComplete: () => { this.hintText?.destroy(); this.hintText = null; } });
       GameState.seenMapHint = true;
     }
@@ -84,6 +88,7 @@ export class MapHudScene extends Phaser.Scene {
     const zx = w - m - ins.right - 24 * u;
     this.zoomIn.setPosition(zx, h - ins.bottom - m - 24 * u - 54 * u).setScale(u); this.zoomIn.setData('baseScale', u);
     this.zoomOut.setPosition(zx, h - ins.bottom - m - 24 * u).setScale(u); this.zoomOut.setData('baseScale', u);
+    this.locate.setPosition(zx, h - ins.bottom - m - 24 * u - 108 * u).setScale(u); this.locate.setData('baseScale', u);
     // the infamy column: on portrait phones it drops to a second row
     const ix = portrait ? left : Math.min(w * 0.5, left + 230 * u);
     const iy = portrait ? top + 74 * u : top + 4 * u;
@@ -123,8 +128,11 @@ export class MapHudScene extends Phaser.Scene {
   barContains(_x: number, y: number) { return y <= this.barBottom; }
   /** the zoom buttons' area, so taps there never reach the map */
   zoomContains(x: number, y: number) {
-    return [this.zoomIn, this.zoomOut].some(b => Math.abs(x - b.x) < 26 * this.u && Math.abs(y - b.y) < 26 * this.u);
+    return [this.zoomIn, this.zoomOut, this.locate].some(b => Math.abs(x - b.x) < 26 * this.u && Math.abs(y - b.y) < 26 * this.u);
   }
+
+  /** Where the map may draw: everything below the bar. */
+  get mapTop() { return this.barBottom; }
 
   /** A few lines that fade after a moment — desertions, unpaid wages, conquest summaries. */
   toast(lines: string[], color = '#ffe9a8') {

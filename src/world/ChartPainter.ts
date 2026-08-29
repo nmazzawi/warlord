@@ -7,7 +7,8 @@ import Phaser from 'phaser';
 import { mulberry32 } from '../utils/rng';
 import { COASTS, COVER, EXTRA_CREATURES, RANGES, RIVERS, SEAS, TRADE_LANES } from './AtlasData';
 import { bbox, COMPASS, pointInPoly, REGIONS, SEA_CREATURES, SEA_ROUTES, type Pt, type Region } from './WorldChart';
-import { CHART, ll } from './geo';
+import { CHART, ll, lly } from './geo';
+import { SEA_NAMES } from './SeaNames';
 
 export interface View {
   /** The world rectangle being drawn. */
@@ -16,7 +17,17 @@ export interface View {
   scale: number;
 }
 
-export const SEA = 0xa6bcb6, SEA_DEEP = 0x8ea8a4, PARCH = 0xe4d3ad, INK = 0x3a2a18;
+export const SEA = 0x9fbcc4, SEA_DEEP = 0x85a4ae, PARCH = 0xe4d3ad, INK = 0x3a2a18;
+/** What each kind of ground looks like under the parchment — the planet has to read as Earth. */
+const BIOME: Record<string, number> = {
+  plains: 0xc9cf92, forest: 0x8fb173, jungle: 0x74a862, desert: 0xe8d5a2,
+  steppe: 0xd8cf92, marsh: 0x93ab8b, mountain: 0xc0b49a, ice: 0xeef2f2,
+};
+/** Latitude bands, north to south: ice, taiga, temperate, dry, tropical, and back again. */
+const BANDS: Array<[number, number]> = [
+  [78, 0xeef2f2], [66, 0xe4ebea], [58, 0xa8bd8c], [48, 0xb9c98a], [38, 0xc9cf92],
+  [28, 0xdcd39a], [18, 0xa9c47e], [4, 0x86b46a], [-12, 0xa9c47e], [-26, 0xd8cf95], [-38, 0xbcc98d], [-52, 0xdfe7e4],
+];
 const FOG = 0x8a7346, RIVER_INK = 0x4f7d86;
 const RHUMB_HUBS: Array<[number, number]> = [[-35, 20], [-28, -26], [72, -8], [138, -14], [-95, 40]];
 
@@ -190,6 +201,30 @@ export function paintChart(ctx: CanvasRenderingContext2D, view: View) {
   ctx.fillStyle = css(PARCH);
   ctx.fill();
 
+  // the ground itself: broad latitude bands washed across the land, then the deserts, forests, steppe
+  // and marshes painted over them as real shapes — smooth at any zoom, never a grid of squares
+  ctx.save();
+  landPath(ctx);
+  ctx.clip();
+  const band = ctx.createLinearGradient(0, lly(78), 0, lly(-52));
+  for (const [lat, col] of BANDS) {
+    const t = Phaser.Math.Clamp((lly(lat) - lly(78)) / (lly(-52) - lly(78)), 0, 1);
+    band.addColorStop(t, css(col, 0.5));
+  }
+  ctx.fillStyle = band;
+  ctx.fillRect(view.x, view.y, view.w, view.h);
+  for (const c of COVER) {
+    const b = box(`cover:${c.name}`, c.pts);
+    if (!hits(b, view)) continue;
+    const col = BIOME[c.kind];
+    if (!col) continue;
+    ctx.fillStyle = css(col, c.kind === 'desert' ? 0.55 : 0.45);
+    ctx.beginPath();
+    trace(ctx, inked(`coverEdge:${c.name}`, c.pts, 5, 31));
+    ctx.fill();
+  }
+  ctx.restore();
+
   // 3. terra incognita — land, minus every realm's claim. Two clips, not one: first the land, then
   //    everything outside the realms. Doing it in a single winding path counts a strait where two
   //    realms both overshoot the water (the Red Sea) as land, and fogs the sea.
@@ -223,7 +258,7 @@ export function paintChart(ctx: CanvasRenderingContext2D, view: View) {
   for (const r of REGIONS) {
     const ring = regionRing(r);
     if (!hits(box(`realm:${r.id}`, ring), view, 40)) continue;
-    ctx.fillStyle = css(mix(PARCH, r.tint, r.enterable ? 0.88 : 0.76), r.enterable ? 0.9 : 0.84);
+    ctx.fillStyle = css(mix(PARCH, r.tint, r.enterable ? 0.92 : 0.88), r.enterable ? 0.58 : 0.5);
     ctx.beginPath();
     trace(ctx, ring);
     ctx.fill();
@@ -306,6 +341,20 @@ export function paintChart(ctx: CanvasRenderingContext2D, view: View) {
   for (const l of TRADE_LANES) if (hits(box(`lane:${l.name}`, l.pts), view, 30)) trace(ctx, l.pts, false);
   ctx.stroke();
   ctx.setLineDash([]);
+  ctx.textAlign = 'center';
+  for (const n of SEA_NAMES) {
+    const [x, y] = ll(n.lon, n.lat);
+    if (x < view.x - 300 || x > view.x + view.w + 300 || y < view.y - 200 || y > view.y + view.h + 200) continue;
+    const size = px(n.size ?? 12);
+    if (size * s < 7) continue;                      // too small to read: leave it off
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(((n.tilt ?? 0) * Math.PI) / 180);
+    ctx.fillStyle = css(INK, 0.3);
+    ctx.font = `italic ${size}px Cinzel, Georgia, serif`;
+    ctx.fillText(n.name.toUpperCase(), 0, 0);
+    ctx.restore();
+  }
   for (const c of SEA_CREATURES) creature(ctx, c.xy[0], c.xy[1], c.kind, c.scale * 2.2, view);
   for (const c of EXTRA_CREATURES) creature(ctx, c.xy[0], c.xy[1], c.kind as 'serpent', c.scale * 2.2, view);
   compass(ctx, COMPASS.xy[0], COMPASS.xy[1], COMPASS.r, view, px);
@@ -313,13 +362,74 @@ export function paintChart(ctx: CanvasRenderingContext2D, view: View) {
   // 10. and where the fog is widest, the old warning
   dragons(ctx, view, px);
 
-  // 11. the worn frame of the chart itself
+  // 11. the furniture of an authored chart: a worn double frame with corner marks, a title cartouche
+  //     and a scale bar you can measure a march against
   ctx.strokeStyle = css(INK, 0.5);
   ctx.lineWidth = px(7);
   ctx.strokeRect(px(3.5), px(3.5), CHART.w - px(7), CHART.h - px(7));
   ctx.lineWidth = px(1.6);
   ctx.strokeStyle = css(INK, 0.4);
   ctx.strokeRect(px(15), px(15), CHART.w - px(30), CHART.h - px(30));
+  const tick = px(9);
+  ctx.beginPath();
+  for (let i = 0; i <= 48; i++) {
+    const x = px(15) + ((CHART.w - px(30)) * i) / 48;
+    ctx.moveTo(x, px(15)); ctx.lineTo(x, px(15) + tick);
+    ctx.moveTo(x, CHART.h - px(15)); ctx.lineTo(x, CHART.h - px(15) - tick);
+  }
+  for (let i = 0; i <= 28; i++) {
+    const y = px(15) + ((CHART.h - px(30)) * i) / 28;
+    ctx.moveTo(px(15), y); ctx.lineTo(px(15) + tick, y);
+    ctx.moveTo(CHART.w - px(15), y); ctx.lineTo(CHART.w - px(15) - tick, y);
+  }
+  ctx.stroke();
+  cartouche(ctx, view, px);
+  scaleBar(ctx, view, px, s);
+}
+
+/** The title, on a panel of its own in the empty southern ocean. */
+function cartouche(ctx: CanvasRenderingContext2D, view: View, px: (n: number) => number) {
+  const [x, y] = ll(-96, -34);
+  const w = px(210), h = px(96);
+  if (x + w < view.x || x - w > view.x + view.w || y + h < view.y || y - h > view.y + view.h) return;
+  ctx.fillStyle = css(PARCH, 0.82);
+  ctx.strokeStyle = css(INK, 0.6);
+  ctx.lineWidth = px(2.4);
+  ctx.beginPath();
+  ctx.rect(x - w / 2, y - h / 2, w, h);
+  ctx.fill();
+  ctx.stroke();
+  ctx.lineWidth = px(1);
+  ctx.strokeRect(x - w / 2 + px(6), y - h / 2 + px(6), w - px(12), h - px(12));
+  ctx.textAlign = 'center';
+  ctx.fillStyle = css(INK, 0.82);
+  ctx.font = `bold ${px(23)}px Cinzel, Georgia, serif`;
+  ctx.fillText('THE KNOWN WORLD', x, y + px(2));
+  ctx.font = `italic ${px(11)}px Cinzel, Georgia, serif`;
+  ctx.fillStyle = css(INK, 0.55);
+  ctx.fillText('and the wilds beyond it', x, y + px(24));
+}
+
+/** A scale bar, in days of marching — the unit the player actually thinks in. */
+function scaleBar(ctx: CanvasRenderingContext2D, view: View, px: (n: number) => number, scale: number) {
+  const [x, y] = ll(-96, -44);
+  if (x < view.x - 600 || x > view.x + view.w + 600 || y < view.y - 300 || y > view.y + view.h + 300) return;
+  const days = scale > 1.2 ? 5 : scale > 0.5 ? 20 : 60;
+  const len = days * 22;                                    // plains speed, from Terrain.DAY
+  const h = px(6);
+  ctx.fillStyle = css(INK, 0.75);
+  ctx.strokeStyle = css(INK, 0.75);
+  ctx.lineWidth = px(1.4);
+  for (let i = 0; i < 4; i++) {
+    const sx = x - len / 2 + (len * i) / 4;
+    if (i % 2 === 0) ctx.fillRect(sx, y, len / 4, h);
+    else ctx.strokeRect(sx, y, len / 4, h);
+  }
+  ctx.strokeRect(x - len / 2, y, len, h);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = css(INK, 0.7);
+  ctx.font = `${px(11)}px Cinzel, Georgia, serif`;
+  ctx.fillText(`${days} DAYS' MARCH`, x, y - px(6));
 }
 
 /** A river: broad at the mouth, a hair at its source. */
@@ -436,9 +546,92 @@ function dragons(ctx: CanvasRenderingContext2D, view: View, px: (n: number) => n
       ctx.font = `italic ${px(13)}px Cinzel, Georgia, serif`;
       ctx.fillText('HIC SVNT DRACONES', x, y);
     } else {
-      dragon(ctx, x, y, px(9) * (1 + (i % 3) * 0.25), INK);
+      beast(ctx, x, y, px(9) * (1 + (i % 3) * 0.25), i);
     }
   });
+}
+
+/** What lives out in the Wilds: the beast a cartographer would sketch for that part of the world. */
+function beast(ctx: CanvasRenderingContext2D, x: number, y: number, k: number, seed: number) {
+  const lon = -125 + ((x - 70) / (5330 - 70)) * 270;
+  const lat = latitudeAt(y);
+  ctx.strokeStyle = css(INK, 0.42);
+  ctx.fillStyle = css(INK, 0.42);
+  ctx.lineWidth = k * 0.1;
+  const legs = (x0: number, w: number, top: number, h: number) => {
+    ctx.beginPath();
+    for (let i = 0; i < 4; i++) { const lx = x0 + (w * (i + 0.5)) / 4; ctx.moveTo(lx, top); ctx.lineTo(lx + (i % 2 ? k * 0.1 : -k * 0.1), top + h); }
+    ctx.stroke();
+  };
+  if (lat > 55) {                                   // the northern forests: a bear
+    ctx.beginPath();
+    ctx.ellipse(x, y, k * 1.25, k * 0.72, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x + k * 1.35, y - k * 0.35, k * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x + k * 1.55, y - k * 0.7, k * 0.16, 0, Math.PI * 2);
+    ctx.fill();
+    legs(x - k, k * 2, y + k * 0.55, k * 0.6);
+  } else if (lon > 108 && lat < -8) {               // the southern land: a kangaroo
+    ctx.beginPath();
+    ctx.ellipse(x, y, k * 0.55, k * 0.85, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x + k * 0.35, y - k * 1.05, k * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x - k * 0.4, y + k * 0.5);
+    ctx.quadraticCurveTo(x - k * 1.7, y + k * 0.6, x - k * 1.9, y + k * 1.3);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + k * 0.2, y + k * 0.8); ctx.lineTo(x + k * 0.6, y + k * 1.35); ctx.lineTo(x + k * 1.1, y + k * 1.35);
+    ctx.stroke();
+  } else if (lon > -20 && lon < 60 && lat < 12) {   // the great southern continent: an elephant
+    ctx.beginPath();
+    ctx.ellipse(x, y, k * 1.15, k * 0.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x + k * 1.25, y - k * 0.15, k * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x + k * 1.6, y + k * 0.1);
+    ctx.quadraticCurveTo(x + k * 2.1, y + k * 0.6, x + k * 1.8, y + k * 1.1);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + k * 0.95, y - k * 0.55); ctx.lineTo(x + k * 0.35, y - k * 0.95); ctx.lineTo(x + k * 0.5, y - k * 0.2);
+    ctx.closePath();
+    ctx.fill();
+    legs(x - k * 0.9, k * 1.8, y + k * 0.6, k * 0.7);
+  } else if (lon < -30) {                            // the far west: a bison
+    ctx.beginPath();
+    ctx.ellipse(x, y, k * 1.1, k * 0.62, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x - k * 0.6, y - k * 0.35, k * 0.62, k * 0.5, 0, 0, Math.PI * 2);   // the hump
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x - k * 1.35, y - k * 0.1, k * 0.42, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x - k * 1.6, y - k * 0.45); ctx.lineTo(x - k * 1.9, y - k * 0.75);
+    ctx.moveTo(x - k * 1.1, y - k * 0.45); ctx.lineTo(x - k * 0.9, y - k * 0.85);
+    ctx.stroke();
+    legs(x - k * 0.9, k * 1.8, y + k * 0.5, k * 0.6);
+  } else {
+    dragon(ctx, x, y, k, INK);
+    return;
+  }
+  void seed;
+}
+
+/** Latitude from a chart y — the inverse of the projection, for deciding what beast belongs here. */
+function latitudeAt(y: number) {
+  const MY0 = Math.log(Math.tan(Math.PI / 4 + (72 * Math.PI) / 360));
+  const KY = (3170 - 70) / (MY0 - Math.log(Math.tan(Math.PI / 4 + (-49 * Math.PI) / 360)));
+  const m = MY0 - (y - 70) / KY;
+  return (2 * Math.atan(Math.exp(m)) - Math.PI / 2) * (180 / Math.PI);
 }
 
 function dragon(ctx: CanvasRenderingContext2D, x: number, y: number, k: number, ink: number) {

@@ -32,7 +32,7 @@ const TINTS: Record<string, number> = {
 /** Where each realm's name sits (longitude, latitude) — open ground, clear of its neighbours. */
 const LABEL_AT: Record<string, [number, number]> = {
   rome: [2, 46], greece: [22, 35.5], viking: [8, 58.5], rus: [42, 59], mongolia: [102, 48],
-  china: [111, 29], japan: [131.5, 44], india: [80, 19], persia: [59, 34], arabia: [47, 24],
+  china: [111, 29], japan: [131.5, 44], india: [80, 19], persia: [60, 33], arabia: [45, 20],
   egypt: [23.5, 27.5], kush: [31.5, 13.5], aztecs: [-104, 17], inca: [-72, -21],
 };
 

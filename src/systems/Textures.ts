@@ -16,6 +16,7 @@ export const TEX = {
   mapCamp: 'map_camp', mapVillage: 'map_village', mapTown: 'map_town', mapToken: 'map_token', mapCross: 'map_cross', mapPalisade: 'map_palisade',
   mapYurts: 'map_yurts', mapWaypoint: 'map_waypoint', mapTrade: 'map_trade', mapGate: 'map_gate',
   mapCapital: 'map_capital', mapCity: 'map_city', mapTownSmall: 'map_town_s', mapVillageSmall: 'map_village_s',
+  mapHunters: 'map_hunters',
   forge: 'bld_forge', barracks: 'bld_barracks', stables: 'bld_stables', inn: 'bld_inn', tent: 'tent', campfire: 'campfire', signpost: 'signpost',
 };
 
@@ -406,6 +407,18 @@ function atlasIcons(scene: Phaser.Scene) {
   s.fillStyle(FILL, 1);
   tri(s, 3, 14, 11, 14, 7, 8); tri(s, 11, 18, 19, 18, 15, 12);
   s.generateTexture(TEX.mapVillageSmall, 22 * K, 28 * K);
+  s.destroy();
+  // a hunting party: two riders under a red pennant
+  s = g(scene);
+  s.fillStyle(INK, 1);
+  rect(s, 5, 14, 9, 10); rect(s, 17, 12, 9, 10);
+  circ(s, 9.5, 11, 3.5); circ(s, 21.5, 9, 3.5);
+  rect(s, 27, 2, 2, 20);
+  s.fillStyle(PAL.danger, 1);
+  tri(s, 29, 3, 29, 11, 40, 7);
+  s.fillStyle(0x7a3226, 1);
+  rect(s, 6, 15, 7, 7); rect(s, 18, 13, 7, 7);
+  s.generateTexture(TEX.mapHunters, 44 * K, 30 * K);
   s.destroy();
 }
 
