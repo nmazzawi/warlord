@@ -13,7 +13,7 @@ export type ArmorKind = 'none' | 'leather' | 'plate';
 export type ShieldKind = 'none' | 'round' | 'kite';
 export type HorseKind = 'none' | 'courser' | 'destrier';
 export interface Owned { leather: boolean; plate: boolean; round: boolean; kite: boolean; bow: boolean; halberd: boolean; courser: boolean; destrier: boolean; }
-export interface SettlementState { timesRaided: number; lastRaidDay: number | null; occupied: boolean; sacked: boolean; }
+export interface SettlementState { timesRaided: number; lastRaidDay: number | null; occupied: boolean; sacked: boolean; wealth: number; }
 export interface TravelResume { from: string; to: string; }
 export type Conquest = 'sack' | 'occupy' | 'leave';
 export interface DayEvent { kind: 'unpaid' | 'desert'; text: string; }
@@ -23,7 +23,7 @@ export interface PendingVictory { goldEarned: number; deadTroopIds: number[]; ba
 
 /** Everything the map and the raid need to know about a village right now. */
 export interface VillageInfo {
-  tier: number; timesRaided: number; ruined: boolean; daysToRecover: number; occupied: boolean; sacked: boolean;
+  tier: number; timesRaided: number; ruined: boolean; daysToRecover: number; occupied: boolean; sacked: boolean; wealth: number;
   steps: number; palisade: boolean;
   militia: number; archers: number; captains: number; statMult: number; goldMult: number; total: number;
 }
@@ -158,6 +158,7 @@ class GameStateStore {
     for (let i = 0; i < n; i++) {
       this.day += 1;
       this.bankFortification();
+      for (const s of Object.values(this.settlements)) s.wealth = Math.min(1, (s.wealth ?? 1) + 1 / RERAID.wealthRecoverDays);
       this.gold += this.tributePerDay;
       const wages = this.wagesPerDay;
       if (this.gold >= wages) {
@@ -195,7 +196,8 @@ class GameStateStore {
 
   // ------------------------------------------------------------ settlements
   settlement(id: string): SettlementState {
-    if (!this.settlements[id]) this.settlements[id] = { timesRaided: 0, lastRaidDay: null, occupied: false, sacked: false };
+    if (!this.settlements[id]) this.settlements[id] = { timesRaided: 0, lastRaidDay: null, occupied: false, sacked: false, wealth: 1 };
+    if (this.settlements[id].wealth === undefined) this.settlements[id].wealth = 1;
     return this.settlements[id];
   }
   /** Can you shop here? Only your camp and places you occupy. */
@@ -233,11 +235,11 @@ class GameStateStore {
     const captains = base.captains;
     return {
       tier, timesRaided: vs.timesRaided, ruined, daysToRecover: vs.sacked ? Infinity : ruined ? RERAID.recoverDays - sinceRaid : 0,
-      occupied: vs.occupied, sacked: vs.sacked,
+      occupied: vs.occupied, sacked: vs.sacked, wealth: vs.wealth,
       steps, palisade: steps >= INFAMY.palisadeAt,
       militia, archers, captains,
       statMult: base.statMult + vs.timesRaided * RERAID.statPerRaid,
-      goldMult: base.goldMult + vs.timesRaided * RERAID.goldPerRaid,
+      goldMult: (base.goldMult + vs.timesRaided * RERAID.goldPerRaid) * vs.wealth,
       total: militia + archers + captains,
     };
   }
@@ -266,7 +268,7 @@ class GameStateStore {
       const vs = this.settlement(id);
       if (battle.kind === 'siege') { this.owned.halberd = true; this.equippedWeapon = 'halberd'; }
       if (choice === 'sack') {
-        const extra = town ? CONQUEST.sackTownGold : CONQUEST.sackVillageGold + CONQUEST.sackVillagePerTier * (battle.tier ?? 1);
+        const extra = this.sackBonus(goldEarned, town);
         this.gold += extra;
         vs.sacked = true; vs.occupied = false;
         delete this.garrisons[id];
@@ -282,8 +284,9 @@ class GameStateStore {
       } else {
         vs.timesRaided += 1;
         vs.lastRaidDay = this.day;
+        if (!town) vs.wealth = Math.max(RERAID.wealthMin, vs.wealth - RERAID.wealthDrop); // plundered — recovers over ~15 days
         this.addInfamy(INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1));
-        summary = `Raided ${node.name}: +${goldEarned} gold. It lies ruined for ${RERAID.recoverDays} days.`;
+        summary = `Raided ${node.name}: +${goldEarned} gold. It lies ruined for ${RERAID.recoverDays} days, and poorer for longer.`;
       }
     }
     this.pendingVictory = null;
@@ -294,6 +297,10 @@ class GameStateStore {
 
   /** Troops still standing after a battle (the dead are only removed when the outcome is committed). */
   survivors(deadTroopIds: number[]) { return this.troops.filter(t => !deadTroopIds.includes(t.id)); }
+  /** What sacking a place pays on top of the raid's loot. */
+  sackBonus(goldEarned: number, town: boolean) {
+    return Math.max(town ? CONQUEST.sackTownFloor : CONQUEST.sackVillageFloor, Math.round(goldEarned * CONQUEST.sackLootMult));
+  }
   /** Occupying needs at least one survivor to hold the place (up to two stay). */
   canOccupyWith(deadTroopIds: number[]) { return this.survivors(deadTroopIds).length >= 1; }
 

@@ -64,7 +64,8 @@ export class Enemy extends Unit {
   wake() {
     if (this.aggro || !this.alive) return;
     this.wakeQuiet();
-    this.raid.alertNear(this.x, this.y, SURROUND.alertRadius);
+    // town guards shout to their own squad only, so the courtyard wakes in groups
+    this.raid.alertNear(this.x, this.y, this.kind === 'guard' ? SURROUND.alertRadius * 0.6 : SURROUND.alertRadius);
   }
 
   /** Wake up without relaying the alarm — keeps the village coming in waves, not all at once. */

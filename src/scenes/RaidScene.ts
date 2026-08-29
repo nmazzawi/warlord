@@ -337,7 +337,11 @@ export class RaidScene extends Phaser.Scene {
         e.setDepth(20);
         e.setPosition(p.x, p.y);
       }
-      if (e.dormant) { e.dormant = false; e.wakeQuiet(); }
+      if (e.dormant) {
+        // gate guards come running; the deeper groups wake as you push in
+        e.dormant = false;
+        if (Phaser.Math.Distance.Between(e.x, e.y, g.x, g.y) <= SIEGE.gateGuardRadius) e.wakeQuiet();
+      }
     }
     this.hud.objective = 'Clear the courtyard';
     this.hud.enemiesAlive = this.enemies.length;

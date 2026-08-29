@@ -71,7 +71,7 @@ export class ResultScene extends Phaser.Scene {
         const node = nodeById(d.battle.villageId ?? 'ashford');
         const town = node.kind === 'town';
         const tier = d.battle.tier ?? 1;
-        const sackGold = town ? CONQUEST.sackTownGold : CONQUEST.sackVillageGold + CONQUEST.sackVillagePerTier * tier;
+        const sackGold = GameState.sackBonus(d.goldEarned, town);
         const raidInf = INFAMY.perRaidBase + INFAMY.perRaidPerTier * tier;
         const sackInf = town ? CONQUEST.sackTownInfamy : raidInf + CONQUEST.sackVillageInfamy;
         const tribute = town ? TRIBUTE.town : TRIBUTE.villageBase + TRIBUTE.villagePerTier * tier;
@@ -83,11 +83,11 @@ export class ResultScene extends Phaser.Scene {
           items.push(makeButton(this, cx, y + bh / 2, { width: colW, height: bh, label, sub, tone, enabled, fontSize: Math.round(16 * u), onPress }));
           y += bh + 9 * u;
         };
-        opt('SACK', `+${sackGold} gold now · burns for good · infamy +${sackInf}`, 'danger', true, () => this.finish('sack'));
+        opt('SACK', `+${sackGold} gold on top of the loot · burns for good · infamy +${sackInf}`, 'danger', true, () => this.finish('sack'));
         opt('OCCUPY', survivors >= 1
           ? `+${tribute} gold/day · ${garrison} troop${garrison === 1 ? '' : 's'} stay${garrison === 1 ? 's' : ''} as garrison · its shops open to you · infamy +${raidInf}`
           : 'no one left to hold it — you need at least one troop', 'primary', survivors >= 1, () => this.finish('occupy'));
-        opt('LEAVE', town ? `take the loot and go · the garrison regroups · infamy +${raidInf}` : `take the loot and go · ruined for ${RERAID.recoverDays} days · infamy +${raidInf}`, 'ghost', true, () => this.finish('leave'));
+        opt('LEAVE', town ? `take the loot and go · the garrison regroups · infamy +${raidInf}` : `take the loot and go · ruined ${RERAID.recoverDays} days, poorer for ~${RERAID.wealthRecoverDays} · infamy +${raidInf}`, 'ghost', true, () => this.finish('leave'));
         y += 8 * u;
       }
     } else {

@@ -31,8 +31,9 @@ export const EQUIPMENT = {
   plate:   { name: 'Steel Plate',   cost: 150, defense: 4, slot: 'armor' as const,  desc: 'Defense +4. Replaces leather.' },
   round:   { name: 'Round Shield',  cost: 50,  defense: 2, slot: 'shield' as const, desc: 'Defense +2. Stacks with armor.' },
   kite:    { name: 'Kite Shield',   cost: 120, defense: 3, slot: 'shield' as const, desc: 'Defense +3. Replaces the round shield.' },
-  bow:     { name: 'Hunting Bow',   cost: 70,  damage: 9, range: 230, cooldown: 0.7, arrowSpeed: 380, hitStop: 25, shake: 1.5,
-             desc: 'Alternate weapon: shoots the nearest enemy from range. You must stand (nearly) still to shoot.' },
+  // the support/siege weapon: out-ranges wall archers, softens the approach while troops hold the line
+  bow:     { name: 'Hunting Bow',   cost: 70,  damage: 12, range: 300, cooldown: 0.65, arrowSpeed: 400, hitStop: 25, shake: 1.5,
+             desc: 'Shoots the nearest enemy from range — further than any archer. You must stand (nearly) still to shoot.' },
 };
 export const DEFENSE_SOFTCAP = 12;
 /** The ranged rule: bows fire only when (nearly) stopped; a horse slows to a walk to shoot. */
@@ -73,8 +74,10 @@ export const UPKEEP = { wage: 2, graceDays: 2, startingGold: 40 };
 export const TRIBUTE = { villageBase: 4, villagePerTier: 1, town: 15 };
 /** Conquest choices. */
 export const CONQUEST = {
-  sackVillageGold: 50, sackVillagePerTier: 30, sackVillageInfamy: 8, // added ON TOP of the raid's infamy — always a spike
-  sackTownGold: 350, sackTownInfamy: 25,
+  // sacking pays this many times the raid's own loot ON TOP of it (3x total) — a big NOW against tribute, shops and re-raids
+  sackLootMult: 2, sackVillageFloor: 120, sackTownFloor: 500,
+  sackVillageInfamy: 8, // added ON TOP of the raid's infamy — always a spike
+  sackTownInfamy: 25,
   garrison: 2,
 };
 
@@ -87,15 +90,16 @@ export const ENEMIES = {
   // archers stay close enough to be on screen (the camera shows ~520 world px across the short axis)
   archer:  { hp: 20,  speed: 100, damage: 8,  cooldown: 2.0, windup: 0.40, reach: 0,  radius: 10, aggro: 280, gold: [10, 14] as const,
              minDist: 130, maxDist: 220, arrowSpeed: 270, arrowLife: 1.6 },
-  // the captain's spear out-reaches your tier-1 sword: you must step out of the (long, obvious) wind-up
-  captain: { hp: 110, speed: 88,  damage: 22, cooldown: 1.6, windup: 0.55, reach: 38, radius: 15, aggro: 240, gold: [30, 40] as const, knockback: 260 },
+  // spears out-reach EVERY sword (54/68/86): the red ring is a real dodge moment — step out or take 22
+  captain: { hp: 110, speed: 88,  damage: 22, cooldown: 1.6, windup: 0.55, reach: 92, radius: 15, aggro: 240, gold: [30, 40] as const, knockback: 260 },
   // Kingsport's town guard: a tier above militia
   guard:   { hp: 60,  speed: 122, damage: 9,  cooldown: 0.9, windup: 0.35, reach: 12, radius: 12, aggro: 260, gold: [12, 16] as const },
   // the garrison captain: a mini-boss with a ring telegraph, drops the halberd
-  boss:    { hp: 320, speed: 96,  damage: 28, cooldown: 1.3, windup: 0.5,  reach: 42, radius: 17, aggro: 400, gold: [110, 130] as const, knockback: 300 },
+  boss:    { hp: 320, speed: 96,  damage: 28, cooldown: 1.3, windup: 0.5,  reach: 100, radius: 17, aggro: 400, gold: [110, 130] as const, knockback: 300 },
 };
 /** The siege of Kingsport. */
-export const SIEGE = { gateHp: 300, wallArchers: 4, guards: 8, escort: 3, unlockTier: 1 };
+// the gate is a phase: ~20-30 s for a fresh warband (~50 dps) under arrow fire — bring a bow, use the rocks, or eat it
+export const SIEGE = { gateHp: 1000, wallArchers: 4, guards: 8, escort: 3, unlockTier: 1, gateGuardRadius: 240 };
 
 /** Village strength by tier (index = tier - 1). */
 export const VILLAGE_TIERS = [
@@ -105,8 +109,8 @@ export const VILLAGE_TIERS = [
   { militia: 14, archers: 4, captains: 2, statMult: 1.7,  goldMult: 1.8 },
 ];
 
-/** A raided village lies ruined for a while, then rebuilds a little tougher (and a little richer). */
-export const RERAID = { recoverDays: 8, militiaPerRaid: 2, statPerRaid: 0.15, goldPerRaid: 0.1 };
+/** A raided village lies ruined for a while, then rebuilds a little tougher — but poorer: its wealth is plundered and recovers over ~15 days. */
+export const RERAID = { recoverDays: 8, militiaPerRaid: 2, statPerRaid: 0.15, goldPerRaid: 0.1, wealthDrop: 0.7, wealthMin: 0.1, wealthRecoverDays: 15 };
 
 /** Infamy: how the world reacts to you. */
 export const INFAMY = {

@@ -231,7 +231,7 @@ export class MapScene extends Phaser.Scene {
       else {
         const info = GameState.villageInfo(n.id);
         if (info.ruined) { parts.push(`Ruined · ${info.daysToRecover}d`); color = '#8a8a8a'; }
-        else parts.push(`~${info.total} defenders`);
+        else parts.push(`~${info.total} defenders${info.wealth < 0.95 ? ` · ${Math.round(info.wealth * 100)}% wealth` : ''}`);
         if (info.palisade) parts.push('palisade');
         else if (info.steps > 0) parts.push(`+${info.steps}`);
         if (info.steps > 0 && !info.ruined) color = CSS.danger;
@@ -419,7 +419,7 @@ export class MapScene extends Phaser.Scene {
       lines.push(`Tier ${info.tier} village  ·  about ${info.total} defenders (${info.militia} militia, ${info.archers} archer${info.archers === 1 ? '' : 's'}, ${info.captains} captain${info.captains === 1 ? '' : 's'})`);
       const gates = LAYOUTS[n.layout ?? 'ashford'].palisade?.gaps.length ?? 0;
       if (info.steps > 0) lines.push(`Fortified: +${info.steps} militia hired since word of you spread${info.palisade ? `, and a palisade with ${gates} gate${gates === 1 ? '' : 's'}` : ''}.`);
-      if (info.timesRaided > 0) lines.push(`Raided ${info.timesRaided}× before — they have hired more guards, but there is more to take.`);
+      if (info.timesRaided > 0) lines.push(`Raided ${info.timesRaided}× before — they have hired more guards${info.wealth < 0.95 ? `, and their coffers are at ${Math.round(info.wealth * 100)}% (recovering)` : ', and there is more to take'}.`);
     }
     const visit = this.visitButton(n, lines);
     const here = GameState.location === n.id;
