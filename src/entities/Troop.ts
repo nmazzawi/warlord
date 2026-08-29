@@ -6,7 +6,7 @@ import type { Enemy } from './Enemy';
 import type { Hero } from './Hero';
 import type { RaidScene } from '../scenes/RaidScene';
 import type { TroopRecord } from '../state/GameState';
-import { ABILITIES, TROOP, TROOP_KINDS } from '../config/balance';
+import { ABILITIES, RIDER, TROOP, TROOP_KINDS } from '../config/balance';
 import { TEX } from '../systems/Textures';
 import { formationSlot } from '../systems/Formation';
 import { dealDamage } from '../systems/Combat';
@@ -30,12 +30,17 @@ export class Troop extends Unit {
 
   private readonly damageAmount: number;
   private readonly kindTint: number;
+  readonly ranged: boolean;
+  private mount: Phaser.GameObjects.Image | null = null;
 
   constructor(scene: RaidScene, x: number, y: number, record: TroopRecord, slot: number) {
     const k = TROOP_KINDS[record.kind ?? 'raider'];
-    super(scene, x, y, TEX.troop, { hp: k.hp, speed: TROOP.speed, radius: TROOP.radius, team: 'player', barColor: 0x5ec26a });
+    const ranged = record.kind === 'rider';
+    super(scene, x, y, ranged ? TEX.trooprider : TEX.troop, { hp: k.hp, speed: ranged ? RIDER.speed : TROOP.speed, radius: TROOP.radius, team: 'player', barColor: 0x5ec26a, scale: ranged ? RIDER.scale : 1 });
+    this.ranged = ranged;
+    if (ranged) this.mount = scene.add.image(x, y + 4, TEX.horse).setDepth(19).setScale(RIDER.scale).setTint(0xd9c4a0);
     this.damageAmount = k.damage;
-    this.kindTint = k.tint;
+    this.kindTint = ranged ? 0xffffff : k.tint;
     this.applyTint();
     this.record = record;
     this.slot = slot;
@@ -93,6 +98,21 @@ export class Troop extends Unit {
         } else {
           this.moveToward(Phaser.Math.Clamp(this.x, gate.rect.left - 2, gate.rect.right + 2), Phaser.Math.Clamp(this.y, gate.rect.top + 4, gate.rect.bottom - 4), spd);
         }
+      } else if (this.target && distHero <= TROOP.leash && this.ranged) {
+        // a steppe rider keeps its distance and shoots
+        this.state = 'engage';
+        const d = this.distTo(this.target);
+        if (d < RIDER.keepDistance - 30) {
+          this.moveToward(this.x - (this.target.x - this.x), this.y - (this.target.y - this.y), spd);
+        } else if (d > RIDER.range - 20) {
+          this.moveToward(this.target.x, this.target.y, spd);
+        } else {
+          this.desired.set(0, 0);
+        }
+        if (this.attackTimer <= 0 && d <= RIDER.range && hasLineOfSight(this.x, this.y, this.target.x, this.target.y)) {
+          this.attackTimer = RIDER.cooldown;
+          this.raid.fireTroopArrow(this, this.target, this.damageAmount);
+        }
       } else if (this.target && distHero <= TROOP.leash) {
         this.state = 'engage';
         const ed = this.edgeDistTo(this.target);
@@ -131,7 +151,7 @@ export class Troop extends Unit {
     for (const e of this.raid.enemies) {
       if (!e.alive || e.onWall || e.dormant) continue;
       const d = this.distTo(e);
-      if (d > TROOP.engageRadius || e.distTo(hero) > TROOP.leash) continue;
+      if (d > (this.ranged ? RIDER.range : TROOP.engageRadius) || e.distTo(hero) > TROOP.leash) continue;
       if (!hasLineOfSight(this.x, this.y, e.x, e.y)) continue;
       if (d < bestD) { best = e; bestD = d; }
     }
@@ -155,10 +175,12 @@ export class Troop extends Unit {
   override syncVisuals(now: number) {
     super.syncVisuals(now);
     this.label.setPosition(this.x, this.y - this.radius - 12).setVisible(this.alive);
+    if (this.mount) this.mount.setVisible(this.alive).setPosition(this.x, this.y + 4).setFlipX(this.body.velocity.x < 0);
   }
 
   override destroyUnit() {
     this.label.destroy();
+    this.mount?.destroy();
     super.destroyUnit();
   }
 }

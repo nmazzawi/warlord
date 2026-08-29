@@ -1,5 +1,5 @@
 // Rumors.ts — what the inn sells: one true thing about the world, drawn from the live game state.
-import { INFAMY, SIEGE } from '../config/balance';
+import { INFAMY, SIEGE, STEPPE } from '../config/balance';
 import { GameState } from '../state/GameState';
 import { LAYOUTS } from './Layouts';
 import { NODES } from './WorldMap';
@@ -28,6 +28,10 @@ export function currentRumors(): Rumor[] {
     out.push({ id: `layout:${n.id}`, text: `${n.name}: ${l.hint.replace(/\n/g, ' ')}${gates ? ` If they wall it, expect ${gates} gate${gates === 1 ? '' : 's'}.` : ''}` });
   }
   out.push({ id: 'bow', text: 'A bow is only steady from planted feet — nobody shoots at a run. A horse will slow to a walk to let you loose.' });
+  out.push({ id: 'gallop', text: 'Except the Mongols. Their horse archers loose at a full gallop — the only riders in the world who can — and they never stand to fight: they keep their distance, shoot, and fall back. Chase them on the grass and you chase the wind.' });
+  out.push({ id: 'camps', text: `Past the Border Stones there are no villages, only camps that move: three warbands drift around the waypoints one hop a day. Raid one and it scatters for ${STEPPE.scatterDays} days — and the others ride to hunt you for ${STEPPE.huntDays}.` });
+  out.push({ id: 'khoja', text: "Khoja's camp on the steppe trades with anyone. He hires out steppe riders — mounted archers, fast and dear — and sells the composite bow, which will shoot from a slow ride." });
+  out.push({ id: 'chokes', text: 'The steppe has its rocks: a spur or two on every stretch. Between rocks a horse archer must come straight at you, and that is the only place a footman beats one.' });
   out.push({ id: 'wages', text: `Men march for ${2} gold a day each. Miss a day and they grumble; miss two and they walk. A garrison costs nothing to keep.` });
   return out;
 }

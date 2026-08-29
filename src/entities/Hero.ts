@@ -8,7 +8,7 @@ import { Unit } from './Unit';
 import type { Enemy } from './Enemy';
 import type { RaidScene } from '../scenes/RaidScene';
 import type { PlayerInput } from '../systems/PlayerInput';
-import { ABILITIES, EQUIPMENT, HALBERD_TIER, HERO, RANGED, WEAPONS } from '../config/balance';
+import { ABILITIES, COMPOSITE_BOW, EQUIPMENT, HALBERD_TIER, HERO, RANGED, WEAPONS } from '../config/balance';
 import { TEX } from '../systems/Textures';
 import { Sound } from '../systems/Sound';
 import { hasLineOfSight } from '../systems/LineOfSight';
@@ -51,12 +51,15 @@ export class Hero extends Unit {
   setWeapon(tier: number) {
     this.tier = Phaser.Math.Clamp(tier, 1, WEAPONS.length);
     this.weapon = WEAPONS[this.tier - 1];
-    if (this.mode === 'bow') this.blade.setDisplaySize(14, 4).setTint(0xa0703c);
+    if (this.mode === 'bow' || this.mode === 'composite') this.blade.setDisplaySize(14, 4).setTint(this.mode === 'composite' ? 0xd9a441 : 0xa0703c);
     else this.blade.setDisplaySize(this.weapon.bladeLen, 4).setTint(this.weapon.tint);
   }
 
   get boosted() { return this.boostTimer > 0; }
   get dashing() { return this.dashTimer > 0; }
+  get usesBow() { return this.mode === 'bow' || this.mode === 'composite'; }
+  /** Bow numbers for whichever bow is in hand. */
+  get bow() { return this.mode === 'composite' ? COMPOSITE_BOW : EQUIPMENT.bow; }
 
   update(dt: number, input: PlayerInput) {
     const now = this.raid.time.now;
@@ -82,14 +85,16 @@ export class Hero extends Unit {
     } else {
       let spd = this.speed * (this.boosted ? ABILITIES.horn.boostMult : 1);
       if (this.swingSlow > 0) spd *= HERO.swingSlowMult; // a swing plants your feet for a moment
-      if (this.mode === 'bow') {
+      if (this.usesBow) {
         const target = this.findBowTarget();
         const gate = !target ? this.gateInBowRange() : null;
         if (target || gate) {
           // THE RANGED RULE: shoot only when (nearly) stopped. A horse drops to a walk while there is
-          // something to shoot at — not just on the frame the arrow flies.
-          if (this.mounted) spd *= RANGED.walkFraction;
-          if (this.attackTimer <= 0 && (this.mounted || moveMag <= RANGED.walkFraction)) {
+          // something to shoot at — not just on the frame the arrow flies. The composite bow bends the
+          // rule: it shoots from a slow ride (or a brisk walk on foot).
+          const frac = this.mode === 'composite' ? COMPOSITE_BOW.moveFraction : RANGED.walkFraction;
+          if (this.mounted) spd *= frac;
+          if (this.attackTimer <= 0 && (this.mounted || moveMag <= frac)) {
             if (target) this.shoot(target); else if (gate) this.shootGate(gate.x, gate.y);
           }
         }
@@ -147,7 +152,7 @@ export class Hero extends Unit {
 
   /** Nearest enemy the bow can reach with a clear line (wall archers are shot over the wall). */
   private findBowTarget(): Enemy | null {
-    const bow = EQUIPMENT.bow;
+    const bow = this.bow;
     let best: Enemy | null = null, bestD = Infinity;
     for (const e of this.raid.enemies) {
       if (!e.alive || e.dormant) continue;
@@ -165,12 +170,12 @@ export class Hero extends Unit {
     const gate = this.raid.gate;
     if (!gate || !gate.alive) return null;
     const gx = Phaser.Math.Clamp(this.x, gate.rect.left, gate.rect.right), gy = Phaser.Math.Clamp(this.y, gate.rect.top, gate.rect.bottom);
-    if (Phaser.Math.Distance.Between(this.x, this.y, gx, gy) > EQUIPMENT.bow.range) return null;
+    if (Phaser.Math.Distance.Between(this.x, this.y, gx, gy) > this.bow.range) return null;
     return hasLineOfSight(this.x, this.y, gx, gy, true) ? { x: gx, y: gy } : null;
   }
 
   private shootGate(gx: number, gy: number) {
-    const bow = EQUIPMENT.bow;
+    const bow = this.bow;
     this.attackTimer = bow.cooldown;
     this.swingSlow = 0.1;
     this.tmp.set(gx - this.x, gy - this.y).normalize();
@@ -180,7 +185,7 @@ export class Hero extends Unit {
   }
 
   private shoot(target: Enemy) {
-    const bow = EQUIPMENT.bow;
+    const bow = this.bow;
     this.attackTimer = bow.cooldown;
     this.swingSlow = 0.1;
     const d = this.distTo(target);

@@ -3,7 +3,7 @@
 // settlement and on whether you own the place or are merely visiting.
 import Phaser from 'phaser';
 import { GameState, type ArmorKind, type HorseKind, type ShieldKind, type WeaponKind } from '../state/GameState';
-import { EQUIPMENT, HORSES, TROOP, TROOP_KINDS, WEAPONS } from '../config/balance';
+import { COMPOSITE_BOW, EQUIPMENT, HORSES, TROOP, TROOP_KINDS, WEAPONS } from '../config/balance';
 import { Sound } from '../systems/Sound';
 import { stockFor } from '../world/Stock';
 import { nextRumor } from '../world/Rumors';
@@ -84,14 +84,22 @@ export class ShopScene extends Phaser.Scene {
             : { label: `${this.price(EQUIPMENT.bow.cost)} gold`, enabled: g.gold >= this.price(EQUIPMENT.bow.cost), onPress: () => this.buy(this.price(EQUIPMENT.bow.cost), () => { g.owned.bow = true; g.equippedWeapon = 'bow'; }) },
         });
       }
-      if (g.owned.bow || g.owned.halberd) {
-        const pick = (k: WeaponKind, label: string) => ({ label, active: g.weaponKind === k, enabled: k === 'sword' || (k === 'bow' ? g.owned.bow : g.owned.halberd), onPress: () => { g.equippedWeapon = k; Sound.click(); g.save(); this.build(); } });
+      if (stock.forge.items.includes('composite') || g.owned.composite) {
+        rows.push({
+          name: COMPOSITE_BOW.name, desc: COMPOSITE_BOW.desc,
+          button: g.owned.composite ? { label: 'OWNED', enabled: false, onPress: () => {} }
+            : { label: `${this.price(COMPOSITE_BOW.cost)} gold`, enabled: g.gold >= this.price(COMPOSITE_BOW.cost), onPress: () => this.buy(this.price(COMPOSITE_BOW.cost), () => { g.owned.composite = true; g.equippedWeapon = 'composite'; }) },
+        });
+      }
+      if (g.owned.bow || g.owned.halberd || g.owned.composite) {
+        const pick = (k: WeaponKind, label: string) => ({ label, active: g.weaponKind === k, enabled: true, onPress: () => { g.equippedWeapon = k; Sound.click(); g.save(); this.build(); } });
         const choices = [pick('sword', 'Sword')];
         if (g.owned.bow) choices.push(pick('bow', 'Bow'));
+        if (g.owned.composite) choices.push(pick('composite', 'Composite'));
         if (g.owned.halberd) choices.push(pick('halberd', 'Halberd'));
-        rows.push({ name: 'Fight with', desc: g.owned.halberd ? 'The halberd out-reaches everything; the bow shoots from range (stand still).' : 'The sword cleaves up close; the bow shoots from range (stand still).', button: null, choices });
+        rows.push({ name: 'Fight with', desc: 'The sword cleaves up close; bows shoot from range (stand still — the composite bow lets you keep a slow ride). Your arrows pierce.', button: null, choices });
       }
-      const weaponName = g.weaponKind === 'bow' ? 'Hunting Bow' : g.weaponKind === 'halberd' ? 'Kingsport Halberd' : WEAPONS[tier - 1].name;
+      const weaponName = g.weaponKind === 'bow' ? 'Hunting Bow' : g.weaponKind === 'composite' ? 'Composite Bow' : g.weaponKind === 'halberd' ? 'Kingsport Halberd' : WEAPONS[tier - 1].name;
       return { title: 'THE FORGE', blurb: `Defense ${g.defense}  ·  weapon: ${weaponName}${markup}`, rows };
     }
     if (this.building === 'barracks') {

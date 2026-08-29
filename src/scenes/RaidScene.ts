@@ -4,7 +4,7 @@
 // archers on the wall, and two waves behind it.
 import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
-import { ABILITIES, ENEMIES, EQUIPMENT, SIEGE } from '../config/balance';
+import { ABILITIES, ENEMIES, EQUIPMENT, PIERCE, RIDER, SIEGE } from '../config/balance';
 import { Hero } from '../entities/Hero';
 import { Troop } from '../entities/Troop';
 import { Enemy, type EnemyKind } from '../entities/Enemy';
@@ -123,6 +123,10 @@ export class RaidScene extends Phaser.Scene {
       }
       spawn('guard', layout.posts.guards ?? [], SIEGE.guards, e => { e.dormant = true; });
       spawn('archer', layout.posts.archers, 2, e => { e.dormant = true; });
+    } else if (cfg.steppe) {
+      spawn('horsearcher', layout.posts.horsearchers ?? [], cfg.steppe.horsearchers);
+      spawn('rider', layout.posts.riders ?? [], cfg.steppe.riders);
+      spawn('noyan', layout.posts.noyans ?? [], cfg.steppe.noyans);
     } else {
       spawn('militia', layout.posts.militia, d.militia);
       spawn('archer', layout.posts.archers, d.archers);
@@ -173,7 +177,7 @@ export class RaidScene extends Phaser.Scene {
       heroHp: this.hero.hp, heroMaxHp: this.hero.maxHp, gold: GameState.gold,
       troopsAlive: this.troops.length, troopsTotal: this.troops.length, enemiesAlive: this.enemies.length,
       hornCd: 0, hornMax: ABILITIES.horn.cooldown, chargeCd: 0, chargeMax: ABILITIES.charge.cooldown, boosted: false,
-      defense: GameState.defense, weapon: this.hero.mode === 'bow' ? 'Bow' : this.hero.weapon.name, gate: this.gate ? 1 : null,
+      defense: GameState.defense, weapon: this.hero.mode === 'bow' ? 'Bow' : this.hero.mode === 'composite' ? 'Composite bow' : this.hero.weapon.name, gate: this.gate ? 1 : null,
       objective: cfg.kind === 'siege' ? 'Break the gate' : `Clear ${this.enemies.length} defenders`,
     };
     this.scene.launch('Hud', { input: this.playerInput, model: this.hud });
@@ -220,7 +224,7 @@ export class RaidScene extends Phaser.Scene {
     this.separateTroops();
 
     const hunters: Enemy[] = [];
-    for (const e of this.enemies) if (e.alive && e.aggro && (e.kind === 'militia' || e.kind === 'guard') && e.target === hero) hunters.push(e);
+    for (const e of this.enemies) if (e.alive && e.aggro && (e.kind === 'militia' || e.kind === 'guard' || e.kind === 'rider') && e.target === hero) hunters.push(e);
     this.surround.update(dt, hero, hunters);
     for (const e of this.enemies) if (e.alive) e.update(dt, hero, this.troops);
 
@@ -410,9 +414,21 @@ export class RaidScene extends Phaser.Scene {
   fireHeroArrow(x: number, y: number, dir: Phaser.Math.Vector2, damage: number, overWalls = false) {
     const arrow = this.arrows.get(x, y, TEX.arrow) as Arrow | null;
     if (!arrow) return;
-    const s = EQUIPMENT.bow;
+    const s = this.hero.bow;
     this.shots += 1;
     arrow.fire(x, y, dir.x * s.arrowSpeed, dir.y * s.arrowSpeed, damage, s.range / s.arrowSpeed + 0.2, 'player', overWalls);
+  }
+
+  /** A steppe rider in your warband looses an arrow. */
+  fireTroopArrow(from: Troop, target: Unit, damage: number) {
+    const dist = from.distTo(target);
+    const t = dist / RIDER.arrowSpeed;
+    this.tmp.set(target.x + target.body.velocity.x * t * 0.6 - from.x, target.y + target.body.velocity.y * t * 0.6 - from.y).normalize();
+    const x = from.x + this.tmp.x * (from.radius + 8), y = from.y + this.tmp.y * (from.radius + 8);
+    const arrow = this.arrows.get(x, y, TEX.arrow) as Arrow | null;
+    if (!arrow) return;
+    arrow.fire(x, y, this.tmp.x * RIDER.arrowSpeed, this.tmp.y * RIDER.arrowSpeed, damage, RIDER.range / RIDER.arrowSpeed + 0.2, 'player', false);
+    Sound.arrow();
   }
 
   private arrowHit(a: unknown, b: unknown) {
@@ -421,14 +437,19 @@ export class RaidScene extends Phaser.Scene {
     if (!arrow.active || !unit.alive || arrow.team === unit.team) return;
     if (unit instanceof Enemy && unit.dormant) return;
     if (unit instanceof Enemy && unit.onWall && !arrow.overWalls) return;
+    if (arrow.hits.has(unit)) return;
     const vx = arrow.body.velocity.x, vy = arrow.body.velocity.y;
-    arrow.kill();
     if (arrow.team === 'player') {
+      // your side's arrows PIERCE: on through the first target at reduced damage, up to a few bodies deep
+      arrow.hits.add(unit);
       dealDamage(this, unit, arrow.damageAmount, unit.x - vx, unit.y - vy, 110, 'hero');
       this.juice.hitStop(EQUIPMENT.bow.hitStop);
       this.juice.shake(EQUIPMENT.bow.shake, 60, true);
       Sound.heroHit(1);
+      arrow.damageAmount = Math.round(arrow.damageAmount * PIERCE.damageMult);
+      if (arrow.hits.size >= PIERCE.maxHits || arrow.damageAmount < 2) arrow.kill();
     } else {
+      arrow.kill();
       dealDamage(this, unit, arrow.damageAmount, unit.x - vx, unit.y - vy, 80, 'enemy');
     }
   }

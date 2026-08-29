@@ -77,8 +77,11 @@ const waitPanel = async (page, ms = 12000) => { const t0 = Date.now(); while (Da
 const panelTitle = (page) => page.evaluate(() => window.__warlord.scene.getScene('MapHud').spec?.title ?? null);
 const hidePanel = (page) => page.evaluate(() => window.__warlord.scene.getScene('MapHud').hidePanel());
 const tapNode = async (page, id, touch = false) => {
+  // bring the place on screen first (a player would drag to it), then tap where it lands
   const pos = await page.evaluate((nid) => { const m = window.__warlord.scene.getScene('Map'); const n = window.__NODES.find(n => n.id === nid); const cam = m.cameras.main; const d = window.__warlord.scale.displayScale.x || 1;
+    cam.stopFollow(); cam.centerOn(n.x, n.y); cam.preRender();
     return { x: ((n.x - cam.worldView.x) * cam.zoom) / d, y: ((n.y - cam.worldView.y) * cam.zoom) / d }; }, id);
+  await sleep(120);
   if (touch) await page.touchscreen.tap(pos.x, pos.y); else await page.mouse.click(pos.x, pos.y);
 };
 const noPatrols = (page) => page.evaluate(() => { Object.defineProperty(window.__GameState, 'patrolChance', { get: () => 0, configurable: true }); });
@@ -139,6 +142,28 @@ async function desktopRun(browser) {
   const ledger = await page.evaluate(() => window.__warlord.scene.getScene('MapHud').ledgerText.text);
   check(/wages/.test(ledger) && /tribute/.test(ledger), `ledger on the map bar: "${ledger}"`);
   await page.screenshot({ path: `${OUT}/d-map.png` });
+  // --- the world chart: zoom out to the whole world, tap a locked region, a sea road, zoom back in
+  const chart = await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); return { regions: m.regionLabels.length, zoom: m.cameras.main.zoom, tex: window.__warlord.textures.exists('world_chart') }; });
+  check(chart.regions === 13 && chart.tex && chart.zoom > 2, `world chart drawn: ${chart.regions} regions, territory zoom ${chart.zoom.toFixed(2)}`);
+  for (let i = 0; i < 8; i++) await clickBtn(page, 'MapHud', '−');
+  const far = await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); return { zoom: m.cameras.main.zoom, detail: m.territoryObjects[0].visible }; });
+  check(far.zoom < 0.6 && !far.detail, `zoomed out to the world (zoom ${far.zoom.toFixed(2)}, territory detail hidden)`);
+  await page.screenshot({ path: `${OUT}/d-world.png` });
+  const romeTap = await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); const cam = m.cameras.main; const d = window.__warlord.scale.displayScale.x || 1; const r = window.__REGIONS.find(r => r.id === 'rome'); const c = r.poly.reduce((a, p) => [a[0] + p[0] / r.poly.length, a[1] + p[1] / r.poly.length], [0, 0]);
+    return { x: ((c[0] - cam.worldView.x) * cam.zoom) / d, y: ((c[1] - cam.worldView.y) * cam.zoom) / d }; });
+  await page.mouse.click(romeTap.x, romeTap.y);
+  await sleep(400);
+  check((await panelTitle(page)) === 'ROME', `tapping a locked region shows its note (${await panelTitle(page)})`);
+  await hidePanel(page);
+  const seaTap = await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); const cam = m.cameras.main; const d = window.__warlord.scale.displayScale.x || 1; const p = [1100, 340];
+    return { x: ((p[0] - cam.worldView.x) * cam.zoom) / d, y: ((p[1] - cam.worldView.y) * cam.zoom) / d }; });
+  await page.mouse.click(seaTap.x, seaTap.y);
+  await sleep(400);
+  const seaSpec = await page.evaluate(() => { const h = window.__warlord.scene.getScene('MapHud'); return h.spec ? h.spec.lines.join(' ') : ''; });
+  check(/No ship will carry you/.test(seaSpec), 'a sea road is locked: "no ship will carry you — yet"');
+  await hidePanel(page);
+  for (let i = 0; i < 8; i++) await clickBtn(page, 'MapHud', '+');
+  await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); m.cameras.main.centerOn(m.token.x, m.token.y); });
 
   // --- raid Ashford and just leave
   await tapNode(page, 'ashford');
@@ -327,6 +352,109 @@ async function desktopRun(browser) {
   await page.evaluate(() => { const S = window.__GameState; S.infamy = 45; S.save(); });
   const lock = await page.evaluate(() => ({ grey: window.__GameState.access('greywater'), thorn: window.__GameState.access('thornhill'), king: window.__GameState.access('kingsport') }));
   check(lock.grey === 'closed' && lock.thorn === 'closed' && lock.king === 'occupied', `Raider lockout: ${JSON.stringify(lock)}`);
+
+  // --- the steppe: march to the Border Stones, watch the camps drift, raid one, get hunted, trade at Khoja's
+  await page.evaluate(() => { const S = window.__GameState; S.infamy = 20; S.gold = 900; S.location = 'greywater'; S.pendingPath = []; S.save(); const g = window.__warlord; g.scene.stop('MapHud'); g.scene.stop('Map'); g.scene.start('Map'); });
+  await waitScene(page, 'Map');
+  await sleep(800);
+  await noPatrols(page);
+  await hidePanel(page);
+  const campsBefore = await page.evaluate(() => window.__CAMPS.map(c => window.__campLocation(c)));
+  await tapNode(page, 'steppe_gate');
+  check(await waitPanel(page, 30000), 'reached the Border Stones');
+  s = await gs(page);
+  check(s.location === 'steppe_gate', `on the steppe (${s.location})`);
+  const campsAfter = await page.evaluate(() => window.__CAMPS.map(c => window.__campLocation(c)));
+  check(campsBefore.join() !== campsAfter.join(), `roaming camps drifted with the days (${campsBefore.join(',')} → ${campsAfter.join(',')})`);
+  await page.screenshot({ path: `${OUT}/d-steppe.png` });
+  const meter = await page.evaluate(() => window.__warlord.scene.getScene('MapHud').infamyLabel.text);
+  check(/STEPPE INFAMY 0/.test(meter), `the steppe keeps its own reputation (${meter})`);
+  // ride to wherever Böke's camp stands and raid it
+  await hidePanel(page);
+  const target = await page.evaluate(() => window.__campLocation(window.__CAMPS[0]));
+  await tapNode(page, target);
+  check(await waitPanel(page, 30000), `rode to ${target}`);
+  const there = await page.evaluate(() => { const S = window.__GameState; const c = window.__CAMPS.find(c => window.__campLocation(c) === S.location); return c ? c.id : null; });
+  if (!there) { await hidePanel(page); const t2 = await page.evaluate(() => window.__campLocation(window.__CAMPS[0])); await tapNode(page, t2); await waitPanel(page, 30000); }
+  const hereCamp = await page.evaluate(() => { const S = window.__GameState; const c = window.__CAMPS.find(c => window.__campLocation(c) === S.location); return c ? c.name : null; });
+  check(!!hereCamp, `standing at a camp (${hereCamp})`);
+  await clickBtn(page, 'MapHud', 'RAID');
+  check(await waitScene(page, 'Raid'), 'camp raid started');
+  await sleep(1200);
+  r = await raidState(page);
+  check(r && r.kind === 'camp' && r.layout === 'steppe' && r.kinds.filter(k => k === 'horsearcher').length === 5, `steppe camp: ${r && r.kinds.join(',')}`);
+  await page.screenshot({ path: `${OUT}/d-camp-raid.png` });
+  // horse archers fire at a gallop: an enemy arrow loosed while its archer is moving fast
+  await page.evaluate(() => { const rr = window.__warlord.scene.getScene('Raid'); for (const e of rr.enemies) e.wakeQuiet(); rr.hero.hp = 9999; rr.hero.maxHp = 9999; });
+  let gallopShot = false;
+  for (let i = 0; i < 40 && !gallopShot; i++) {
+    await sleep(150);
+    gallopShot = await page.evaluate(() => { const rr = window.__warlord.scene.getScene('Raid'); const movingArchers = rr.enemies.filter(e => e.kind === 'horsearcher' && e.alive && e.body.speed > 100);
+      return movingArchers.some(e => e.windingUp) || (rr.arrows.getChildren().some(a => a.active && a.team === 'enemy') && movingArchers.length > 0); });
+  }
+  check(gallopShot, 'horse archers draw and shoot while galloping');
+  await page.evaluate(() => { const rr = window.__warlord.scene.getScene('Raid'); rr.hero.maxHp = 130; rr.hero.hp = 130; });
+  await autoPlay(page, 90);
+  await sleep(1800);
+  check(await waitScene(page, 'Result', 8000), 'camp plundered');
+  const campBtns = await page.evaluate(() => window.__warlord.scene.getScene('Result').children.list.filter(c => c.type === 'Container').map(c => c.list.find(t => t.type === 'Text')?.text));
+  check(campBtns.includes('TAKE THE LOOT') && !campBtns.includes('OCCUPY'), `a camp cannot be occupied (${campBtns.join('/')})`);
+  await clickBtn(page, 'Result', 'TAKE');
+  await waitScene(page, 'Map');
+  await sleep(800);
+  s = await gs(page);
+  const hunted = await page.evaluate(() => ({ hunted: window.__GameState.hunted, steppe: window.__GameState.steppeInfamy, scattered: Object.keys(window.__GameState.campScattered).length }));
+  check(hunted.hunted && hunted.steppe === 8 && hunted.scattered === 1, `raiding a camp: scattered, hunted, steppe infamy ${hunted.steppe}`);
+  // hunted riders: force the intercept on the next stretch
+  await page.evaluate(() => { const S = window.__GameState; S.lastSteppePatrolDay = -99; window.__STEPPE.huntChance = 1; });
+  await hidePanel(page);
+  await tapNode(page, 'steppe_trade');
+  check(await waitPanel(page, 30000) && (await panelTitle(page)) === 'RIDERS', `hunted on the grass: ${await panelTitle(page)}`);
+  await page.evaluate(() => { window.__STEPPE.huntChance = 0; });
+  await clickBtn(page, 'MapHud', 'FIGHT');
+  await waitScene(page, 'Raid');
+  await sleep(700);
+  r = await raidState(page);
+  check(r && r.kind === 'steppePatrol' && r.layout === 'steppeField', `riders' ambush on the open steppe (${r && r.kinds.length} riders)`);
+  await autoPlay(page, 90);
+  await sleep(1800);
+  await waitScene(page, 'Result', 8000);
+  await clickBtn(page, 'Result', 'BACK');
+  await waitScene(page, 'Map');
+  check(await waitPanel(page, 30000), 'travel resumed to Khoja\'s camp');
+  await clickBtn(page, 'MapHud', 'ENTER');
+  check(await waitScene(page, 'Settlement'), 'entered the neutral trade camp');
+  await sleep(400);
+  await page.screenshot({ path: `${OUT}/d-khoja.png` });
+  await clickBtn(page, 'Settlement', 'FORGE');
+  await waitScene(page, 'Shop');
+  await clickBtn(page, 'Shop', '220 gold');
+  s = await gs(page);
+  check(s.owned.composite && s.weapon === 'composite', `bought the composite bow (${s.weapon})`);
+  await clickBtn(page, 'Shop', 'LEAVE');
+  await clickBtn(page, 'Settlement', 'BARRACKS');
+  await waitScene(page, 'Shop');
+  await clickBtn(page, 'Shop', '90 gold');
+  s = await gs(page);
+  check(s.kinds.includes('rider'), `hired a steppe rider (${s.kinds.join(',')})`);
+  await clickBtn(page, 'Shop', 'LEAVE');
+  await clickBtn(page, 'Settlement', 'TO THE MAP');
+  await waitScene(page, 'Map');
+  // the composite bow shoots from a slow ride, and arrows pierce
+  await page.evaluate(() => { const g = window.__warlord; g.scene.stop('MapHud'); g.scene.stop('Map'); g.scene.start('Raid', window.__battles.steppePatrolBattle()); });
+  await waitScene(page, 'Raid');
+  await sleep(800);
+  await page.evaluate(() => { const rr = window.__warlord.scene.getScene('Raid'); rr.hero.setPosition(700, 480); rr.hero.hp = 9999; rr.hero.maxHp = 9999; for (const e of rr.enemies) e.wakeQuiet(); rr.playerInput.joyX = 0; rr.playerInput.joyY = 0.6; rr.shots = 0; });
+  await sleep(2000);
+  const compShots = await page.evaluate(() => window.__warlord.scene.getScene('Raid').shots);
+  check(compShots > 0, `composite bow shoots while moving at 60% (${compShots} shots)`);
+  const pierced = await page.evaluate(async () => { const rr = window.__warlord.scene.getScene('Raid'); let best = 0; const t0 = Date.now(); while (Date.now() - t0 < 4000) { for (const a of rr.arrows.getChildren()) if (a.active && a.team === 'player') best = Math.max(best, a.hits.size); await new Promise(r => setTimeout(r, 50)); } return best; });
+  check(pierced >= 1, `arrows carry on through targets (max hits seen on one arrow: ${pierced})`);
+  const riderFired = await page.evaluate(() => window.__warlord.scene.getScene('Raid').troops.some(t => t.ranged));
+  check(riderFired, 'the steppe rider fights mounted and ranged');
+  await page.evaluate(() => { const g = window.__warlord; g.scene.stop('Hud'); g.scene.stop('Raid'); g.scene.start('Map'); });
+  await waitScene(page, 'Map');
+  await sleep(500);
 
   // --- save / reload keeps conquests
   await page.reload();

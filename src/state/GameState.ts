@@ -1,23 +1,23 @@
 // GameState.ts — the whole run: gold, day, infamy, gear, horse, your named troops, where you are on
 // the map, what state each settlement is in, who garrisons what, and the daily ledger (wages in,
 // tribute out). Saved to browser storage (single slot).
-import { CONQUEST, DEFENSE_SOFTCAP, EQUIPMENT, HERO, HORSES, INFAMY, PATROLS, RERAID, SIEGE, TRIBUTE, TROOP, UPKEEP, VILLAGE_TIERS } from '../config/balance';
+import { CONQUEST, DEFENSE_SOFTCAP, EQUIPMENT, HERO, HORSES, INFAMY, PATROLS, RERAID, SIEGE, STEPPE, TRIBUTE, TROOP, UPKEEP, VILLAGE_TIERS } from '../config/balance';
 import { nameAt } from '../utils/names';
-import { NODES, nodeById } from '../world/WorldMap';
+import { NODES, nodeById, territoryOf, type Territory } from '../world/WorldMap';
 
-export type TroopKind = 'raider' | 'levy' | 'guard';
+export type TroopKind = 'raider' | 'levy' | 'guard' | 'rider';
 export interface TroopRecord { id: number; name: string; kind: TroopKind; }
 export interface FallenRecord { name: string; raid: number; where: string; }
-export type WeaponKind = 'sword' | 'bow' | 'halberd';
+export type WeaponKind = 'sword' | 'bow' | 'halberd' | 'composite';
 export type ArmorKind = 'none' | 'leather' | 'plate';
 export type ShieldKind = 'none' | 'round' | 'kite';
 export type HorseKind = 'none' | 'courser' | 'destrier';
-export interface Owned { leather: boolean; plate: boolean; round: boolean; kite: boolean; bow: boolean; halberd: boolean; courser: boolean; destrier: boolean; }
+export interface Owned { leather: boolean; plate: boolean; round: boolean; kite: boolean; bow: boolean; halberd: boolean; courser: boolean; destrier: boolean; composite: boolean; }
 export interface SettlementState { timesRaided: number; lastRaidDay: number | null; occupied: boolean; sacked: boolean; wealth: number; }
 export interface TravelResume { from: string; to: string; }
 export type Conquest = 'sack' | 'occupy' | 'leave';
 export interface DayEvent { kind: 'unpaid' | 'desert'; text: string; }
-export type Access = 'camp' | 'occupied' | 'visit' | 'closed' | 'sacked';
+export type Access = 'camp' | 'occupied' | 'visit' | 'closed' | 'sacked' | 'trade';
 /** A won battle whose sack/occupy choice has not been made yet (survives a reload). */
 export interface PendingVictory { goldEarned: number; deadTroopIds: number[]; battle: BattleOutcome; fallen: string[]; }
 
@@ -28,7 +28,7 @@ export interface VillageInfo {
   militia: number; archers: number; captains: number; statMult: number; goldMult: number; total: number;
 }
 
-export interface BattleOutcome { kind: 'village' | 'patrol' | 'siege'; villageId?: string; tier?: number; name: string; }
+export interface BattleOutcome { kind: 'village' | 'patrol' | 'siege' | 'camp' | 'steppePatrol'; villageId?: string; campId?: string; tier?: number; name: string; }
 
 const SAVE_VERSION = 3;
 const SAVE_KEY = `warlord.save.v${SAVE_VERSION}`;
@@ -41,6 +41,7 @@ interface SaveData {
   settlements: Record<string, SettlementState>; garrisons: Record<string, TroopRecord[]>;
   fortifyStepsDone: number; fortifyCarry: number; lastPatrolDay: number; unpaidDays: number; seenMapHint: boolean;
   rumorsHeard: string[]; pendingVictory: PendingVictory | null;
+  steppeInfamy: number; campScattered: Record<string, number>; huntedUntil: number; lastSteppePatrolDay: number;
 }
 
 class GameStateStore {
@@ -52,7 +53,7 @@ class GameStateStore {
   horse: HorseKind = 'none';
   armor: ArmorKind = 'none';
   shield: ShieldKind = 'none';
-  owned: Owned = { leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false };
+  owned: Owned = { leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false, composite: false };
   troops: TroopRecord[] = [];
   fallen: FallenRecord[] = [];
   deserted: string[] = [];
@@ -70,6 +71,11 @@ class GameStateStore {
   seenMapHint = false;
   rumorsHeard: string[] = [];
   pendingVictory: PendingVictory | null = null;
+  /** the steppe keeps its own opinion of you; homeland infamy and bounty are untouched by it */
+  steppeInfamy = 0;
+  campScattered: Record<string, number> = {};
+  huntedUntil = -1;
+  lastSteppePatrolDay = -99;
   private nextId = 1;
   private nameCursor = 0;
   private snapshot: SaveData | null = null;
@@ -82,7 +88,8 @@ class GameStateStore {
   reset() {
     this.gold = UPKEEP.startingGold; this.day = 1; this.infamy = 0; this.weaponTier = 1; this.equippedWeapon = 'sword'; this.horse = 'none';
     this.armor = 'none'; this.shield = 'none';
-    this.owned = { leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false };
+    this.owned = { leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false, composite: false };
+    this.steppeInfamy = 0; this.campScattered = {}; this.huntedUntil = -1; this.lastSteppePatrolDay = -99;
     this.troops = []; this.fallen = []; this.deserted = []; this.raidsDone = 0; this.location = 'camp'; this.pendingPath = []; this.resumeTravel = null;
     this.patrolPending = false; this.settlements = {}; this.garrisons = {}; this.fortifyStepsDone = 0; this.fortifyCarry = 0; this.lastPatrolDay = -99;
     this.unpaidDays = 0; this.seenMapHint = false; this.rumorsHeard = []; this.pendingVictory = null;
@@ -117,9 +124,11 @@ class GameStateStore {
   get heroScale() { return this.horse === 'none' ? 1 : HORSES[this.horse].scale; }
   get weaponKind(): WeaponKind {
     if (this.equippedWeapon === 'bow' && this.owned.bow) return 'bow';
+    if (this.equippedWeapon === 'composite' && this.owned.composite) return 'composite';
     if (this.equippedWeapon === 'halberd' && this.owned.halberd) return 'halberd';
     return 'sword';
   }
+  get usesBow() { const k = this.weaponKind; return k === 'bow' || k === 'composite'; }
   /** Damage after defense: a share is shaved off, more with more defense, never all of it. */
   applyDefense(amount: number) {
     const d = this.defense;
@@ -136,6 +145,14 @@ class GameStateStore {
   get patrolChance() { return INFAMY.interceptChance[this.infamyTier] ?? 0; }
   patrolConfig() { return PATROLS[this.infamyTier]; }
   get siegeUnlocked() { return this.infamyTier >= SIEGE.unlockTier; }
+
+  // ------------------------------------------------------------ territories
+  get territory(): Territory { return territoryOf(this.location); }
+  /** Infamy as the territory you are standing in sees it. */
+  territoryInfamy(t: Territory = this.territory) { return t === 'steppe' ? this.steppeInfamy : this.infamy; }
+  tierOf(value: number) { let t = 0; INFAMY.tiers.forEach((tier, i) => { if (value >= tier.min) t = i; }); return t; }
+  get steppeTier() { return this.tierOf(this.steppeInfamy); }
+  get hunted() { return this.day < this.huntedUntil; }
 
   // ------------------------------------------------------------ the ledger
   get wagesPerDay() { return this.troops.length * UPKEEP.wage; }
@@ -208,6 +225,7 @@ class GameStateStore {
    */
   access(id: string): Access {
     if (id === 'camp') return 'camp';
+    if (nodeById(id).kind === 'trade') return 'trade';
     const s = this.settlement(id);
     if (s.occupied) return 'occupied';
     if (s.sacked) return 'sacked';
@@ -261,6 +279,16 @@ class GameStateStore {
     if (battle.kind === 'patrol') {
       this.addInfamy(INFAMY.perPatrol);
       this.patrolPending = false;
+    } else if (battle.kind === 'steppePatrol') {
+      this.steppeInfamy += INFAMY.perPatrol;
+      this.patrolPending = false;
+      summary = `Riders routed: +${goldEarned} gold. The steppe remembers.`;
+    } else if (battle.kind === 'camp' && battle.campId) {
+      // a roaming camp: loot it, it scatters, and the other camps' riders come hunting
+      this.campScattered[battle.campId] = this.day + STEPPE.scatterDays;
+      this.huntedUntil = this.day + STEPPE.huntDays;
+      this.steppeInfamy += STEPPE.campInfamy;
+      summary = `${battle.name} plundered: +${goldEarned} gold. Its riders scatter — and the other camps ride to hunt you for ${STEPPE.huntDays} days.`;
     } else if (battle.villageId) {
       const id = battle.villageId;
       const node = nodeById(id);
@@ -317,12 +345,13 @@ class GameStateStore {
       fortifyStepsDone: this.fortifyStepsDone, fortifyCarry: this.fortifyCarry, lastPatrolDay: this.lastPatrolDay,
       unpaidDays: this.unpaidDays, seenMapHint: this.seenMapHint,
       rumorsHeard: [...this.rumorsHeard], pendingVictory: this.pendingVictory ? JSON.parse(JSON.stringify(this.pendingVictory)) : null,
+      steppeInfamy: this.steppeInfamy, campScattered: { ...this.campScattered }, huntedUntil: this.huntedUntil, lastSteppePatrolDay: this.lastSteppePatrolDay,
     };
   }
   fromJSON(d: SaveData) {
     this.gold = d.gold; this.day = d.day; this.infamy = d.infamy; this.weaponTier = d.weaponTier;
     this.equippedWeapon = d.equippedWeapon; this.horse = d.horse; this.armor = d.armor ?? 'none'; this.shield = d.shield ?? 'none';
-    this.owned = Object.assign({ leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false }, d.owned);
+    this.owned = Object.assign({ leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false, composite: false }, d.owned);
     this.troops = d.troops.map(t => ({ ...t, kind: t.kind ?? 'raider' })); this.fallen = (d.fallen ?? []).map(f => ({ ...f })); this.deserted = [...(d.deserted ?? [])];
     this.nextId = d.nextId; this.nameCursor = d.nameCursor; this.raidsDone = d.raidsDone;
     this.location = d.location; this.pendingPath = [...(d.pendingPath ?? [])]; this.resumeTravel = d.resumeTravel ? { ...d.resumeTravel } : null;
@@ -331,6 +360,8 @@ class GameStateStore {
     this.fortifyStepsDone = d.fortifyStepsDone ?? 0; this.fortifyCarry = d.fortifyCarry ?? 0; this.lastPatrolDay = d.lastPatrolDay ?? -99;
     this.unpaidDays = d.unpaidDays ?? 0; this.seenMapHint = d.seenMapHint ?? false;
     this.rumorsHeard = [...(d.rumorsHeard ?? [])]; this.pendingVictory = d.pendingVictory ? JSON.parse(JSON.stringify(d.pendingVictory)) : null;
+    this.steppeInfamy = d.steppeInfamy ?? 0; this.campScattered = { ...(d.campScattered ?? {}) }; this.huntedUntil = d.huntedUntil ?? -1; this.lastSteppePatrolDay = d.lastSteppePatrolDay ?? -99;
+    this.owned.composite = this.owned.composite ?? false;
   }
   /** Parse and sanity-check the stored save without touching the live state. */
   private peek(): SaveData | null {

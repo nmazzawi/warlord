@@ -9,10 +9,12 @@ import { PAL } from '../scenes/ui';
 export const TEX = {
   px: 'px',
   hero: 'hero', troop: 'troop', militia: 'militia', archer: 'archer', captain: 'captain', guard: 'guard', boss: 'boss',
+  horsearcher: 'horsearcher', rider: 'rider', noyan: 'noyan', trooprider: 'trooprider',
   arrow: 'arrow', coin: 'coin', ring: 'ring', dot: 'dot', blade: 'blade', horse: 'horse', shield: 'shield', shadow: 'shadow',
   slash: (tier: number) => `slash${tier}`,
   hut: (w: number, h: number) => `hut_${w}x${h}`,
   mapCamp: 'map_camp', mapVillage: 'map_village', mapTown: 'map_town', mapToken: 'map_token', mapCross: 'map_cross', mapPalisade: 'map_palisade',
+  mapYurts: 'map_yurts', mapWaypoint: 'map_waypoint', mapTrade: 'map_trade', mapGate: 'map_gate',
   forge: 'bld_forge', barracks: 'bld_barracks', stables: 'bld_stables', inn: 'bld_inn', tent: 'tent', campfire: 'campfire', signpost: 'signpost',
 };
 
@@ -137,6 +139,11 @@ export function generateTextures(scene: Phaser.Scene) {
   figure(scene, TEX.captain, { size: 56, radius: 15, tunic: COLORS.captain, helmet: 'plume', weapon: 'spear' });
   figure(scene, TEX.guard,   { size: 44, radius: 12, tunic: 0x5a6a8a, helmet: 'steel', weapon: 'sword', shield: true });
   figure(scene, TEX.boss,    { size: 64, radius: 17, tunic: 0x7a1414, helmet: 'crest', helmetColor: 0xb0b6c4, plume: PAL.goldHi, weapon: 'halberd', shield: true, cloak: 0x4a0c0c });
+  // the steppe: fur hats, curved bows, lances (the horse is drawn separately under them)
+  figure(scene, TEX.horsearcher, { size: 44, radius: 12, tunic: 0x8a6a3c, helmet: 'cap', helmetColor: 0x4a3a2a, weapon: 'bow' });
+  figure(scene, TEX.rider,       { size: 44, radius: 12, tunic: 0x6b5030, helmet: 'cap', helmetColor: 0x3a2a1a, weapon: 'spear', shield: true });
+  figure(scene, TEX.noyan,       { size: 56, radius: 16, tunic: 0x9a4a2a, helmet: 'plume', helmetColor: 0x8d95a6, plume: PAL.goldHi, weapon: 'spear', shield: true, cloak: 0x5a2a12 });
+  figure(scene, TEX.trooprider,  { size: 40, radius: 11, tunic: 0x7a8a4a, helmet: 'cap', helmetColor: 0x4a3a2a, weapon: 'bow' });
 
   // arrow: a thin shaft with a bright tip
   gr = g(scene);
@@ -217,7 +224,7 @@ export function generateTextures(scene: Phaser.Scene) {
 }
 
 /** Huts, rocks, palisade walls, stone walls and the gate of any size, baked on first use. */
-export function obstacleTexture(scene: Phaser.Scene, kind: 'hut' | 'rock' | 'wall' | 'stone' | 'gate', w: number, h: number): string {
+export function obstacleTexture(scene: Phaser.Scene, kind: 'hut' | 'rock' | 'wall' | 'stone' | 'gate' | 'yurt', w: number, h: number): string {
   const key = `${kind}_${w}x${h}`;
   if (scene.textures.exists(key)) return key;
   const s = g(scene);
@@ -228,6 +235,15 @@ export function obstacleTexture(scene: Phaser.Scene, kind: 'hut' | 'rock' | 'wal
     s.fillStyle(0x9d6f3f, 1);
     for (let x = 6; x < w - 6; x += 12) s.fillRect(x, 5, 6, Math.floor(h * 0.42) - 4); // thatch lines
     s.fillStyle(0x3a2716, 1).fillRect(Math.floor(w / 2) - 6, h - 16, 12, 13); // door
+  } else if (kind === 'yurt') {
+    // a round felt tent with a smoke hole and a low door
+    s.fillStyle(0x2b1c10, 1).fillCircle(w / 2, h / 2, w / 2);
+    s.fillStyle(0xd9cdb2, 1).fillCircle(w / 2, h / 2, w / 2 - 3);
+    s.fillStyle(0xc4b394, 1).fillCircle(w / 2, h / 2, w / 2 - 12);
+    s.lineStyle(2, 0x8a6a3c, 0.8);
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; s.lineBetween(w / 2, h / 2, w / 2 + Math.cos(a) * (w / 2 - 4), h / 2 + Math.sin(a) * (h / 2 - 4)); }
+    s.fillStyle(0x3a2716, 1).fillCircle(w / 2, h / 2, 5);
+    s.fillStyle(0x3a2716, 1).fillRect(w / 2 - 6, h - 14, 12, 11);
   } else if (kind === 'rock') {
     s.fillStyle(0x2e302c, 1).fillEllipse(w / 2, h / 2 + 2, w, h - 2);
     s.fillStyle(0x6f726b, 1).fillEllipse(w / 2, h / 2, w - 4, h - 6);
@@ -305,6 +321,32 @@ function mapIcons(scene: Phaser.Scene) {
   s.fillStyle(0x4a3218, 1);
   for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; s.fillCircle(30 + Math.cos(a) * 24, 30 + Math.sin(a) * 24, 3); }
   s.generateTexture(TEX.mapPalisade, 60, 60);
+  s.destroy();
+  // a roaming camp: three yurts
+  s = g(scene);
+  const yurtIcon = (x: number, y: number, r: number) => { s.fillStyle(0x2b1c10, 1).fillCircle(x, y, r + 1.5); s.fillStyle(0xd9cdb2, 1).fillCircle(x, y, r); s.fillStyle(0x3a2716, 1).fillCircle(x, y, 2); };
+  yurtIcon(14, 24, 10); yurtIcon(34, 14, 11); yurtIcon(40, 32, 9);
+  s.generateTexture(TEX.mapYurts, 54, 44);
+  s.destroy();
+  // a waypoint: a cairn
+  s = g(scene);
+  s.fillStyle(0x2e302c, 1).fillEllipse(12, 18, 22, 10);
+  s.fillStyle(0x6f726b, 1).fillEllipse(12, 12, 16, 10);
+  s.fillStyle(0x9a9d94, 1).fillEllipse(12, 6, 10, 7);
+  s.generateTexture(TEX.mapWaypoint, 24, 24);
+  s.destroy();
+  // the trade camp: a big yurt with a banner
+  s = g(scene);
+  yurtIcon(24, 26, 16);
+  s.fillStyle(0x3a2716, 1).fillRect(38, 2, 3, 26);
+  s.fillStyle(PAL.gold, 1).fillTriangle(41, 3, 41, 15, 54, 9);
+  s.generateTexture(TEX.mapTrade, 56, 46);
+  s.destroy();
+  // the border stones
+  s = g(scene);
+  s.fillStyle(0x5f6169, 1).fillRect(6, 10, 10, 28).fillRect(26, 6, 10, 32);
+  s.fillStyle(0x9a9ca6, 1).fillRect(8, 12, 6, 24).fillRect(28, 8, 6, 28);
+  s.generateTexture(TEX.mapGate, 44, 40);
   s.destroy();
 }
 

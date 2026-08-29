@@ -4,7 +4,7 @@
 import type { HorseKind, TroopKind } from '../state/GameState';
 import { nodeById } from './WorldMap';
 
-export type ForgeItem = 'leather' | 'plate' | 'round' | 'kite' | 'bow';
+export type ForgeItem = 'leather' | 'plate' | 'round' | 'kite' | 'bow' | 'composite';
 export interface StockDef {
   forge: { swordMaxTier: number; items: ForgeItem[] };
   barracks: { kind: TroopKind } | null;
@@ -21,6 +21,10 @@ export function stockFor(settlementId: string, visiting = false): StockDef {
     return { forge: { swordMaxTier: 3, items: ['leather', 'round', 'bow'] }, barracks: { kind: 'raider' }, stables: ['courser', 'destrier'], inn: false, markup: 1 };
   }
   const node = nodeById(settlementId);
+  if (node.kind === 'trade') {
+    // Khoja's camp: neutral, no markup, steppe goods — the composite bow and mounted archers for hire
+    return { forge: { swordMaxTier: 1, items: ['leather', 'composite'] }, barracks: { kind: 'rider' }, stables: ['courser'], inn: true, markup: 1 };
+  }
   if (node.kind === 'town') {
     return visiting
       ? { forge: { swordMaxTier: 2, items: ['leather', 'round'] }, barracks: null, stables: ['courser'], inn: true, markup: VISIT_MARKUP }

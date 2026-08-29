@@ -79,7 +79,8 @@ export class SettlementScene extends Phaser.Scene {
     const u = uiUnit(w, h, dprOf(this));
     const isCamp = this.id === 'camp';
     const node = isCamp ? null : nodeById(this.id);
-    const kind: 'camp' | 'village' | 'town' = isCamp ? 'camp' : node!.kind === 'town' ? 'town' : 'village';
+    const trade = node?.kind === 'trade';
+    const kind: 'camp' | 'village' | 'town' = isCamp || trade ? 'camp' : node!.kind === 'town' ? 'town' : 'village';
     this.add.image(0, 0, this.backdrop(kind, Math.ceil(w), Math.ceil(h))).setOrigin(0);
 
     // title block
@@ -87,6 +88,7 @@ export class SettlementScene extends Phaser.Scene {
     const garrison = (GameState.garrisons[this.id] ?? []).map(t => t.name).join(', ');
     const tribute = isCamp ? 0 : node!.kind === 'town' ? 15 : 4 + (node!.tier ?? 1);
     const sub = isCamp ? 'Home. Your forge, barracks and stables.'
+      : trade ? "Neutral ground. Khoja trades with anyone — steppe riders for hire, and the composite bow."
       : this.visiting ? 'Visiting as a customer  ·  prices +50%  ·  the locals watch you'
       : `Occupied  ·  tribute +${tribute}/day  ·  garrison: ${garrison || 'none'}`;
     this.add.text(w / 2, 12 * u, name, displayStyle(28 * u, CSS.goldHi)).setOrigin(0.5, 0);
@@ -96,9 +98,9 @@ export class SettlementScene extends Phaser.Scene {
     // the buildings: big tap targets, a row (landscape) or a column (portrait)
     const stock = stockFor(this.id, this.visiting);
     const cards: Card[] = [
-      { id: 'forge', label: 'FORGE', tex: TEX.forge, sub: `${stock.forge.swordMaxTier > 1 ? `swords to tier ${stock.forge.swordMaxTier}` : 'no swords'}${stock.forge.items.includes('plate') ? ', plate' : stock.forge.items.includes('leather') ? ', armor' : ''}${stock.forge.items.includes('bow') ? ', bow' : ''}${this.visiting ? ' · +50%' : ''}` },
+      { id: 'forge', label: 'FORGE', tex: TEX.forge, sub: `${stock.forge.swordMaxTier > 1 ? `swords to tier ${stock.forge.swordMaxTier}` : 'no swords'}${stock.forge.items.includes('plate') ? ', plate' : stock.forge.items.includes('leather') ? ', armor' : ''}${stock.forge.items.includes('bow') ? ', bow' : ''}${stock.forge.items.includes('composite') ? ', composite bow' : ''}${this.visiting ? ' · +50%' : ''}` },
     ];
-    if (stock.barracks) cards.push({ id: 'barracks', label: 'BARRACKS', tex: TEX.barracks, sub: stock.barracks.kind === 'guard' ? 'recruit town guards' : stock.barracks.kind === 'levy' ? 'recruit levies' : 'recruit raiders' });
+    if (stock.barracks) cards.push({ id: 'barracks', label: 'BARRACKS', tex: TEX.barracks, sub: stock.barracks.kind === 'guard' ? 'recruit town guards' : stock.barracks.kind === 'levy' ? 'recruit levies' : stock.barracks.kind === 'rider' ? 'hire steppe riders' : 'recruit raiders' });
     else if (!isCamp) cards.push({ id: 'barracks', label: 'BARRACKS', tex: TEX.barracks, sub: '', locked: "the locals won't fight for you" });
     if (stock.stables.length) cards.push({ id: 'stables', label: 'STABLES', tex: TEX.stables, sub: stock.stables.join(', ') + (this.visiting ? ' · +50%' : '') });
     if (stock.inn) cards.push({ id: 'inn', label: 'INN', tex: TEX.inn, sub: nextRumor(this.id) ? 'buy a rumor — news of the world' : 'you have heard all they know' });

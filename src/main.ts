@@ -17,7 +17,10 @@ import { ResultScene } from './scenes/ResultScene';
 import { Sound } from './systems/Sound';
 import { GameState } from './state/GameState';
 import { NODES } from './world/WorldMap';
-import { patrolBattle, siegeBattle, villageBattle } from './world/Battles';
+import { campBattle, patrolBattle, siegeBattle, steppePatrolBattle, villageBattle } from './world/Battles';
+import { CAMPS, campLocation } from './world/Steppe';
+import { REGIONS } from './world/WorldChart';
+import { STEPPE } from './config/balance';
 
 const dpr = Math.min(window.devicePixelRatio || 1, 2);
 const px = (css: number) => Math.max(1, Math.floor(css * dpr));
@@ -56,7 +59,11 @@ window.visualViewport?.addEventListener('resize', fitSoon);
 (window as unknown as { __warlord: Phaser.Game; __GameState: typeof GameState; __NODES: typeof NODES }).__warlord = game;
 (window as unknown as { __GameState: typeof GameState }).__GameState = GameState;
 (window as unknown as { __NODES: typeof NODES }).__NODES = NODES;
-(window as unknown as { __battles: object }).__battles = { villageBattle, siegeBattle, patrolBattle };
+(window as unknown as { __battles: object }).__battles = { villageBattle, siegeBattle, patrolBattle, campBattle, steppePatrolBattle };
+(window as unknown as { __CAMPS: typeof CAMPS; __campLocation: typeof campLocation; __REGIONS: typeof REGIONS }).__CAMPS = CAMPS;
+(window as unknown as { __campLocation: typeof campLocation }).__campLocation = campLocation;
+(window as unknown as { __REGIONS: typeof REGIONS }).__REGIONS = REGIONS;
+(window as unknown as { __STEPPE: typeof STEPPE }).__STEPPE = STEPPE;
 
 // Save when the tab is hidden or closed (belt and braces — the game also saves at every safe point).
 window.addEventListener('pagehide', () => GameState.save());

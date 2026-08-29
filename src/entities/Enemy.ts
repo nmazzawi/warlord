@@ -12,7 +12,8 @@ import { TEX } from '../systems/Textures';
 import { dealDamage } from '../systems/Combat';
 import { hasLineOfSight } from '../systems/LineOfSight';
 
-export type EnemyKind = 'militia' | 'archer' | 'captain' | 'guard' | 'boss';
+export type EnemyKind = 'militia' | 'archer' | 'captain' | 'guard' | 'boss' | 'horsearcher' | 'rider' | 'noyan';
+const MOUNTED: EnemyKind[] = ['horsearcher', 'rider', 'noyan'];
 
 export interface EnemyMult { hp: number; dmg: number; gold: number; }
 
@@ -40,15 +41,21 @@ export class Enemy extends Unit {
   private detourUntil = 0;
   private lastPos: Phaser.Math.Vector2;
   private telegraph: Phaser.GameObjects.Image | null = null;
+  private mount: Phaser.GameObjects.Image | null = null;
+  private strafeDir = Math.random() < 0.5 ? 1 : -1;
+  private strafeTimer = 0;
   private tmp = new Phaser.Math.Vector2();
 
   constructor(scene: RaidScene, x: number, y: number, kind: EnemyKind, mult: EnemyMult) {
     const s = ENEMIES[kind];
-    const tex = kind === 'militia' ? TEX.militia : kind === 'archer' ? TEX.archer : kind === 'captain' ? TEX.captain : kind === 'guard' ? TEX.guard : TEX.boss;
+    const tex = kind === 'militia' ? TEX.militia : kind === 'archer' ? TEX.archer : kind === 'captain' ? TEX.captain : kind === 'guard' ? TEX.guard : kind === 'boss' ? TEX.boss
+      : kind === 'horsearcher' ? TEX.horsearcher : kind === 'rider' ? TEX.rider : TEX.noyan;
+    const mounted = MOUNTED.includes(kind);
     super(scene, x, y, tex, {
       hp: Math.round(s.hp * mult.hp), speed: s.speed, radius: s.radius, team: 'enemy', barColor: 0xe0453a,
-      barWidth: kind === 'captain' ? 34 : kind === 'boss' ? 44 : 22,
+      barWidth: kind === 'captain' || kind === 'noyan' ? 34 : kind === 'boss' ? 44 : 22, scale: mounted ? 1.1 : 1,
     });
+    if (mounted) this.mount = scene.add.image(x, y + 4, TEX.horse).setDepth(19).setScale(1.1).setTint(kind === 'noyan' ? 0xd9c4a0 : 0xffffff);
     this.kind = kind;
     this.stats = { speed: s.speed, cooldown: s.cooldown, windup: s.windup, reach: s.reach, aggro: s.aggro };
     this.damageAmount = s.damage * mult.dmg;
@@ -75,7 +82,8 @@ export class Enemy extends Unit {
     this.flash(70);
   }
 
-  get heavy() { return this.kind === 'captain' || this.kind === 'boss'; }
+  get heavy() { return this.kind === 'captain' || this.kind === 'boss' || this.kind === 'noyan'; }
+  get mounted() { return this.mount !== null; }
 
   update(dt: number, hero: Hero, troops: Troop[]) {
     this.attackTimer -= dt;
@@ -99,10 +107,11 @@ export class Enemy extends Unit {
 
     if (this.windingUp) {
       this.windupTimer -= dt;
-      // militia lunge after you mid-swing (so you can't just stroll backwards); captain and archer stay planted
-      if (this.kind === 'militia' && this.target.alive && this.edgeDistTo(this.target) > 2) {
+      // militia lunge after you mid-swing (so you can't just stroll backwards); captain and archer stay planted;
+      // a horse archer keeps riding — the draw is on the move
+      if ((this.kind === 'militia' || this.kind === 'rider') && this.target.alive && this.edgeDistTo(this.target) > 2) {
         this.moveToward(this.target.x, this.target.y, this.stats.speed * 0.7);
-      } else {
+      } else if (this.kind !== 'horsearcher') {
         this.desired.set(0, 0);
       }
       // swell up as the blow approaches; snapping back to normal size IS the strike
@@ -115,9 +124,10 @@ export class Enemy extends Unit {
     }
 
     switch (this.kind) {
-      case 'militia': case 'guard': this.militia(hero); break;
+      case 'militia': case 'guard': case 'rider': this.militia(hero); break;
       case 'archer': this.archer(); break;
-      case 'captain': case 'boss': this.captain(); break;
+      case 'captain': case 'boss': case 'noyan': this.captain(); break;
+      case 'horsearcher': this.horseArcher(dt); break;
     }
     this.trackStuck(dt);
     this.applyVelocity(dt);
@@ -231,6 +241,29 @@ export class Enemy extends Unit {
     }
   }
 
+  /** The steppe's signature: shoot AT FULL GALLOP, keep distance, retreat when pressed, circle when not. */
+  private horseArcher(dt: number) {
+    const t = this.target!;
+    const s = ENEMIES.horsearcher;
+    const d = this.distTo(t);
+    const los = hasLineOfSight(this.x, this.y, t.x, t.y);
+    this.strafeTimer -= dt;
+    if (this.strafeTimer <= 0) { this.strafeTimer = Phaser.Math.FloatBetween(1.5, 3); this.strafeDir *= -1; }
+    // the shot never stops the horse: a short draw, then loose, still moving
+    if (this.attackTimer <= 0 && los && d <= s.maxDist + 30 && !this.windingUp) this.beginWindup();
+    if (d < s.minDist) {
+      // fall back — away from the target, drifting sideways so they don't just run into a corner
+      const ax = (this.x - t.x) / (d || 1), ay = (this.y - t.y) / (d || 1);
+      this.moveToward(this.x + ax * 120 + -ay * 60 * this.strafeDir, this.y + ay * 120 + ax * 60 * this.strafeDir, this.stats.speed);
+    } else if (d > s.maxDist || !los) {
+      if (!this.followFlow(true)) this.moveToward(t.x, t.y, this.stats.speed);
+    } else {
+      // circle at range
+      const ax = (this.x - t.x) / d, ay = (this.y - t.y) / d;
+      this.moveToward(this.x + -ay * 80 * this.strafeDir, this.y + ax * 80 * this.strafeDir, this.stats.speed * 0.8);
+    }
+  }
+
   private captain() {
     const t = this.target!;
     const ed = this.edgeDistTo(t);
@@ -273,22 +306,32 @@ export class Enemy extends Unit {
     this.attackTimer = this.stats.cooldown;
     const t = this.target;
     if (!t || !t.alive || !this.alive) return;
-    if (this.kind === 'archer') { this.raid.fireArrow(this, t, this.onWall); return; }
+    if (this.kind === 'archer' || this.kind === 'horsearcher') { this.raid.fireArrow(this, t, this.onWall); return; }
     const angle = Math.atan2(t.y - this.y, t.x - this.x);
     this.raid.juice.slash(this.x, this.y, angle, 1, this.heavy ? 0xff6040 : 0xffb0b0, this.heavy ? 0.9 : 0.5);
     // a little forgiveness on reach, but stepping back makes it whiff — and it must be LESS than a
     // militia's width (22px) so the second row of a crowd can't hit you through the first.
     if (this.edgeDistTo(t) <= this.stats.reach + 6) {
-      const kb = this.kind === 'captain' ? ENEMIES.captain.knockback : this.kind === 'boss' ? ENEMIES.boss.knockback : 90;
+      const kb = this.kind === 'captain' ? ENEMIES.captain.knockback : this.kind === 'boss' ? ENEMIES.boss.knockback : this.kind === 'noyan' ? ENEMIES.noyan.knockback : 90;
       dealDamage(this.raid, t, this.damageAmount, this.x, this.y, kb, 'enemy');
     } else {
       this.raid.juice.damageNumber(this.x, this.y - this.radius - 10, 'miss', 0xbbbbbb, 11);
     }
   }
 
+  override syncVisuals(now: number) {
+    super.syncVisuals(now);
+    if (this.mount) this.mount.setVisible(this.alive).setPosition(this.x, this.y + 4).setFlipX(this.body.velocity.x < 0);
+  }
+
+  override destroyUnit() {
+    this.mount?.destroy();
+    super.destroyUnit();
+  }
+
   protected override die() {
     if (this.telegraph) { this.telegraph.destroy(); this.telegraph = null; }
-    this.setScale(1);
+    this.setScale(this.mounted ? 1.1 : 1);
     super.die();
   }
 }

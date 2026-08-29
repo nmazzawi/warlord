@@ -31,7 +31,7 @@ export class ResultScene extends Phaser.Scene {
 
   private finish(choice: Conquest) {
     const d = this.result;
-    const summary = GameState.commitVictory(d.goldEarned, d.deadTroopIds, { kind: d.battle.kind, villageId: d.battle.villageId, tier: d.battle.tier, name: d.battle.name }, choice);
+    const summary = GameState.commitVictory(d.goldEarned, d.deadTroopIds, { kind: d.battle.kind, villageId: d.battle.villageId, campId: d.battle.campId, tier: d.battle.tier, name: d.battle.name }, choice);
     this.toMap(summary);
   }
 
@@ -41,7 +41,8 @@ export class ResultScene extends Phaser.Scene {
     const u = uiUnit(w, h, dprOf(this));
     const d = this.result;
     const win = d.outcome === 'victory';
-    const patrol = d.battle.kind === 'patrol';
+    const patrol = d.battle.kind === 'patrol' || d.battle.kind === 'steppePatrol';
+    const camp = d.battle.kind === 'camp';
     const siege = d.battle.kind === 'siege';
     this.add.rectangle(0, 0, w, h, 0x000000, 0.66).setOrigin(0);
     const cx = w / 2;
@@ -57,15 +58,16 @@ export class ResultScene extends Phaser.Scene {
       return t;
     };
     y = 24 * u;
-    text(win ? (patrol ? 'PATROL ROUTED' : siege ? 'KINGSPORT FALLS' : 'VILLAGE TAKEN') : 'YOU FELL', displayStyle(30 * u, win ? CSS.emberDeep : CSS.danger, false), 2);
+    text(win ? (patrol ? (d.battle.kind === 'steppePatrol' ? 'RIDERS ROUTED' : 'PATROL ROUTED') : camp ? 'CAMP PLUNDERED' : siege ? 'KINGSPORT FALLS' : 'VILLAGE TAKEN') : 'YOU FELL', displayStyle(30 * u, win ? CSS.emberDeep : CSS.danger, false), 2);
     text(d.battle.name, uiStyle(13 * u, CSS.inkSoft, { bold: false }), 10);
     if (win) {
       text(`Loot: +${d.goldEarned} gold`, uiStyle(20 * u, CSS.emberDeep), 6);
       text(d.fallen.length ? `Fallen: ${d.fallen.join(', ')}  —  they will not return.` : 'No losses. The warband marches on.', uiStyle(12 * u, d.fallen.length ? CSS.danger : CSS.ink, { bold: false }), 6);
       if (siege) text("The garrison captain's HALBERD is yours — equipped. Switch weapons at any forge.", uiStyle(12 * u, CSS.ink, { bold: false }), 6);
-      if (patrol) {
-        text(`Infamy +${INFAMY.perPatrol}. ${GameState.infamyTierDesc}`, uiStyle(11 * u, CSS.inkSoft, { bold: false }), 14);
-        const b = makeButton(this, cx, y + 27 * u, { width: Math.min(colW, 320 * u), height: 54 * u, label: 'BACK TO THE MAP', tone: 'success', onPress: () => this.finish('leave') });
+      if (patrol || camp) {
+        text(camp ? 'A camp cannot be held — it packs up and scatters. Its neighbours will not forgive this: their riders will hunt you on the grass.'
+          : d.battle.kind === 'steppePatrol' ? 'The steppe remembers who rode against it.' : `Infamy +${INFAMY.perPatrol}. ${GameState.infamyTierDesc}`, uiStyle(11 * u, CSS.inkSoft, { bold: false }), 14);
+        const b = makeButton(this, cx, y + 27 * u, { width: Math.min(colW, 320 * u), height: 54 * u, label: camp ? 'TAKE THE LOOT' : 'BACK TO THE MAP', tone: 'success', onPress: () => this.finish('leave') });
         items.push(b); y += 54 * u + 24 * u;
       } else {
         const node = nodeById(d.battle.villageId ?? 'ashford');

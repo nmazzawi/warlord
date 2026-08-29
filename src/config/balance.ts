@@ -36,6 +36,11 @@ export const EQUIPMENT = {
              desc: 'Shoots the nearest enemy from range — further than any archer. You must stand (nearly) still to shoot.' },
 };
 export const DEFENSE_SOFTCAP = 12;
+/** The steppe's answer to the bow: fires at a slow ride (you may keep moving at up to this fraction of speed). */
+export const COMPOSITE_BOW = { name: 'Composite Bow', cost: 220, damage: 13, range: 300, cooldown: 0.6, arrowSpeed: 420, hitStop: 25, shake: 1.5, moveFraction: 0.65,
+  desc: 'Horn and sinew. Shoots while you ride at a walk-and-a-half — the closest thing to the horse archers\' trick.' };
+/** Arrows loosed by your side carry on through the first target at this much of their damage. */
+export const PIERCE = { damageMult: 0.6, maxHits: 3 };
 /** The ranged rule: bows fire only when (nearly) stopped; a horse slows to a walk to shoot. */
 export const RANGED = { walkFraction: 0.35 };
 
@@ -67,7 +72,10 @@ export const TROOP_KINDS = {
   raider: { label: 'Raider',     hp: 55, damage: 8,  cost: 35, tint: 0xffffff, desc: 'Your own kind. Steady.' },
   levy:   { label: 'Levy',       hp: 45, damage: 7,  cost: 25, tint: 0xc8ffb0, desc: 'Cheap village lads with pitchforks.' },
   guard:  { label: 'Town guard', hp: 75, damage: 10, cost: 60, tint: 0x9fd8ff, desc: 'Drilled, armored, expensive.' },
+  rider:  { label: 'Steppe rider', hp: 50, damage: 7, cost: 90, tint: 0xffe0a0, desc: 'Mounted archer. Keeps its distance and shoots; fast, fragile, pricey.' },
 };
+/** Steppe riders in your warband: mounted, ranged. */
+export const RIDER = { speed: 200, range: 220, cooldown: 1.2, keepDistance: 150, arrowSpeed: 380, scale: 1.15 };
 /** Armies eat: wages per troop per day while you travel. */
 export const UPKEEP = { wage: 2, graceDays: 2, startingGold: 40 };
 /** Daily tribute from an occupied settlement (villages by tier; the town flat). */
@@ -96,6 +104,21 @@ export const ENEMIES = {
   guard:   { hp: 60,  speed: 122, damage: 9,  cooldown: 0.9, windup: 0.35, reach: 12, radius: 12, aggro: 260, gold: [12, 16] as const },
   // the garrison captain: a mini-boss with a ring telegraph, drops the halberd
   boss:    { hp: 320, speed: 96,  damage: 28, cooldown: 1.3, windup: 0.5,  reach: 100, radius: 17, aggro: 400, gold: [110, 130] as const, knockback: 300 },
+  // the steppe: horse archers fire AT FULL GALLOP (the only ones who do); they kite — keep distance, shoot, retreat
+  horsearcher: { hp: 34, speed: 190, damage: 8, cooldown: 1.5, windup: 0.15, reach: 0, radius: 12, aggro: 340, gold: [12, 16] as const,
+                 minDist: 190, maxDist: 280, arrowSpeed: 300, arrowLife: 1.3 },
+  rider:       { hp: 55, speed: 178, damage: 9, cooldown: 0.9, windup: 0.3,  reach: 14, radius: 12, aggro: 300, gold: [8, 12] as const },
+  noyan:       { hp: 170, speed: 150, damage: 24, cooldown: 1.4, windup: 0.5, reach: 60, radius: 16, aggro: 320, gold: [55, 70] as const, knockback: 280 },
+};
+/** Roaming steppe camps and the riders who hunt camp-raiders. */
+export const STEPPE = {
+  camp: { horsearchers: 5, riders: 4, noyans: 1, statMult: 1.0, goldMult: 1.0 },
+  scatterDays: 10,      // a raided camp scatters for this long, then re-forms elsewhere
+  huntDays: 12,         // after raiding a camp, riders hunt you on the steppe for this long
+  huntChance: 0.5,      // per road stretch while hunted
+  patrol: { horsearchers: 6, riders: 2, noyans: 0, statMult: 1.0, goldMult: 0.8 },
+  campInfamy: 8,
+  pxPerDay: 45,         // horse country: roads pass faster
 };
 /** The siege of Kingsport. */
 // the gate is a phase: ~20-30 s for a fresh warband (~50 dps) under arrow fire — bring a bow, use the rocks, or eat it
@@ -138,8 +161,8 @@ export const PATROLS = [
   { militia: 6, archers: 2, captains: 1, statMult: 1.3, goldMult: 1.0 },
 ];
 
-/** Overworld travel. */
-export const TRAVEL = { pxPerDay: 130, tokenSpeed: 170 };
+/** Overworld travel (the chart is compressed: 1 world px ≈ 6.7 old px). */
+export const TRAVEL = { pxPerDay: 19.5, tokenSpeed: 26 };
 
 /** Surround behaviour: how militia ring the hero. */
 export const SURROUND = {

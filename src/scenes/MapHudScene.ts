@@ -21,6 +21,9 @@ export class MapHudScene extends Phaser.Scene {
   private infamyFg!: Phaser.GameObjects.Rectangle;
   private bountyText!: Phaser.GameObjects.Text;
   private titleBtn!: Phaser.GameObjects.Container;
+  private zoomIn!: Phaser.GameObjects.Container;
+  private zoomOut!: Phaser.GameObjects.Container;
+  onZoom: ((dir: number) => void) | null = null;
   private hintText: Phaser.GameObjects.Text | null = null;
   private toastText: Phaser.GameObjects.Text | null = null;
   private panelObjects: Phaser.GameObjects.GameObject[] = [];
@@ -47,6 +50,8 @@ export class MapHudScene extends Phaser.Scene {
     this.bountyText = t(11, CSS.steel);
     this.titleBtn = makeButton(this, 0, 0, { width: 96, height: 36, label: 'SAVE & QUIT', tone: 'ghost', fontSize: 11,
       onPress: () => { GameState.save(); this.scene.stop('Map'); this.scene.start('Title'); } });
+    this.zoomIn = makeButton(this, 0, 0, { width: 44, height: 44, label: '+', tone: 'neutral', fontSize: 24, onPress: () => this.onZoom?.(1) });
+    this.zoomOut = makeButton(this, 0, 0, { width: 44, height: 44, label: '−', tone: 'neutral', fontSize: 24, onPress: () => this.onZoom?.(-1) });
     if (!GameState.seenMapHint) {
       this.hintText = this.add.text(0, 0, 'Tap a place to travel there. Drag to look around the map.', uiStyle(14, CSS.goldHi, { stroke: true })).setOrigin(0.5, 0).setDepth(30);
       this.tweens.add({ targets: this.hintText, alpha: 0, delay: 6000, duration: 700, onComplete: () => { this.hintText?.destroy(); this.hintText = null; } });
@@ -75,6 +80,10 @@ export class MapHudScene extends Phaser.Scene {
     const btnW = 96 * u;
     this.titleBtn.setPosition(w - m - ins.right - btnW / 2, top + 20 * u).setScale(u);
     this.titleBtn.setData('baseScale', u);
+    // zoom buttons: bottom-right, thumb reach
+    const zx = w - m - ins.right - 24 * u;
+    this.zoomIn.setPosition(zx, h - ins.bottom - m - 24 * u - 54 * u).setScale(u); this.zoomIn.setData('baseScale', u);
+    this.zoomOut.setPosition(zx, h - ins.bottom - m - 24 * u).setScale(u); this.zoomOut.setData('baseScale', u);
     // the infamy column: on portrait phones it drops to a second row
     const ix = portrait ? left : Math.min(w * 0.5, left + 230 * u);
     const iy = portrait ? top + 74 * u : top + 4 * u;
@@ -96,19 +105,26 @@ export class MapHudScene extends Phaser.Scene {
     const unpaid = GameState.unpaidDays > 0;
     this.ledgerText.setText(`Troops ${GameState.troops.length}  ·  wages −${wages}/day  ·  tribute +${tribute}/day  ·  net ${net >= 0 ? '+' : ''}${net}/day${unpaid ? '   ·   UNPAID — the men grumble' : ''}`)
       .setColor(unpaid ? '#ff9a8a' : net >= 0 ? '#c8f0c8' : '#ffe9a8');
-    const tier = GameState.infamyTier;
-    const next = GameState.infamyNextMin;
+    // the meter shows how the territory you stand in sees you
+    const steppe = GameState.territory === 'steppe';
+    const value = GameState.territoryInfamy();
+    const tier = GameState.tierOf(value);
+    const next = INFAMY.tiers[tier + 1]?.min ?? null;
     const cur = INFAMY.tiers[tier].min;
-    const frac = next === null ? 1 : Phaser.Math.Clamp((GameState.infamy - cur) / (next - cur), 0, 1);
-    this.infamyLabel.setText(`INFAMY ${GameState.infamy}  ·  ${GameState.infamyTierName.toUpperCase()}${next !== null ? `  (${INFAMY.tiers[tier + 1].name} at ${next})` : ''}`);
+    const frac = next === null ? 1 : Phaser.Math.Clamp((value - cur) / (next - cur), 0, 1);
+    this.infamyLabel.setText(`${steppe ? 'STEPPE ' : ''}INFAMY ${value}  ·  ${INFAMY.tiers[tier].name.toUpperCase()}${next !== null ? `  (${INFAMY.tiers[tier + 1].name} at ${next})` : ''}${GameState.hunted ? '  ·  HUNTED' : ''}`);
     this.infamyFg.width = this.infamyBg.width * frac;
-    this.bountyText.setText(GameState.bounty > 0 ? `bounty ${GameState.bounty}g` : 'no bounty yet');
+    this.bountyText.setText(GameState.bounty > 0 ? `bounty ${GameState.bounty}g (homeland)` : 'no bounty yet');
   }
 
   get panelOpen() { return this.spec !== null; }
   get panelModal() { return !!this.spec?.modal; }
   panelContains(x: number, y: number) { return !!this.panelRect && this.panelRect.contains(x, y); }
   barContains(_x: number, y: number) { return y <= this.barBottom; }
+  /** the zoom buttons' area, so taps there never reach the map */
+  zoomContains(x: number, y: number) {
+    return [this.zoomIn, this.zoomOut].some(b => Math.abs(x - b.x) < 26 * this.u && Math.abs(y - b.y) < 26 * this.u);
+  }
 
   /** A few lines that fade after a moment — desertions, unpaid wages, conquest summaries. */
   toast(lines: string[], color = '#ffe9a8') {

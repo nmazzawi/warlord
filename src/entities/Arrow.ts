@@ -1,7 +1,7 @@
 // Arrow.ts — a shot from an archer (hits your side) or from the hero's bow (hits theirs).
 // Flies straight, hurts the first enemy it touches, breaks on huts (so ducking behind one is real cover).
 import Phaser from 'phaser';
-import type { Team } from './Unit';
+import type { Team, Unit } from './Unit';
 
 export class Arrow extends Phaser.Physics.Arcade.Image {
   declare body: Phaser.Physics.Arcade.Body;
@@ -10,6 +10,8 @@ export class Arrow extends Phaser.Physics.Arcade.Image {
   team: Team = 'enemy';
   /** Shot from a wall top: ignores obstacles. */
   overWalls = false;
+  /** Bodies this arrow has already gone through (your side's arrows pierce). */
+  hits = new Set<Unit>();
 
   fire(x: number, y: number, vx: number, vy: number, damage: number, life: number, team: Team, overWalls = false) {
     this.enableBody(true, x, y, true, true);
@@ -21,6 +23,7 @@ export class Arrow extends Phaser.Physics.Arcade.Image {
     this.life = life;
     this.team = team;
     this.overWalls = overWalls;
+    this.hits.clear();
     this.setTint(team === 'player' ? 0xbfe8ff : 0xffffff);
   }
 

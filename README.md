@@ -1,6 +1,6 @@
 # Warlord
 
-A browser-first 2D conquest action-RPG. Milestone 1 was the raid loop; Milestone 2 added the world map, four villages, a bandit camp with Forge / Barracks / Stables, infamy (patrols, fortifying villages, a bounty) and a single-slot save; Milestone 3 adds upkeep (wages, desertion), the siege of Kingsport (gate, wall archers, two waves, a mini-boss with a signature weapon), and SACK / OCCUPY after conquests with conquest-gated shops. Milestone 3.5 adds peaceful VISITS (markup shops, inn rumors, gates that shut once they know your face) and the art identity pass (parchment/iron/ember palette, two bundled fonts, figure units, vignette buildings). Before/after screenshots live in `docs/screens/`.
+A browser-first 2D conquest action-RPG. Milestone 1 was the raid loop; Milestone 2 added the world map, four villages, a bandit camp with Forge / Barracks / Stables, infamy (patrols, fortifying villages, a bounty) and a single-slot save; Milestone 3 adds upkeep (wages, desertion), the siege of Kingsport (gate, wall archers, two waves, a mini-boss with a signature weapon), and SACK / OCCUPY after conquests with conquest-gated shops. Milestone 3.5 adds peaceful VISITS (markup shops, inn rumors, gates that shut once they know your face) and the art identity pass (parchment/iron/ember palette, two bundled fonts, figure units, vignette buildings). Milestone 4 turns the map into a world chart — one parchment Earth with all twelve regions, continuous zoom — and opens the Mongol steppe: roaming camps, gallop-shooting horse archers, a neutral trade camp with Steppe Riders and the Composite Bow, and a separate steppe reputation. Before/after screenshots live in `docs/screens/`.
 
 ## Play it
 
@@ -12,7 +12,7 @@ A browser-first 2D conquest action-RPG. Milestone 1 was the raid loop; Milestone
 - **Move:** drag anywhere on screen (a joystick appears under your thumb) or WASD / arrow keys.
 - **In a raid:** attacks are automatic. **Q / HORN** — War Horn: troops rally to you, short speed boost. **E / CHARGE** — a dash that knocks enemies back; you can't be hit during it.
 - **In a settlement (camp, occupied village, Kingsport):** tap a building card to open its shop. **TO THE MAP** (or M / Esc) leaves; **WAIT A DAY** at the camp passes a day (wages!).
-- **On the map:** tap a place to see it and travel there (drag to pan, mouse-wheel to zoom). While a place has no reason to fear you, VISIT lets you shop at a markup and buy a rumor at the inn.
+- **On the map:** drag to pan; pinch, mouse-wheel or the +/− buttons to zoom from the whole world down to your territory's roads. Tap a place to see it and travel there. Tap a region for its note. While a place has no reason to fear you, VISIT lets you shop at a markup and buy a rumor at the inn. On the steppe, camps move one waypoint a day — ride to where one stands to raid it.
 
 ## Project layout
 
@@ -22,7 +22,7 @@ A browser-first 2D conquest action-RPG. Milestone 1 was the raid loop; Milestone
 - `src/scenes/` — Boot, Title, Map + MapHud (overworld, ledger, panels), Settlement + Shop (tap screens for places you control), Raid + Hud (battles, sieges), Result (conquest choice).
 - `src/entities/` — Hero, Troop, Enemy (militia / archer / captain), Arrow, Coin.
 - `src/systems/` — one file per system: input, joystick, juice (feel), combat, sound, surround AI, flow-field pathing, line of sight, formation, textures.
-- `src/world/` — `WorldMap.ts` (places and roads), `Layouts.ts` (every battle map as data, palisades, the siege), `Battles.ts` (village / patrol / siege setups), `Stock.ts` (what each settlement sells).
+- `src/world/` — `WorldChart.ts` (the parchment Earth: land, regions, sea roads, creatures, compass), `WorldMap.ts` (places and roads in two territories), `Steppe.ts` (roaming camp schedules), `Layouts.ts` (every battle map as data, palisades, the siege, the steppe), `Battles.ts` (village / patrol / siege / camp setups), `Stock.ts` (what each settlement sells), `Rumors.ts`.
 - `src/state/GameState.ts` — the run: gold, day, infamy, gear, troops, villages; save/load.
 
 ## Checks

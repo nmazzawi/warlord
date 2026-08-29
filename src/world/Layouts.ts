@@ -4,7 +4,7 @@ import Phaser from 'phaser';
 import { obstacleTexture } from '../systems/Textures';
 import { mulberry32 } from '../utils/rng';
 
-export type ObstacleKind = 'hut' | 'rock' | 'wall' | 'stone' | 'gate';
+export type ObstacleKind = 'hut' | 'rock' | 'wall' | 'stone' | 'gate' | 'yurt';
 export interface Obstacle { x: number; y: number; w: number; h: number; kind: ObstacleKind; }
 export interface Post { x: number; y: number; }
 export interface GroundSpec {
@@ -17,7 +17,7 @@ export interface PalisadeSpec { x0: number; y0: number; x1: number; y1: number; 
 export interface LayoutDef {
   id: string; w: number; h: number; heroStart: Post;
   obstacles: Obstacle[];
-  posts: { militia: Post[]; archers: Post[]; captains: Post[]; wall?: Post[]; wallInner?: Post[]; guards?: Post[]; boss?: Post[] };
+  posts: { militia: Post[]; archers: Post[]; captains: Post[]; wall?: Post[]; wallInner?: Post[]; guards?: Post[]; boss?: Post[]; horsearchers?: Post[]; riders?: Post[]; noyans?: Post[] };
   ground: GroundSpec;
   palisade?: PalisadeSpec;
   hint: string;
@@ -26,6 +26,7 @@ export interface LayoutDef {
 const hut = (x: number, y: number, w: number, h: number): Obstacle => ({ x, y, w, h, kind: 'hut' });
 const rock = (x: number, y: number, w: number, h: number): Obstacle => ({ x, y, w, h, kind: 'rock' });
 const stone = (x: number, y: number, w: number, h: number): Obstacle => ({ x, y, w, h, kind: 'stone' });
+const yurt = (x: number, y: number): Obstacle => ({ x, y, w: 72, h: 72, kind: 'yurt' });
 const gate = (x: number, y: number, w: number, h: number): Obstacle => ({ x, y, w, h, kind: 'gate' });
 const P = (x: number, y: number): Post => ({ x, y });
 
@@ -161,6 +162,52 @@ export const LAYOUTS: Record<string, LayoutDef> = {
     hint: 'Batter the gate while their archers shoot from the wall — only\narrows reach them; the rocks are cover. When it falls, the guard comes out.',
   },
 
+  // ---- A roaming steppe camp: yurts in a ring on open grass, one rocky choke to the west of it
+  steppe: {
+    id: 'steppe', w: 1280, h: 960, heroStart: P(140, 480),
+    obstacles: [
+      // the choke: two long rock spurs with a 70px gap at (400, 480)
+      rock(400, 340, 80, 56), rock(400, 268, 60, 44), rock(400, 200, 80, 56), rock(400, 620, 80, 56), rock(400, 692, 60, 44), rock(400, 760, 80, 56),
+      rock(420, 404, 50, 50), rock(420, 556, 50, 50),
+      yurt(860, 380), yurt(980, 420), yurt(1000, 560), yurt(880, 620), yurt(780, 500), yurt(1100, 480),
+      rock(1180, 200, 80, 56), rock(700, 860, 60, 44),
+    ],
+    posts: {
+      militia: [], archers: [], captains: [],
+      horsearchers: [P(900, 300), P(1080, 340), P(1140, 620), P(940, 700), P(760, 300), P(1160, 760), P(700, 700), P(1220, 480)],
+      riders: [P(820, 460), P(940, 520), P(960, 600), P(840, 560), P(1040, 500), P(760, 620)],
+      noyans: [P(940, 480), P(1020, 620)],
+    },
+    ground: {
+      base: 0x8a8a4e, plazas: [{ x: 930, y: 500, r: 200 }],
+      rects: [],
+      paths: [{ pts: [[160, 480], [400, 480], [720, 500]], width: 30 }],
+    },
+    hint: 'Horse archers shoot at a gallop and never stand to fight.\nHold the rocky choke — in the open they will ride circles around you.',
+  },
+
+  // ---- The open steppe: a rider patrol on grass with two rocky chokes and nothing else
+  steppeField: {
+    id: 'steppeField', w: 1280, h: 960, heroStart: P(160, 480),
+    obstacles: [
+      rock(520, 300, 100, 60), rock(560, 240, 60, 44), rock(520, 660, 100, 60), rock(560, 720, 60, 44),
+      rock(900, 200, 80, 56), rock(960, 160, 50, 50), rock(900, 760, 80, 56), rock(960, 800, 50, 50),
+      rock(300, 880, 44, 60), rock(1150, 100, 60, 44),
+    ],
+    posts: {
+      militia: [], archers: [], captains: [],
+      horsearchers: [P(980, 380), P(1040, 480), P(980, 580), P(1120, 420), P(1120, 560), P(900, 480), P(1180, 300), P(1180, 660)],
+      riders: [P(940, 440), P(940, 520), P(1060, 380), P(1060, 580)],
+      noyans: [P(1080, 480)],
+    },
+    ground: {
+      base: 0x8f8f52, plazas: [],
+      rects: [{ x: 0, y: 455, w: 1280, h: 50 }],
+      paths: [],
+    },
+    hint: 'Riders. Get between the rocks and make them come to you —\nthere is no catching a horse on the grass.',
+  },
+
   // ---- The open road: a patrol battle with a few boulders for cover
   field: {
     id: 'field', w: 1280, h: 960, heroStart: P(220, 480),
@@ -242,7 +289,7 @@ export function buildLayout(scene: Phaser.Scene, l: LayoutDef, obstacles: Obstac
   scene.add.image(0, 0, groundTexture(scene, l)).setOrigin(0).setDepth(0);
   const group = scene.physics.add.staticGroup();
   for (const o of obstacles) {
-    if (o.kind === 'hut' || o.kind === 'rock' || o.kind === 'stone') {
+    if (o.kind === 'hut' || o.kind === 'rock' || o.kind === 'stone' || o.kind === 'yurt') {
       scene.add.image(o.x + 4, o.y + 6, 'px').setTint(0x000000).setAlpha(o.kind === 'rock' ? 0.22 : 0.3).setDisplaySize(o.w, o.h).setDepth(9);
     }
     const img = group.create(o.x, o.y, obstacleTexture(scene, o.kind, o.w, o.h)) as Phaser.Physics.Arcade.Sprite;
