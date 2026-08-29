@@ -153,7 +153,8 @@ export class Hero extends Unit {
       if (!e.alive || e.dormant) continue;
       const d = this.distTo(e);
       if (d > bow.range || d >= bestD) continue;
-      if (!e.onWall && !hasLineOfSight(this.x, this.y, e.x, e.y)) continue;
+      // a wall top is reachable over the wall, but not through a rock or hut in the way
+      if (!hasLineOfSight(this.x, this.y, e.x, e.y, e.onWall)) continue;
       best = e; bestD = d;
     }
     return best;
@@ -164,7 +165,8 @@ export class Hero extends Unit {
     const gate = this.raid.gate;
     if (!gate || !gate.alive) return null;
     const gx = Phaser.Math.Clamp(this.x, gate.rect.left, gate.rect.right), gy = Phaser.Math.Clamp(this.y, gate.rect.top, gate.rect.bottom);
-    return Phaser.Math.Distance.Between(this.x, this.y, gx, gy) <= EQUIPMENT.bow.range ? { x: gx, y: gy } : null;
+    if (Phaser.Math.Distance.Between(this.x, this.y, gx, gy) > EQUIPMENT.bow.range) return null;
+    return hasLineOfSight(this.x, this.y, gx, gy, true) ? { x: gx, y: gy } : null;
   }
 
   private shootGate(gx: number, gy: number) {

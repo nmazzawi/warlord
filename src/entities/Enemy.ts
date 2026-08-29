@@ -139,7 +139,8 @@ export class Enemy extends Unit {
       return;
     }
     const t = this.target;
-    if (t && this.attackTimer <= 0 && this.distTo(t) <= ENEMIES.archer.maxDist + 60) this.beginWindup();
+    // a wall top adds a little reach, but the hero's bow (300) out-ranges it — that band is the bow's job
+    if (t && this.attackTimer <= 0 && this.distTo(t) <= ENEMIES.archer.maxDist + 30) this.beginWindup();
   }
 
   /** Shuffle around the post; notice the hero or troops when they get close. */
