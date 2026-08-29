@@ -7,6 +7,8 @@ import { COMPOSITE_BOW, EQUIPMENT, HORSES, TROOP, TROOP_KINDS, WEAPONS } from '.
 import { Sound } from '../systems/Sound';
 import { stockFor } from '../world/Stock';
 import { nextRumor } from '../world/Rumors';
+import { nodeById } from '../world/WorldMap';
+import { visitOf } from '../world/Realms';
 import type { BuildingId } from './SettlementScene';
 import { CSS, displayStyle, dprOf, makeButton, panel, uiStyle, uiUnit } from './ui';
 
@@ -55,7 +57,10 @@ export class ShopScene extends Phaser.Scene {
   private rows(): { title: string; blurb: string; rows: Row[] } {
     const g = GameState;
     const stock = stockFor(this.settlementId, this.visiting);
-    const markup = this.visiting ? '  ·  visitor prices (+50%)' : '';
+    const foreign = this.settlementId !== 'camp' && nodeById(this.settlementId).kind === 'foreign'
+      ? visitOf(nodeById(this.settlementId).territory) : null;
+    const markup = stock.markup > 1
+      ? `  ·  ${foreign ? "stranger's" : 'visitor'} prices (+${Math.round((stock.markup - 1) * 100)}%)` : '';
     if (this.building === 'forge') {
       const rows: Row[] = [];
       const tier = g.weaponTier;
@@ -120,11 +125,15 @@ export class ShopScene extends Phaser.Scene {
       const rows: Row[] = [];
       const rumor = nextRumor(this.settlementId);
       if (this.rumorShown) rows.push({ name: 'The innkeeper leans in…', desc: this.rumorShown, button: null });
-      else if (rumor) rows.push({ name: 'Buy a rumor', desc: 'A drink for the innkeeper and a true word about the world — patrols, palisades, Kingsport.',
+      else if (rumor) rows.push({ name: 'Buy a rumor', desc: foreign
+        ? 'A drink for the man behind the counter, and a true word about his own country — what its soldiers do, what its roads are like, what it is afraid of.'
+        : 'A drink for the innkeeper and a true word about the world — patrols, palisades, Kingsport.',
         button: { label: `${RUMOR_PRICE} gold`, enabled: g.gold >= RUMOR_PRICE, onPress: () => this.buy(RUMOR_PRICE, () => { g.rumorsHeard.push(`${this.settlementId}:${rumor.id}`); this.rumorShown = rumor.text; }) } });
-      else rows.push({ name: 'Nothing new', desc: 'You have heard everything this inn knows. Try another.', button: null });
+      else rows.push({ name: 'Nothing new', desc: foreign
+        ? 'He has told you everything he knows about his own country. Another city, another story.'
+        : 'You have heard everything this inn knows. Try another.', button: null });
       const heard = g.rumorsHeard.length;
-      return { title: 'THE INN', blurb: heard ? `${heard} rumor${heard === 1 ? '' : 's'} heard so far${markup}` : `Travellers talk here${markup}`, rows };
+      return { title: (foreign ? foreign.inn.name : 'the inn').toUpperCase(), blurb: heard ? `${heard} rumor${heard === 1 ? '' : 's'} heard so far${markup}` : `Travellers talk here${markup}`, rows };
     }
     const rows: Row[] = [];
     for (const key of stock.stables) {

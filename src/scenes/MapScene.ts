@@ -567,7 +567,10 @@ export class MapScene extends Phaser.Scene {
     let best: MapNode | null = null, bd = tapR;
     if (MapScene.fade(zoom, BAND.minor) > 0.3) {
       for (const n of NODES) {
-        if (n.kind === 'cross') continue;
+        // a foreign city is claimed through the crown or tower drawn for it further down: it stands
+        // shoulder to shoulder with its own towns (Ostia is a stone's throw from Rome) and a fat
+        // radius here would swallow every one of its neighbours' taps
+        if (n.kind === 'cross' || n.kind === 'foreign') continue;
         const d = Phaser.Math.Distance.Between(wp.x, wp.y, n.x, n.y);
         if (d < bd) { bd = d; best = n; }
       }
@@ -797,8 +800,8 @@ export class MapScene extends Phaser.Scene {
   private showPlacePanel(m: Marker) {
     const open = FOREIGN.find(n => n.territory === m.empire.id && n.name === m.place.name);
     if (open) { this.showNodePanel(open); return; }
-    const rank = m.place.kind === 'capital' ? `The throne of ${m.empire.name}` : m.place.kind === 'city' ? `A great city of ${m.empire.name}`
-      : m.place.kind === 'town' ? `A town of ${m.empire.name}` : `A village of ${m.empire.name}`;
+    const rank = m.place.kind === 'capital' ? `The throne of ${m.empire.name}.` : m.place.kind === 'city' ? `A great city of ${m.empire.name}.`
+      : m.place.kind === 'town' ? `A town of ${m.empire.name}.` : `A village of ${m.empire.name}.`;
     this.hud.showPanel({
       title: m.place.name.toUpperCase(),
       lines: [m.place.note, rank, visitOf(m.empire.id)
