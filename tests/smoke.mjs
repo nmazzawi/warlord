@@ -591,6 +591,7 @@ async function desktopRun(browser) {
     const old = S.toJSON();
     delete old.steppeInfamy; delete old.campScattered; delete old.huntedUntil; delete old.lastSteppePatrolDay;
     delete old.owned.composite;
+    delete old.pos; delete old.hunters;         // a save from before free movement knew only which place you were at
     old.gold = 777; old.day = 42; old.location = 'greywater'; old.pendingPath = []; old.resumeTravel = null; old.pendingVictory = null;
     S.save = () => {};   // the page saves on unload; keep it from writing over the old save we inject
     localStorage.setItem('warlord.save.v3', JSON.stringify(old));
