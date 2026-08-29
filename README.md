@@ -1,6 +1,6 @@
 # Warlord
 
-A browser-first 2D conquest action-RPG. Milestone 1 was the raid loop; Milestone 2 added the world map, four villages, a bandit camp with Forge / Barracks / Stables, infamy (patrols, fortifying villages, a bounty) and a single-slot save; Milestone 3 adds upkeep (wages, desertion), the siege of Kingsport (gate, wall archers, two waves, a mini-boss with a signature weapon), and SACK / OCCUPY after conquests with conquest-gated shops.
+A browser-first 2D conquest action-RPG. Milestone 1 was the raid loop; Milestone 2 added the world map, four villages, a bandit camp with Forge / Barracks / Stables, infamy (patrols, fortifying villages, a bounty) and a single-slot save; Milestone 3 adds upkeep (wages, desertion), the siege of Kingsport (gate, wall archers, two waves, a mini-boss with a signature weapon), and SACK / OCCUPY after conquests with conquest-gated shops. Milestone 3.5 adds peaceful VISITS (markup shops, inn rumors, gates that shut once they know your face) and the art identity pass (parchment/iron/ember palette, two bundled fonts, figure units, vignette buildings). Before/after screenshots live in `docs/screens/`.
 
 ## Play it
 
@@ -12,7 +12,7 @@ A browser-first 2D conquest action-RPG. Milestone 1 was the raid loop; Milestone
 - **Move:** drag anywhere on screen (a joystick appears under your thumb) or WASD / arrow keys.
 - **In a raid:** attacks are automatic. **Q / HORN** — War Horn: troops rally to you, short speed boost. **E / CHARGE** — a dash that knocks enemies back; you can't be hit during it.
 - **In a settlement (camp, occupied village, Kingsport):** tap a building card to open its shop. **TO THE MAP** (or M / Esc) leaves; **WAIT A DAY** at the camp passes a day (wages!).
-- **On the map:** tap a place to travel there (drag to pan, mouse-wheel to zoom). Tap the place you're standing on to open its panel.
+- **On the map:** tap a place to see it and travel there (drag to pan, mouse-wheel to zoom). While a place has no reason to fear you, VISIT lets you shop at a markup and buy a rumor at the inn.
 
 ## Project layout
 

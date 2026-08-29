@@ -32,6 +32,7 @@ export class Unit extends Phaser.Physics.Arcade.Sprite {
   private barBg: Phaser.GameObjects.Image;
   private barFg: Phaser.GameObjects.Image;
   private barW: number;
+  private shadow: Phaser.GameObjects.Image;
 
   constructor(scene: RaidScene, x: number, y: number, texture: string, opts: UnitOpts) {
     super(scene, x, y, texture);
@@ -49,6 +50,7 @@ export class Unit extends Phaser.Physics.Arcade.Sprite {
     this.setCollideWorldBounds(true);
     this.setDepth(opts.depth ?? 20);
     this.barW = opts.barWidth ?? 24;
+    this.shadow = scene.add.image(x, y, TEX.shadow).setDepth(15).setAlpha(0.45).setDisplaySize(this.radius * 2.6, this.radius * 1.2);
     this.barBg = scene.add.image(x, y, TEX.px).setTint(0x000000).setAlpha(0.7).setDepth(40).setDisplaySize(this.barW + 2, 5);
     this.barFg = scene.add.image(x, y, TEX.px).setTint(opts.barColor).setOrigin(0, 0.5).setDepth(41).setDisplaySize(this.barW, 3);
     this.syncBars();
@@ -90,6 +92,7 @@ export class Unit extends Phaser.Physics.Arcade.Sprite {
     this.setVisible(false);
     this.barBg.setVisible(false);
     this.barFg.setVisible(false);
+    this.shadow.setVisible(false);
     this.desired.set(0, 0);
     this.knock.set(0, 0);
     this.raid.onUnitDied(this);
@@ -120,6 +123,7 @@ export class Unit extends Phaser.Physics.Arcade.Sprite {
   }
 
   protected syncBars() {
+    this.shadow.setPosition(this.x, this.y + this.radius * 0.85);
     const y = this.y - this.radius - 9;
     this.barBg.setPosition(this.x, y);
     this.barFg.setPosition(this.x - this.barW / 2, y);
@@ -129,6 +133,7 @@ export class Unit extends Phaser.Physics.Arcade.Sprite {
   destroyUnit() {
     this.barBg.destroy();
     this.barFg.destroy();
+    this.shadow.destroy();
     this.destroy();
   }
 }

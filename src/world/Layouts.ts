@@ -158,7 +158,7 @@ export const LAYOUTS: Record<string, LayoutDef> = {
       rects: [{ x: 0, y: 450, w: 620, h: 60 }, { x: 640, y: 450, w: 300, h: 60 }],
       paths: [],
     },
-    hint: 'Batter the gate while their archers shoot from the wall —\nuse the rocks. When it falls, the guard comes out.',
+    hint: 'Batter the gate while their archers shoot from the wall — only\narrows reach them; the rocks are cover. When it falls, the guard comes out.',
   },
 
   // ---- The open road: a patrol battle with a few boulders for cover
@@ -242,6 +242,9 @@ export function buildLayout(scene: Phaser.Scene, l: LayoutDef, obstacles: Obstac
   scene.add.image(0, 0, groundTexture(scene, l)).setOrigin(0).setDepth(0);
   const group = scene.physics.add.staticGroup();
   for (const o of obstacles) {
+    if (o.kind === 'hut' || o.kind === 'rock' || o.kind === 'stone') {
+      scene.add.image(o.x + 4, o.y + 6, 'px').setTint(0x000000).setAlpha(o.kind === 'rock' ? 0.22 : 0.3).setDisplaySize(o.w, o.h).setDepth(9);
+    }
     const img = group.create(o.x, o.y, obstacleTexture(scene, o.kind, o.w, o.h)) as Phaser.Physics.Arcade.Sprite;
     img.setDepth(o.kind === 'wall' || o.kind === 'stone' || o.kind === 'gate' ? 11 : 10);
     img.setData('obstacle', o);

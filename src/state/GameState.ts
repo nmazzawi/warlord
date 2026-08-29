@@ -17,6 +17,9 @@ export interface SettlementState { timesRaided: number; lastRaidDay: number | nu
 export interface TravelResume { from: string; to: string; }
 export type Conquest = 'sack' | 'occupy' | 'leave';
 export interface DayEvent { kind: 'unpaid' | 'desert'; text: string; }
+export type Access = 'camp' | 'occupied' | 'visit' | 'closed' | 'sacked';
+/** A won battle whose sack/occupy choice has not been made yet (survives a reload). */
+export interface PendingVictory { goldEarned: number; deadTroopIds: number[]; battle: BattleOutcome; fallen: string[]; }
 
 /** Everything the map and the raid need to know about a village right now. */
 export interface VillageInfo {
@@ -37,6 +40,7 @@ interface SaveData {
   location: string; pendingPath: string[]; resumeTravel: TravelResume | null; patrolPending: boolean;
   settlements: Record<string, SettlementState>; garrisons: Record<string, TroopRecord[]>;
   fortifyStepsDone: number; fortifyCarry: number; lastPatrolDay: number; unpaidDays: number; seenMapHint: boolean;
+  rumorsHeard: string[]; pendingVictory: PendingVictory | null;
 }
 
 class GameStateStore {
@@ -64,6 +68,8 @@ class GameStateStore {
   lastPatrolDay = -99;
   unpaidDays = 0;
   seenMapHint = false;
+  rumorsHeard: string[] = [];
+  pendingVictory: PendingVictory | null = null;
   private nextId = 1;
   private nameCursor = 0;
   private snapshot: SaveData | null = null;
@@ -74,12 +80,12 @@ class GameStateStore {
 
   /** Fresh run: no gold, rusty sword, three recruits, standing in camp on day 1. */
   reset() {
-    this.gold = 0; this.day = 1; this.infamy = 0; this.weaponTier = 1; this.equippedWeapon = 'sword'; this.horse = 'none';
+    this.gold = UPKEEP.startingGold; this.day = 1; this.infamy = 0; this.weaponTier = 1; this.equippedWeapon = 'sword'; this.horse = 'none';
     this.armor = 'none'; this.shield = 'none';
     this.owned = { leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false };
     this.troops = []; this.fallen = []; this.deserted = []; this.raidsDone = 0; this.location = 'camp'; this.pendingPath = []; this.resumeTravel = null;
     this.patrolPending = false; this.settlements = {}; this.garrisons = {}; this.fortifyStepsDone = 0; this.fortifyCarry = 0; this.lastPatrolDay = -99;
-    this.unpaidDays = 0; this.seenMapHint = false;
+    this.unpaidDays = 0; this.seenMapHint = false; this.rumorsHeard = []; this.pendingVictory = null;
     this.nextId = 1; this.nameCursor = 0; this.snapshot = null;
     for (let i = 0; i < TROOP.starting; i++) this.recruit('raider');
   }
@@ -194,6 +200,24 @@ class GameStateStore {
   }
   /** Can you shop here? Only your camp and places you occupy. */
   controls(id: string) { return id === 'camp' || !!this.settlements[id]?.occupied; }
+  /**
+   * How a settlement receives you: your own places fully; unconquered places as a paying customer —
+   * unless you have raided them yourself, or your name has reached Raider (then every gate shuts).
+   */
+  access(id: string): Access {
+    if (id === 'camp') return 'camp';
+    const s = this.settlement(id);
+    if (s.occupied) return 'occupied';
+    if (s.sacked) return 'sacked';
+    if (s.timesRaided > 0 || this.infamyTier >= 2) return 'closed';
+    return 'visit';
+  }
+  /** Why the gates are shut (for the map panel). */
+  closedReason(id: string) {
+    const s = this.settlement(id);
+    if (s.timesRaided > 0) return 'They know your face here — you raided them. The gates stay shut unless you take the place.';
+    return `Word of a ${this.infamyTierName} travels faster than you do. No gate in the land opens to you now.`;
+  }
   get controlledIds() { return ['camp', ...NODES.filter(n => this.settlements[n.id]?.occupied).map(n => n.id)]; }
 
   villageInfo(id: string): VillageInfo {
@@ -245,15 +269,16 @@ class GameStateStore {
         const extra = town ? CONQUEST.sackTownGold : CONQUEST.sackVillageGold + CONQUEST.sackVillagePerTier * (battle.tier ?? 1);
         this.gold += extra;
         vs.sacked = true; vs.occupied = false;
-        this.addInfamy(town ? CONQUEST.sackTownInfamy : CONQUEST.sackVillageInfamy);
+        delete this.garrisons[id];
+        this.addInfamy(town ? CONQUEST.sackTownInfamy : INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1) + CONQUEST.sackVillageInfamy);
         summary = `Sacked ${node.name}: +${goldEarned + extra} gold. It burns; nothing will ever come from it again.`;
       } else if (choice === 'occupy') {
         vs.occupied = true; vs.sacked = false;
         const garrison = this.troops.slice(0, CONQUEST.garrison);
-        this.troops = this.troops.slice(CONQUEST.garrison);
+        this.troops = this.troops.slice(garrison.length);
         this.garrisons[id] = garrison;
         this.addInfamy(INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1));
-        summary = `Occupied ${node.name}: +${goldEarned} gold now, tribute every day. ${garrison.map(g => g.name).join(' and ')} stay as the garrison.`;
+        summary = `Occupied ${node.name}: +${goldEarned} gold now, tribute every day. ${garrison.map(g => g.name).join(' and ') || 'Nobody'} stay${garrison.length === 1 ? 's' : ''} as the garrison.`;
       } else {
         vs.timesRaided += 1;
         vs.lastRaidDay = this.day;
@@ -261,13 +286,16 @@ class GameStateStore {
         summary = `Raided ${node.name}: +${goldEarned} gold. It lies ruined for ${RERAID.recoverDays} days.`;
       }
     }
+    this.pendingVictory = null;
     this.snapshot = null;
     this.save();
     return summary;
   }
 
-  /** Can you leave a garrison right now? */
-  get canOccupy() { return this.troops.length >= CONQUEST.garrison; }
+  /** Troops still standing after a battle (the dead are only removed when the outcome is committed). */
+  survivors(deadTroopIds: number[]) { return this.troops.filter(t => !deadTroopIds.includes(t.id)); }
+  /** Occupying needs at least one survivor to hold the place (up to two stay). */
+  canOccupyWith(deadTroopIds: number[]) { return this.survivors(deadTroopIds).length >= 1; }
 
   // ------------------------------------------------------------ save / load (browser storage, one slot)
   toJSON(): SaveData {
@@ -281,19 +309,21 @@ class GameStateStore {
       settlements: JSON.parse(JSON.stringify(this.settlements)), garrisons: JSON.parse(JSON.stringify(this.garrisons)),
       fortifyStepsDone: this.fortifyStepsDone, fortifyCarry: this.fortifyCarry, lastPatrolDay: this.lastPatrolDay,
       unpaidDays: this.unpaidDays, seenMapHint: this.seenMapHint,
+      rumorsHeard: [...this.rumorsHeard], pendingVictory: this.pendingVictory ? JSON.parse(JSON.stringify(this.pendingVictory)) : null,
     };
   }
   fromJSON(d: SaveData) {
     this.gold = d.gold; this.day = d.day; this.infamy = d.infamy; this.weaponTier = d.weaponTier;
     this.equippedWeapon = d.equippedWeapon; this.horse = d.horse; this.armor = d.armor ?? 'none'; this.shield = d.shield ?? 'none';
     this.owned = Object.assign({ leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false }, d.owned);
-    this.troops = d.troops.map(t => ({ ...t, kind: t.kind ?? 'raider' })); this.fallen = d.fallen.map(f => ({ ...f })); this.deserted = [...(d.deserted ?? [])];
+    this.troops = d.troops.map(t => ({ ...t, kind: t.kind ?? 'raider' })); this.fallen = (d.fallen ?? []).map(f => ({ ...f })); this.deserted = [...(d.deserted ?? [])];
     this.nextId = d.nextId; this.nameCursor = d.nameCursor; this.raidsDone = d.raidsDone;
     this.location = d.location; this.pendingPath = [...(d.pendingPath ?? [])]; this.resumeTravel = d.resumeTravel ? { ...d.resumeTravel } : null;
     this.patrolPending = d.patrolPending ?? false;
     this.settlements = JSON.parse(JSON.stringify(d.settlements ?? {})); this.garrisons = JSON.parse(JSON.stringify(d.garrisons ?? {}));
     this.fortifyStepsDone = d.fortifyStepsDone ?? 0; this.fortifyCarry = d.fortifyCarry ?? 0; this.lastPatrolDay = d.lastPatrolDay ?? -99;
     this.unpaidDays = d.unpaidDays ?? 0; this.seenMapHint = d.seenMapHint ?? false;
+    this.rumorsHeard = [...(d.rumorsHeard ?? [])]; this.pendingVictory = d.pendingVictory ? JSON.parse(JSON.stringify(d.pendingVictory)) : null;
   }
   /** Parse and sanity-check the stored save without touching the live state. */
   private peek(): SaveData | null {
@@ -301,7 +331,7 @@ class GameStateStore {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return null;
       const d = JSON.parse(raw) as SaveData;
-      if (!d || d.version !== SAVE_VERSION || !Array.isArray(d.troops) || typeof d.gold !== 'number' || typeof d.location !== 'string') return null;
+      if (!d || d.version !== SAVE_VERSION || !Array.isArray(d.troops) || typeof d.gold !== 'number' || typeof d.location !== 'string' || !d.owned) return null;
       return d;
     } catch { return null; }
   }

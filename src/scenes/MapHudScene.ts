@@ -3,7 +3,7 @@
 import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
 import { INFAMY } from '../config/balance';
-import { dprOf, FONT, makeButton, safeInsets, uiUnit } from './ui';
+import { CSS, displayStyle, dprOf, drawPanel, FONT, makeButton, PAL, safeInsets, uiStyle, uiUnit } from './ui';
 
 export interface PanelButton { label: string; color?: number; enabled?: boolean; onPress: () => void; }
 export interface PanelSpec { title: string; lines: string[]; buttons: PanelButton[]; modal?: boolean; }
@@ -12,6 +12,7 @@ export class MapHudScene extends Phaser.Scene {
   private u = 1;
   private barBottom = 0;
   private bar!: Phaser.GameObjects.Rectangle;
+  private barLine!: Phaser.GameObjects.Rectangle;
   private dateText!: Phaser.GameObjects.Text;
   private goldText!: Phaser.GameObjects.Text;
   private ledgerText!: Phaser.GameObjects.Text;
@@ -34,21 +35,20 @@ export class MapHudScene extends Phaser.Scene {
     this.spec = null;
     this.toastText = null;
     this.hintText = null;
-    this.bar = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.55).setOrigin(0);
-    const t = (size: number, color: string) => this.add.text(0, 0, '', { fontFamily: FONT, fontSize: `${size}px`, color, stroke: '#000', strokeThickness: 3, fontStyle: 'bold' });
-    this.dateText = t(13, '#fff8e7');
-    this.goldText = t(16, '#f5c542');
-    this.ledgerText = t(11, '#c8f0c8');
-    this.infamyLabel = t(11, '#ffb0b0');
-    this.infamyBg = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.6).setOrigin(0, 0.5);
-    this.infamyFg = this.add.rectangle(0, 0, 10, 10, 0xc03030, 1).setOrigin(0, 0.5);
-    this.bountyText = t(11, '#e0b0b0');
-    this.titleBtn = makeButton(this, 0, 0, { width: 96, height: 36, label: 'SAVE & QUIT', color: 0x444444, fontSize: 11,
+    this.bar = this.add.rectangle(0, 0, 10, 10, PAL.iron, 0.92).setOrigin(0);
+    this.barLine = this.add.rectangle(0, 0, 10, 2, PAL.gold, 0.7).setOrigin(0);
+    const t = (size: number, color: string) => this.add.text(0, 0, '', { fontFamily: FONT, fontSize: `${size}px`, color, stroke: '#000', strokeThickness: 2, fontStyle: 'bold' });
+    this.dateText = t(13, CSS.cream);
+    this.goldText = t(16, CSS.goldHi);
+    this.ledgerText = t(11, CSS.greenSoft);
+    this.infamyLabel = t(11, CSS.dangerHi);
+    this.infamyBg = this.add.rectangle(0, 0, 10, 10, PAL.ironEdge, 1).setOrigin(0, 0.5).setStrokeStyle(1, PAL.gold, 0.5);
+    this.infamyFg = this.add.rectangle(0, 0, 10, 10, PAL.danger, 1).setOrigin(0, 0.5);
+    this.bountyText = t(11, CSS.steel);
+    this.titleBtn = makeButton(this, 0, 0, { width: 96, height: 36, label: 'SAVE & QUIT', tone: 'ghost', fontSize: 11,
       onPress: () => { GameState.save(); this.scene.stop('Map'); this.scene.start('Title'); } });
     if (!GameState.seenMapHint) {
-      this.hintText = this.add.text(0, 0, 'Tap a place to travel there. Drag to look around the map.', {
-        fontFamily: FONT, fontSize: '14px', color: '#ffe9a8', stroke: '#000', strokeThickness: 4, fontStyle: 'bold', align: 'center',
-      }).setOrigin(0.5, 0).setDepth(30);
+      this.hintText = this.add.text(0, 0, 'Tap a place to travel there. Drag to look around the map.', uiStyle(14, CSS.goldHi, { stroke: true })).setOrigin(0.5, 0).setDepth(30);
       this.tweens.add({ targets: this.hintText, alpha: 0, delay: 6000, duration: 700, onComplete: () => { this.hintText?.destroy(); this.hintText = null; } });
       GameState.seenMapHint = true;
     }
@@ -65,24 +65,25 @@ export class MapHudScene extends Phaser.Scene {
     const top = ins.top;
     const left = m + ins.left;
     const portrait = h > w * 1.1;
-    const barH = (portrait ? 96 : 64) * u;
+    const barH = (portrait ? 108 : 64) * u;
     this.barBottom = top + barH;
     this.bar.setPosition(0, 0).setSize(w, this.barBottom);
+    this.barLine.setPosition(0, this.barBottom - 2).setSize(w, 2);
     this.dateText.setPosition(left, top + 6 * u).setFontSize(Math.round(12 * u));
     this.goldText.setPosition(left, top + 22 * u).setFontSize(Math.round(16 * u));
-    this.ledgerText.setPosition(left, top + 44 * u).setFontSize(Math.round(10 * u));
+    this.ledgerText.setPosition(left, top + 44 * u).setFontSize(Math.round(10 * u)).setWordWrapWidth(portrait ? w - left - m - ins.right : Math.min(w * 0.46, 420 * u), true);
     const btnW = 96 * u;
     this.titleBtn.setPosition(w - m - ins.right - btnW / 2, top + 20 * u).setScale(u);
     this.titleBtn.setData('baseScale', u);
     // the infamy column: on portrait phones it drops to a second row
     const ix = portrait ? left : Math.min(w * 0.5, left + 230 * u);
-    const iy = portrait ? top + 62 * u : top + 4 * u;
+    const iy = portrait ? top + 74 * u : top + 4 * u;
     const colW = portrait ? w - left - m - ins.right : Math.max(120 * u, w - ix - btnW - 2 * m - ins.right);
     this.infamyLabel.setPosition(ix, iy).setFontSize(Math.round(10 * u)).setWordWrapWidth(0, false);
     this.infamyBg.setPosition(ix, iy + 22 * u).setSize(Math.min(150 * u, colW), 10 * u);
     this.infamyFg.setPosition(ix, iy + 22 * u).setSize(Math.min(150 * u, colW), 10 * u);
     this.bountyText.setPosition(ix + Math.min(150 * u, colW) + 8 * u, iy + 22 * u).setOrigin(0, 0.5).setFontSize(Math.round(10 * u));
-    this.hintText?.setPosition(w / 2, this.barBottom + 10 * u).setFontSize(Math.round(14 * u)).setWordWrapWidth(w - 4 * m);
+    this.hintText?.setPosition(w / 2, this.barBottom + 8 * u).setFontSize(Math.round(14 * u)).setWordWrapWidth(w - 4 * m);
     if (this.spec) this.showPanel(this.spec);
     this.refresh();
   }
@@ -114,9 +115,9 @@ export class MapHudScene extends Phaser.Scene {
     this.toastText?.destroy();
     const { width: w } = this.scale;
     const u = this.u;
-    const t = this.add.text(w / 2, this.barBottom + 12 * u, lines.join('\n'), {
-      fontFamily: FONT, fontSize: `${Math.round(13 * u)}px`, color, stroke: '#000', strokeThickness: 5, align: 'center', fontStyle: 'bold', wordWrap: { width: w * 0.9 },
-    }).setOrigin(0.5, 0).setDepth(31);
+    // sits under the first-visit hint when both are showing
+    const ty = this.barBottom + 12 * u + (this.hintText && this.hintText.active ? this.hintText.height + 8 * u : 0);
+    const t = this.add.text(w / 2, ty, lines.join('\n'), uiStyle(13 * u, color, { stroke: true, wrap: w * 0.9 })).setOrigin(0.5, 0).setDepth(31);
     this.toastText = t;
     this.tweens.add({ targets: t, alpha: 0, delay: 4500, duration: 700, onComplete: () => { if (this.toastText === t) this.toastText = null; t.destroy(); } });
   }
@@ -131,20 +132,17 @@ export class MapHudScene extends Phaser.Scene {
     const cx = w / 2;
     const lineTexts: Phaser.GameObjects.Text[] = [];
     let contentH = 16 * u;
-    const title = this.add.text(0, 0, spec.title, { fontFamily: FONT, fontSize: `${Math.round(20 * u)}px`, color: '#f5c542', fontStyle: 'bold', align: 'center', wordWrap: { width: pw - 30 * u } }).setOrigin(0.5, 0);
+    const title = this.add.text(0, 0, spec.title, { ...displayStyle(20 * u, CSS.emberDeep, false), align: 'center', wordWrap: { width: pw - 30 * u } }).setOrigin(0.5, 0);
     contentH += title.height + 8 * u;
     for (const l of spec.lines) {
-      const t = this.add.text(0, 0, l, { fontFamily: FONT, fontSize: `${Math.round(12 * u)}px`, color: '#e8dcc0', align: 'center', wordWrap: { width: pw - 30 * u } }).setOrigin(0.5, 0);
+      const t = this.add.text(0, 0, l, uiStyle(12 * u, CSS.ink, { bold: false, wrap: pw - 30 * u })).setOrigin(0.5, 0);
       lineTexts.push(t);
       contentH += t.height + 5 * u;
     }
     const bh = 48 * u;
     contentH += 10 * u + bh + 14 * u;
     const py = h - ins.bottom - 16 * u - contentH;
-    const bg = this.add.graphics();
-    bg.fillStyle(0x000000, 0.4).fillRoundedRect(cx - pw / 2 + 3, py + 4, pw, contentH, 14);
-    bg.fillStyle(0x2a2118, 0.96).fillRoundedRect(cx - pw / 2, py, pw, contentH, 14);
-    bg.lineStyle(3, 0xf5deb3, 0.9).strokeRoundedRect(cx - pw / 2, py, pw, contentH, 14);
+    const bg = drawPanel(this.add.graphics(), cx - pw / 2, py, pw, contentH);
     this.panelObjects.push(bg, title, ...lineTexts);
     let y = py + 16 * u;
     title.setPosition(cx, y); y += title.height + 8 * u;

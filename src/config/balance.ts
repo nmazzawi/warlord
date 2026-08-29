@@ -68,12 +68,12 @@ export const TROOP_KINDS = {
   guard:  { label: 'Town guard', hp: 75, damage: 10, cost: 60, tint: 0x9fd8ff, desc: 'Drilled, armored, expensive.' },
 };
 /** Armies eat: wages per troop per day while you travel. */
-export const UPKEEP = { wage: 2, graceDays: 1 };
+export const UPKEEP = { wage: 2, graceDays: 2, startingGold: 40 };
 /** Daily tribute from an occupied settlement (villages by tier; the town flat). */
 export const TRIBUTE = { villageBase: 4, villagePerTier: 1, town: 15 };
 /** Conquest choices. */
 export const CONQUEST = {
-  sackVillageGold: 50, sackVillagePerTier: 30, sackVillageInfamy: 10,
+  sackVillageGold: 50, sackVillagePerTier: 30, sackVillageInfamy: 8, // added ON TOP of the raid's infamy — always a spike
   sackTownGold: 350, sackTownInfamy: 25,
   garrison: 2,
 };

@@ -98,6 +98,8 @@ async function desktopRun(browser) {
   await page.goto(URL);
   await sleep(1500);
   check((await activeScenes(page)).includes('Title'), 'title scene on load');
+  const fonts = await page.evaluate(() => ({ cinzel: document.fonts.check('700 20px Cinzel'), nunito: document.fonts.check('700 16px "Nunito Sans"') }));
+  check(fonts.cinzel && fonts.nunito, `self-hosted fonts loaded (${JSON.stringify(fonts)})`);
   // the title screen must never write a save
   await page.evaluate(() => { window.__GameState.save(); });
   check(!(await page.evaluate(() => window.__GameState.hasSave())), 'title screen cannot create a save by accident');
@@ -149,17 +151,52 @@ async function desktopRun(browser) {
   const choices = await page.evaluate(() => window.__warlord.scene.getScene('Result').children.list.filter(c => c.type === 'Container').map(c => c.list.find(t => t.type === 'Text')?.text));
   check(choices.includes('SACK') && choices.includes('OCCUPY') && choices.includes('LEAVE'), `conquest choice offered (${choices.join('/')})`);
   await page.screenshot({ path: `${OUT}/d-choice.png` });
+  // the phone tab dies right here: the victory must survive a reload
+  await page.reload();
+  await sleep(1500);
+  await clickBtn(page, 'Title', 'CONTINUE');
+  await noPatrols(page); // the reload threw away the earlier override
+  check(await waitScene(page, 'Result', 6000), 'a won battle reappears as the sack/occupy choice after a reload');
+  await sleep(400);
   await clickBtn(page, 'Result', 'LEAVE');
   check(await waitScene(page, 'Map'), 'back on the map');
   await sleep(800);
   s = await gs(page);
   check(s.settlements.ashford?.timesRaided === 1 && s.infamy === 7, `leave: village raided + ruined, infamy ${s.infamy}`);
   await page.screenshot({ path: `${OUT}/d-map-toast.png` });
+  const ashSpec = await page.evaluate(() => { const h = window.__warlord.scene.getScene('MapHud'); return h.spec ? { buttons: h.spec.buttons.map(b => b.label), lines: h.spec.lines.join(' ') } : null; });
+  check(ashSpec && !ashSpec.buttons.includes('VISIT') && /know your face/.test(ashSpec.lines), `raided village shuts its gates: "${ashSpec && ashSpec.lines.slice(-90)}"`);
 
   // --- occupy Millbrook
   await hidePanel(page);
   await tapNode(page, 'millbrook');
   check(await waitPanel(page, 20000), 'reached Millbrook');
+  // --- VISIT as a customer: markup, no recruiting, a rumor at the inn
+  await clickBtn(page, 'MapHud', 'VISIT');
+  check(await waitScene(page, 'Settlement'), 'visited Millbrook peacefully');
+  await sleep(400);
+  await page.screenshot({ path: `${OUT}/d-visit.png` });
+  const cards = await page.evaluate(() => window.__warlord.scene.getScene('Settlement').children.list.filter(c => c.type === 'Container').map(c => c.list.filter(t => t.type === 'Text').map(t => t.text).join('|')));
+  check(cards.some(c => /BARRACKS.*locked/.test(c)) && cards.some(c => /^INN/.test(c)), `visit screen: barracks locked, inn present (${cards.length} cards)`);
+  await clickBtn(page, 'Settlement', 'FORGE');
+  await waitScene(page, 'Shop');
+  const markup = await page.evaluate(() => { const sh = window.__warlord.scene.getScene('Shop'); return { p60: sh.price(60), blurb: sh.children.list.filter(c => c.type === 'Text').map(t => t.text).join(' | ') }; });
+  check(markup.p60 === 90 && /visitor prices/.test(markup.blurb), `visitor markup: 60 → ${markup.p60} gold, blurb mentions visitor prices`);
+  await page.screenshot({ path: `${OUT}/d-visit-forge.png` });
+  await clickBtn(page, 'Shop', 'LEAVE');
+  await clickBtn(page, 'Settlement', 'INN');
+  await waitScene(page, 'Shop');
+  const g0 = (await gs(page)).gold;
+  await clickBtn(page, 'Shop', '10 gold');
+  const inn = await page.evaluate(() => ({ gold: window.__GameState.gold, heard: window.__GameState.rumorsHeard.length, text: window.__warlord.scene.getScene('Shop').children.list.filter(c => c.type === 'Text').map(t => t.text).join(' | ') }));
+  check(inn.gold === g0 - 10 && inn.heard === 1 && /leans in/.test(inn.text), `bought a rumor at the inn (gold ${g0} → ${inn.gold})`);
+  await page.screenshot({ path: `${OUT}/d-inn.png` });
+  await clickBtn(page, 'Shop', 'LEAVE');
+  await clickBtn(page, 'Settlement', 'TO THE MAP');
+  await waitScene(page, 'Map');
+  await sleep(600);
+  if (!(await waitPanel(page, 1500))) await tapNode(page, 'millbrook');
+  check(await waitPanel(page, 5000), 'Millbrook panel again');
   r = await raidHere(page);
   await autoPlay(page, 80);
   await sleep(1800);
@@ -191,6 +228,7 @@ async function desktopRun(browser) {
   await tapNode(page, 'camp');
   check(await waitPanel(page, 30000), 'travelled home broke with 6 mouths to feed');
   s = await gs(page);
+  console.log('after the broke trip:', JSON.stringify({ day: s.day, gold: s.gold, unpaid: s.unpaid, deserted: s.deserted, troops: s.troops, tribute: s.tribute, wages: s.wages, loc: s.location, title: await panelTitle(page) }));
   check(s.deserted >= 1 && s.troops < 6, `unpaid troops deserted on the road (${s.deserted} gone, ${s.troops} left)`);
   await page.screenshot({ path: `${OUT}/d-desertion.png` });
 
@@ -218,7 +256,7 @@ async function desktopRun(browser) {
   await sleep(1800);
   check(await waitScene(page, 'Result', 8000), 'Kingsport fell');
   const sc = await page.evaluate(() => window.__warlord.scene.getScene('Result').children.list.filter(c => c.type === 'Container').map(c => c.list.find(t => t.type === 'Text')?.text));
-  check(sc.includes('SACK') && sc.includes('OCCUPY') && !sc.includes('LEAVE'), `town: sack or occupy only (${sc.join('/')})`);
+  check(sc.includes('SACK') && sc.includes('OCCUPY') && sc.includes('LEAVE'), `town: sack, occupy, or leave it to regroup (${sc.join('/')})`);
   await page.screenshot({ path: `${OUT}/d-siege-result.png` });
   await clickBtn(page, 'Result', 'OCCUPY');
   await waitScene(page, 'Map');
@@ -284,6 +322,11 @@ async function desktopRun(browser) {
   await page.screenshot({ path: `${OUT}/d-bow-rule.png` });
   await page.evaluate(() => { const g = window.__warlord; g.scene.stop('Hud'); g.scene.stop('Raid'); g.scene.start('Map'); });
   await waitScene(page, 'Map');
+
+  // --- at Raider every unconquered gate shuts
+  await page.evaluate(() => { const S = window.__GameState; S.infamy = 45; S.save(); });
+  const lock = await page.evaluate(() => ({ grey: window.__GameState.access('greywater'), thorn: window.__GameState.access('thornhill'), king: window.__GameState.access('kingsport') }));
+  check(lock.grey === 'closed' && lock.thorn === 'closed' && lock.king === 'occupied', `Raider lockout: ${JSON.stringify(lock)}`);
 
   // --- save / reload keeps conquests
   await page.reload();

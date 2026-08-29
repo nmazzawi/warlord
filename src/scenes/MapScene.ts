@@ -11,7 +11,7 @@ import { TEX } from '../systems/Textures';
 import { Sound } from '../systems/Sound';
 import { mulberry32 } from '../utils/rng';
 import type { MapHudScene } from './MapHudScene';
-import { FONT } from './ui';
+import { CSS, FONT, PAL } from './ui';
 
 const TAP_RADIUS = 70;
 
@@ -59,6 +59,13 @@ export class MapScene extends Phaser.Scene {
 
     this.scene.launch('MapHud');
     this.hud = this.scene.get('MapHud') as MapHudScene;
+
+    // a battle won just before a reload: offer the sack/occupy choice again
+    const pv = GameState.pendingVictory;
+    if (pv) {
+      this.time.delayedCall(60, () => this.scene.launch('Result', { outcome: 'victory', goldEarned: pv.goldEarned, fallen: pv.fallen, deadTroopIds: pv.deadTroopIds,
+        battle: { kind: pv.battle.kind, layoutId: 'ashford', name: pv.battle.name, title: '', hint: '', defenders: { militia: 0, archers: 0, captains: 0, statMult: 1, goldMult: 1 }, palisade: false, villageId: pv.battle.villageId, tier: pv.battle.tier } }));
+    }
 
     this.input.on('pointerdown', this.onDown, this);
     this.input.on('pointermove', this.onMove, this);
@@ -120,7 +127,7 @@ export class MapScene extends Phaser.Scene {
     const s = Phaser.Math.Clamp(dpr / this.cameras.main.zoom, 0.9, 2.4);
     for (const l of this.labels) l.t.setScale(s);
     // the status line sits under the (now bigger) name
-    for (const [id, name] of this.names) this.status.get(id)?.setY(name.y + name.displayHeight + 2);
+    for (const [id, name] of this.names) this.status.get(id)?.setY(name.y + name.displayHeight + 1);
   }
 
   /** Days pass: wages, tribute, desertions. Anything notable is shown as a toast. */
@@ -138,16 +145,16 @@ export class MapScene extends Phaser.Scene {
     const P = MAP.padY;
     const H = MAP.h + 2 * P;
     const g = this.make.graphics({ x: 0, y: 0 }, false);
-    g.fillStyle(0x6a7d4a, 1).fillRect(0, 0, MAP.w, H);
+    g.fillStyle(PAL.earth, 1).fillRect(0, 0, MAP.w, H);
     for (let i = 0; i < 380; i++) {
       const x = rnd() * MAP.w, y = rnd() * H, r = 14 + rnd() * 50;
-      g.fillStyle(rnd() > 0.5 ? 0x5f7242 : 0x748a52, 0.5).fillCircle(x, y, r);
+      g.fillStyle(rnd() > 0.5 ? PAL.earthDeep : PAL.earthHi, 0.5).fillCircle(x, y, r);
     }
     const forests = [[300, 320, 160], [820, 840, 200], [1250, 860, 140], [560, 120, 120], [150, 900, 120], [700, -150, 200], [400, 1120, 180], [1200, 1150, 160], [1000, -120, 150]];
     for (const [fx, fy, fr] of forests) {
       for (let i = 0; i < 60; i++) {
         const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * fr;
-        g.fillStyle(rnd() > 0.5 ? 0x3f5a32 : 0x34502a, 0.9).fillCircle(fx + Math.cos(a) * d, fy + P + Math.sin(a) * d, 10 + rnd() * 14);
+        g.fillStyle(rnd() > 0.5 ? PAL.leaf : PAL.leafDeep, 0.9).fillCircle(fx + Math.cos(a) * d, fy + P + Math.sin(a) * d, 10 + rnd() * 14);
       }
     }
     for (let i = 0; i < 9; i++) {
@@ -155,7 +162,7 @@ export class MapScene extends Phaser.Scene {
       g.fillStyle(0x6d6f68, 1).fillTriangle(x - s, y + s, x + s, y + s, x, y - s);
       g.fillStyle(0xd9dbd6, 1).fillTriangle(x - s * 0.35, y - s * 0.3, x + s * 0.35, y - s * 0.3, x, y - s);
     }
-    g.fillStyle(0x3d6a8a, 1).fillEllipse(1040, 780 + P, 180, 100);
+    g.fillStyle(PAL.water, 1).fillEllipse(1040, 780 + P, 180, 100);
     g.fillStyle(0x5a8db0, 0.6).fillEllipse(1030, 772 + P, 120, 60);
     g.generateTexture(key, MAP.w, H);
     g.destroy();
@@ -163,7 +170,8 @@ export class MapScene extends Phaser.Scene {
   }
 
   private label(x: number, y: number, str: string, css: number, color: string, originY = 0) {
-    const t = this.add.text(x, y, str, { fontFamily: FONT, fontSize: `${css}px`, color, stroke: '#000', strokeThickness: Math.max(2, Math.round(css / 4)), fontStyle: 'bold', align: 'center' }).setOrigin(0.5, originY);
+    const dark = color === CSS.ink || color === CSS.inkSoft;
+    const t = this.add.text(x, y, str, { fontFamily: FONT, fontSize: `${css}px`, color, stroke: dark ? '#e7d8b4' : '#000000', strokeThickness: dark ? 0 : Math.max(2, Math.round(css / 4)), fontStyle: 'bold', align: 'center' }).setOrigin(0.5, originY);
     this.labels.push({ t, css });
     return t;
   }
@@ -172,18 +180,31 @@ export class MapScene extends Phaser.Scene {
     const g = this.add.graphics().setDepth(1);
     for (const e of EDGES) {
       const a = nodeById(e.a), b = nodeById(e.b);
-      g.lineStyle(12, 0x5a4630, 1).lineBetween(a.x, a.y, b.x, b.y);
-      g.lineStyle(7, 0x9a7d55, 1).lineBetween(a.x, a.y, b.x, b.y);
-      this.label((a.x + b.x) / 2, (a.y + b.y) / 2, `${e.days}d`, 12, '#fff3d0', 0.5).setDepth(2).setAlpha(0.95);
+      g.lineStyle(14, PAL.dirtDeep, 1).lineBetween(a.x, a.y, b.x, b.y);
+      g.lineStyle(9, PAL.dirt, 1).lineBetween(a.x, a.y, b.x, b.y);
+      // subtle texture: wheel ruts as a dashed lighter line
+      const len = Math.hypot(b.x - a.x, b.y - a.y), ux = (b.x - a.x) / len, uy = (b.y - a.y) / len;
+      g.lineStyle(2, 0xa88d62, 0.7);
+      for (let d = 14; d < len - 14; d += 24) g.lineBetween(a.x + ux * d, a.y + uy * d, a.x + ux * (d + 10), a.y + uy * (d + 10));
+      this.label((a.x + b.x) / 2, (a.y + b.y) / 2, `${e.days}d`, 12, CSS.cream, 0.5).setDepth(2).setAlpha(0.95);
     }
   }
 
   private drawNode(n: MapNode) {
     if (n.kind === 'cross') { this.add.image(n.x, n.y, TEX.mapCross).setDepth(3); return; }
     const tex = n.kind === 'camp' ? TEX.mapCamp : n.kind === 'village' ? TEX.mapVillage : TEX.mapTown;
+    this.add.image(n.x + 3, n.y + 5, TEX.shadow).setAlpha(0.4).setDisplaySize(64, 28).setDepth(4);
     this.add.image(n.x, n.y, tex).setDepth(5);
-    this.names.set(n.id, this.label(n.x, n.y + 30, n.name, 16, '#fff8e7').setDepth(6));
-    const st = this.label(n.x, n.y + 50, '', 11, '#e8dcc0');
+    // a parchment name plate under the name + status
+    const plate = this.add.graphics().setDepth(5);
+    plate.fillStyle(0x000000, 0.3).fillRoundedRect(-62, 2, 124, 36, 8);
+    plate.fillStyle(PAL.ironEdge, 1).fillRoundedRect(-62, -2, 124, 36, 8);
+    plate.fillStyle(PAL.parchment, 0.96).fillRoundedRect(-60, 0, 120, 32, 7);
+    plate.lineStyle(1, PAL.goldDeep, 0.6).strokeRoundedRect(-57, 3, 114, 26, 5);
+    plate.setPosition(n.x, n.y + 28);
+    this.labels.push({ t: plate as unknown as Phaser.GameObjects.Text, css: 0 });
+    this.names.set(n.id, this.label(n.x, n.y + 30, n.name, 14, CSS.ink).setDepth(6));
+    const st = this.label(n.x, n.y + 48, '', 10, CSS.inkSoft);
     st.setDepth(6);
     this.status.set(n.id, st);
     if (n.kind !== 'camp') {
@@ -202,20 +223,22 @@ export class MapScene extends Phaser.Scene {
       if (n.kind === 'camp') { st.setText('Home'); continue; }
       const s = GameState.settlement(n.id);
       const parts: string[] = [];
-      let color = '#e8dcc0';
-      if (s.sacked) { parts.push('Sacked — a burnt ruin'); color = '#9a9a9a'; }
-      else if (s.occupied) { parts.push(`Yours · tribute +${n.kind === 'town' ? 15 : 4 + (n.tier ?? 1)}/day`); color = '#c8f0c8'; }
-      else if (n.kind === 'town') { parts.push(GameState.siegeUnlocked ? 'Walled · siege it' : 'LOCKED — garrison'); color = GameState.siegeUnlocked ? '#ffb0a0' : '#e8dcc0'; }
+      let color = CSS.inkSoft;
+      const access = GameState.access(n.id);
+      if (s.sacked) { parts.push('Sacked — a burnt ruin'); color = '#8a8a8a'; }
+      else if (s.occupied) { parts.push(`Yours · +${n.kind === 'town' ? 15 : 4 + (n.tier ?? 1)}/day`); color = '#3f6b2a'; }
+      else if (n.kind === 'town') { parts.push(GameState.siegeUnlocked ? 'Walled · siege it' : 'Walled town'); color = GameState.siegeUnlocked ? CSS.danger : CSS.inkSoft; }
       else {
         const info = GameState.villageInfo(n.id);
-        if (info.ruined) { parts.push(`Ruined · ${info.daysToRecover}d`); color = '#9a9a9a'; }
+        if (info.ruined) { parts.push(`Ruined · ${info.daysToRecover}d`); color = '#8a8a8a'; }
         else parts.push(`~${info.total} defenders`);
         if (info.palisade) parts.push('palisade');
-        else if (info.steps > 0) parts.push(`fortified +${info.steps}`);
-        if (info.timesRaided > 0 && !info.ruined) parts.push(`raided ×${info.timesRaided}`);
-        if (info.steps > 0 && !info.ruined) color = '#ffb0a0';
+        else if (info.steps > 0) parts.push(`+${info.steps}`);
+        if (info.steps > 0 && !info.ruined) color = CSS.danger;
         this.badges.get(n.id)?.setVisible(info.palisade && !info.ruined);
       }
+      if (access === 'visit') parts.push('open');
+      else if (access === 'closed') parts.push('shut to you');
       st.setText(parts.join(' · ')).setColor(color);
       this.flags.get(n.id)?.setVisible(s.occupied);
       if (s.occupied || s.sacked) this.badges.get(n.id)?.setVisible(false);
@@ -260,8 +283,8 @@ export class MapScene extends Phaser.Scene {
     }
     if (!best) return;
     if (best.id === GameState.location) { this.showNodePanel(best); return; }
-    // the town shows what you're walking into (and the day cost) BEFORE you pay for the trip
-    if (best.kind === 'town' && !GameState.settlement(best.id).occupied) { this.showNodePanel(best); return; }
+    // the town shows what you're walking into (and the day cost) BEFORE you pay for the trip; a burnt ruin isn't worth the walk
+    if ((best.kind === 'town' && !GameState.settlement(best.id).occupied) || GameState.settlement(best.id).sacked) { this.showNodePanel(best); return; }
     this.travelTo(best.id);
   }
 
@@ -331,6 +354,20 @@ export class MapScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------- panels
+  /** VISIT (as a customer) when the gates are open to you, otherwise a note on why they are shut. */
+  private visitButton(n: MapNode, lines: string[]) {
+    const here = GameState.location === n.id;
+    const access = GameState.access(n.id);
+    if (access === 'visit') {
+      lines.push(here ? 'The gates are open to you — you could trade here, or ask at the inn.' : 'Their gates are open to strangers with coin.');
+      return here
+        ? { label: 'VISIT', color: 0x2f6b8a, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: n.id, visit: true }); } }
+        : { label: `WALK IN (${this.routeDays(n.id)}d)`, color: 0x2f6b8a, onPress: () => this.travelTo(n.id) };
+    }
+    if (access === 'closed') lines.push(GameState.closedReason(n.id));
+    return null;
+  }
+
   private showNodePanel(n: MapNode) {
     const leave = { label: 'Leave', color: 0x555555, onPress: () => this.hud.hidePanel() };
     if (n.kind === 'camp') {
@@ -356,22 +393,21 @@ export class MapScene extends Phaser.Scene {
     }
     if (n.kind === 'town') {
       if (!GameState.siegeUnlocked) {
-        this.hud.showPanel({
-          title: n.name.toUpperCase(),
-          lines: [n.blurb ?? '', `The garrison is far too strong for a nobody. Become a ${INFAMY.tiers[SIEGE.unlockTier].name} (infamy ${INFAMY.tiers[SIEGE.unlockTier].min}) and they will take you seriously.`,
-            GameState.location !== n.id ? `The road there takes ${this.routeDays(n.id)} days.` : ''].filter(Boolean),
-          buttons: [leave],
-        });
+        const lines = [n.blurb ?? '', `The garrison is far too strong for a nobody. Become a ${INFAMY.tiers[SIEGE.unlockTier].name} (infamy ${INFAMY.tiers[SIEGE.unlockTier].min}) and they will take you seriously.`,
+          GameState.location !== n.id ? `The road there takes ${this.routeDays(n.id)} days.` : ''].filter(Boolean);
+        const visit = this.visitButton(n, lines);
+        this.hud.showPanel({ title: n.name.toUpperCase(), lines, buttons: [...(visit ? [visit] : []), leave] });
       } else {
         const here = GameState.location === n.id;
+        const lines = [n.blurb ?? '', `A stone wall with one gate; ${SIEGE.wallArchers} archers on the battlements (only arrows reach them), ${SIEGE.guards} town guards and the garrison captain behind it. Batter the gate, then take the courtyard.`];
+        const visit = this.visitButton(n, lines);
         this.hud.showPanel({
-          title: n.name.toUpperCase(),
-          lines: [n.blurb ?? '', `A stone wall with one gate; ${SIEGE.wallArchers} archers on the battlements, ${SIEGE.guards} town guards and the garrison captain behind it. Batter the gate, then take the courtyard.`],
+          title: n.name.toUpperCase(), lines,
           buttons: [
             here
               ? { label: 'SIEGE', color: 0xa0341f, onPress: () => { GameState.save(); this.scene.start('Raid', siegeBattle()); } }
               : { label: `MARCH (${this.routeDays(n.id)}d)`, color: 0xa0341f, onPress: () => this.travelTo(n.id) },
-            leave],
+            ...(visit ? [visit] : []), leave],
         });
       }
       return;
@@ -385,11 +421,15 @@ export class MapScene extends Phaser.Scene {
       if (info.steps > 0) lines.push(`Fortified: +${info.steps} militia hired since word of you spread${info.palisade ? `, and a palisade with ${gates} gate${gates === 1 ? '' : 's'}` : ''}.`);
       if (info.timesRaided > 0) lines.push(`Raided ${info.timesRaided}× before — they have hired more guards, but there is more to take.`);
     }
+    const visit = this.visitButton(n, lines);
+    const here = GameState.location === n.id;
     this.hud.showPanel({
       title: n.name.toUpperCase(), lines,
       buttons: [
-        { label: 'RAID', color: 0xa0341f, enabled: !info.ruined, onPress: () => { GameState.save(); this.scene.start('Raid', villageBattle(n.id)); } },
-        leave,
+        here
+          ? { label: 'RAID', color: 0xa0341f, enabled: !info.ruined, onPress: () => { GameState.save(); this.scene.start('Raid', villageBattle(n.id)); } }
+          : { label: `MARCH (${this.routeDays(n.id)}d)`, color: 0xa0341f, enabled: !info.ruined, onPress: () => this.travelTo(n.id) },
+        ...(visit ? [visit] : []), leave,
       ],
     });
   }

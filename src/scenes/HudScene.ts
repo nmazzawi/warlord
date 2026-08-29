@@ -3,7 +3,7 @@
 import Phaser from 'phaser';
 import type { PlayerInput } from '../systems/PlayerInput';
 import { Joystick } from '../systems/Joystick';
-import { dprOf, FONT, safeInsets } from './ui';
+import { CSS, displayStyle, dprOf, FONT, PAL, safeInsets, uiStyle } from './ui';
 
 export interface HudModel {
   title: string; hint: string; name: string;
@@ -11,6 +11,7 @@ export interface HudModel {
   troopsAlive: number; troopsTotal: number; enemiesAlive: number;
   hornCd: number; hornMax: number; chargeCd: number; chargeMax: number; boosted: boolean;
   defense: number;
+  weapon: string;
   /** siege: gate HP fraction (or null) */
   gate: number | null;
   objective: string;
@@ -43,23 +44,19 @@ export class HudScene extends Phaser.Scene {
 
   create() {
     this.input_.joyX = 0; this.input_.joyY = 0;
-    this.hpBg = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.6).setOrigin(0, 0.5);
-    this.hpFg = this.add.rectangle(0, 0, 10, 10, 0x5ec26a, 1).setOrigin(0, 0.5);
-    this.hpText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: '#ffffff', stroke: '#000', strokeThickness: 3 }).setOrigin(0, 0.5);
-    this.goldText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '16px', color: '#f5c542', stroke: '#000', strokeThickness: 4, fontStyle: 'bold' });
-    this.infoText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: '#e8dcc0', stroke: '#000', strokeThickness: 3 });
-    this.objectiveText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: '#ffe9a8', stroke: '#000', strokeThickness: 3, fontStyle: 'bold' });
+    this.hpBg = this.add.rectangle(0, 0, 10, 10, PAL.ironEdge, 0.85).setOrigin(0, 0.5).setStrokeStyle(2, PAL.gold, 0.8);
+    this.hpFg = this.add.rectangle(0, 0, 10, 10, 0x6f9a4f, 1).setOrigin(0, 0.5);
+    this.hpText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: '#ffffff', stroke: '#000', strokeThickness: 3, fontStyle: 'bold' }).setOrigin(0, 0.5);
+    this.goldText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '16px', color: CSS.goldHi, stroke: '#000', strokeThickness: 4, fontStyle: 'bold' });
+    this.infoText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: CSS.cream, stroke: '#000', strokeThickness: 3, fontStyle: 'bold' });
+    this.objectiveText = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: CSS.goldHi, stroke: '#000', strokeThickness: 3, fontStyle: 'bold' });
 
-    this.horn = this.makeBtn('HORN', 'Q', 0xd9a441);
-    this.charge = this.makeBtn('CHARGE', 'E', 0x3fa9f5);
+    this.horn = this.makeBtn('HORN', 'Q', PAL.gold);
+    this.charge = this.makeBtn('CHARGE', 'E', PAL.ember);
     this.joystick = new Joystick(this, this.input_, p => this.hitBtn(p) !== null);
 
-    this.intro = this.add.text(0, 0, `${this.model.title}\n${this.model.objective}`, {
-      fontFamily: FONT, fontSize: '22px', color: '#fff8e7', stroke: '#000', strokeThickness: 5, align: 'center', fontStyle: 'bold',
-    }).setOrigin(0.5);
-    this.hint = this.add.text(0, 0, this.model.hint, {
-      fontFamily: FONT, fontSize: '13px', color: '#ffe9a8', stroke: '#000', strokeThickness: 4, align: 'center', fontStyle: 'bold',
-    }).setOrigin(0.5);
+    this.intro = this.add.text(0, 0, `${this.model.title}\n${this.model.objective}`, { ...displayStyle(22, CSS.goldHi), align: 'center' }).setOrigin(0.5);
+    this.hint = this.add.text(0, 0, this.model.hint, uiStyle(13, CSS.cream, { stroke: true })).setOrigin(0.5);
     this.tweens.add({ targets: this.intro, alpha: 0, delay: 3200, duration: 700 });
     this.tweens.add({ targets: this.hint, alpha: 0, delay: 5500, duration: 700 });
 
@@ -123,10 +120,10 @@ export class HudScene extends Phaser.Scene {
     const m = this.model, u = this.u;
     const frac = Phaser.Math.Clamp(m.heroHp / m.heroMaxHp, 0, 1);
     this.hpFg.width = 190 * u * frac;
-    this.hpFg.setFillStyle(frac > 0.5 ? 0x5ec26a : frac > 0.25 ? 0xe0b040 : 0xe0453a);
+    this.hpFg.setFillStyle(frac > 0.5 ? 0x6f9a4f : frac > 0.25 ? PAL.gold : PAL.dangerHi);
     this.hpText.setText(`${Math.ceil(m.heroHp)} / ${m.heroMaxHp}${m.defense ? `   ·   DEF ${m.defense}` : ''}`);
     this.goldText.setText(`⬤ ${m.gold} gold`);
-    this.infoText.setText(`${m.name}  ·  Troops ${m.troopsAlive}/${m.troopsTotal}\nDefenders left ${m.enemiesAlive}${m.boosted ? '  ·  RALLIED!' : ''}`);
+    this.infoText.setText(`${m.name}  ·  ${m.weapon}  ·  Troops ${m.troopsAlive}/${m.troopsTotal}\nDefenders left ${m.enemiesAlive}${m.boosted ? '  ·  RALLIED!' : ''}`);
     this.objectiveText.setText(m.gate !== null ? `GATE ${Math.ceil(m.gate * 100)}%  ·  ${m.objective}` : m.objective);
     this.drawBtn(this.horn, m.hornCd, m.hornMax);
     this.drawBtn(this.charge, m.chargeCd, m.chargeMax);
@@ -138,9 +135,11 @@ export class HudScene extends Phaser.Scene {
     const r = b.r * (pressed ? 0.9 : 1);
     const g = b.g;
     g.clear();
-    g.fillStyle(0x000000, 0.45).fillCircle(b.x + 2, b.y + 3, r);
+    g.fillStyle(0x000000, 0.45).fillCircle(b.x + 2, b.y + 4, r + 3);
+    g.fillStyle(PAL.ironEdge, 1).fillCircle(b.x, b.y, r + 3);
     g.fillStyle(b.color, ready ? 1 : 0.45).fillCircle(b.x, b.y, r);
-    g.lineStyle(3, 0xffffff, ready ? 0.9 : 0.35).strokeCircle(b.x, b.y, r);
+    g.fillStyle(0xffffff, ready ? 0.18 : 0.08).fillEllipse(b.x, b.y - r * 0.45, r * 1.3, r * 0.7);
+    g.lineStyle(2, PAL.goldHi, ready ? 0.9 : 0.35).strokeCircle(b.x, b.y, r - 1);
     if (!ready) {
       const frac = Phaser.Math.Clamp(cd / max, 0, 1);
       g.fillStyle(0x000000, 0.55);

@@ -83,11 +83,15 @@ export class Hero extends Unit {
       let spd = this.speed * (this.boosted ? ABILITIES.horn.boostMult : 1);
       if (this.swingSlow > 0) spd *= HERO.swingSlowMult; // a swing plants your feet for a moment
       if (this.mode === 'bow') {
-        const target = this.attackTimer <= 0 ? this.findBowTarget() : null;
-        if (target) {
-          // THE RANGED RULE: shoot only when (nearly) stopped. A horse slows to a walk to let you.
-          if (this.mounted) { spd *= RANGED.walkFraction; this.shoot(target); }
-          else if (moveMag <= RANGED.walkFraction) this.shoot(target);
+        const target = this.findBowTarget();
+        const gate = !target ? this.gateInBowRange() : null;
+        if (target || gate) {
+          // THE RANGED RULE: shoot only when (nearly) stopped. A horse drops to a walk while there is
+          // something to shoot at — not just on the frame the arrow flies.
+          if (this.mounted) spd *= RANGED.walkFraction;
+          if (this.attackTimer <= 0 && (this.mounted || moveMag <= RANGED.walkFraction)) {
+            if (target) this.shoot(target); else if (gate) this.shootGate(gate.x, gate.y);
+          }
         }
       } else if (this.attackTimer <= 0) {
         this.tryStrike();
@@ -153,6 +157,24 @@ export class Hero extends Unit {
       best = e; bestD = d;
     }
     return best;
+  }
+
+  /** With nothing else to shoot, a bow can still work on the gate. */
+  private gateInBowRange(): { x: number; y: number } | null {
+    const gate = this.raid.gate;
+    if (!gate || !gate.alive) return null;
+    const gx = Phaser.Math.Clamp(this.x, gate.rect.left, gate.rect.right), gy = Phaser.Math.Clamp(this.y, gate.rect.top, gate.rect.bottom);
+    return Phaser.Math.Distance.Between(this.x, this.y, gx, gy) <= EQUIPMENT.bow.range ? { x: gx, y: gy } : null;
+  }
+
+  private shootGate(gx: number, gy: number) {
+    const bow = EQUIPMENT.bow;
+    this.attackTimer = bow.cooldown;
+    this.swingSlow = 0.1;
+    this.tmp.set(gx - this.x, gy - this.y).normalize();
+    this.facing.copy(this.tmp);
+    this.raid.fireHeroArrow(this.x + this.tmp.x * (this.radius + 6), this.y + this.tmp.y * (this.radius + 6), this.tmp, bow.damage, false);
+    Sound.bow();
   }
 
   private shoot(target: Enemy) {

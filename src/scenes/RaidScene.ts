@@ -146,7 +146,12 @@ export class RaidScene extends Phaser.Scene {
     this.physics.add.overlap(this.arrows, this.enemyGroup, (a, b) => this.arrowHit(a, b));
     this.physics.add.collider(this.arrows, this.huts,
       (a, b) => this.arrowHitObstacle(a instanceof Arrow ? a : (b as Arrow), a instanceof Arrow ? (b as Phaser.Physics.Arcade.Sprite) : (a as Phaser.Physics.Arcade.Sprite)),
-      (a, b) => { const arrow = (a instanceof Arrow ? a : b) as Arrow; return !arrow.overWalls; });
+      (a, b) => {
+        const arrow = (a instanceof Arrow ? a : b) as Arrow;
+        const ob = ((a instanceof Arrow ? b : a) as Phaser.Physics.Arcade.Sprite).getData('obstacle') as Obstacle | undefined;
+        const wallLike = ob?.kind === 'wall' || ob?.kind === 'stone' || ob?.kind === 'gate';
+        return !(arrow.overWalls && wallLike); // shots from the battlements clear the wall, not the rocks
+      });
 
     // --- the gate (siege)
     if (cfg.kind === 'siege') {
@@ -168,7 +173,7 @@ export class RaidScene extends Phaser.Scene {
       heroHp: this.hero.hp, heroMaxHp: this.hero.maxHp, gold: GameState.gold,
       troopsAlive: this.troops.length, troopsTotal: this.troops.length, enemiesAlive: this.enemies.length,
       hornCd: 0, hornMax: ABILITIES.horn.cooldown, chargeCd: 0, chargeMax: ABILITIES.charge.cooldown, boosted: false,
-      defense: GameState.defense, gate: this.gate ? 1 : null,
+      defense: GameState.defense, weapon: this.hero.mode === 'bow' ? 'Bow' : this.hero.weapon.name, gate: this.gate ? 1 : null,
       objective: cfg.kind === 'siege' ? 'Break the gate' : `Clear ${this.enemies.length} defenders`,
     };
     this.scene.launch('Hud', { input: this.playerInput, model: this.hud });
@@ -341,7 +346,13 @@ export class RaidScene extends Phaser.Scene {
   /** Second wave: the garrison captain and his escort come out of the keep. */
   private spawnWave2() {
     this.wave2Spawned = true;
-    const posts = this.layout.posts.boss ?? [{ x: this.layout.w / 2, y: this.layout.h / 2 }];
+    const posts = (this.layout.posts.boss ?? [{ x: this.layout.w / 2, y: this.layout.h / 2 }]).map(p => {
+      // never on top of the hero: step the post away from them
+      const d = Phaser.Math.Distance.Between(p.x, p.y, this.hero.x, this.hero.y);
+      if (d >= 90) return p;
+      const ax = (p.x - this.hero.x) / (d || 1), ay = (p.y - this.hero.y) / (d || 1);
+      return clearOf(this.obstacles, this.hero.x + ax * 110, this.hero.y + ay * 110, 18);
+    });
     const mult = { hp: 1, dmg: 1, gold: 1 };
     const boss = new Enemy(this, posts[0].x, posts[0].y, 'boss', mult);
     boss.wakeQuiet();
@@ -500,6 +511,12 @@ export class RaidScene extends Phaser.Scene {
     this.scene.stop('Hud');
     const fallen = GameState.troops.filter(t => this.deadTroopIds.includes(t.id)).map(t => t.name);
     const data: ResultData = { outcome, goldEarned: this.goldEarned, fallen, deadTroopIds: [...this.deadTroopIds], battle: this.cfg };
+    if (outcome === 'victory') {
+      // a won battle survives a reload: the sack/occupy choice is offered again on the map
+      GameState.pendingVictory = { goldEarned: this.goldEarned, deadTroopIds: [...this.deadTroopIds], fallen,
+        battle: { kind: this.cfg.kind, villageId: this.cfg.villageId, tier: this.cfg.tier, name: this.cfg.name } };
+      GameState.save();
+    }
     this.scene.launch('Result', data);
     this.scene.pause();
   }

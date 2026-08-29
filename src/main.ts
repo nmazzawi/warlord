@@ -1,6 +1,10 @@
 // main.ts — boots Phaser. Fills the whole browser window, renders at the device's real pixel
 // density (capped at 2x so mid-range phones stay smooth), and re-lays out on rotation/resize.
 import Phaser from 'phaser';
+import '@fontsource/cinzel/700.css';
+import '@fontsource/cinzel/900.css';
+import '@fontsource/nunito-sans/400.css';
+import '@fontsource/nunito-sans/700.css';
 import { BootScene } from './scenes/BootScene';
 import { TitleScene } from './scenes/TitleScene';
 import { MapScene } from './scenes/MapScene';
