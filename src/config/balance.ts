@@ -75,7 +75,7 @@ export const TROOP_KINDS = {
   rider:  { label: 'Steppe rider', hp: 50, damage: 7, cost: 90, tint: 0xffe0a0, desc: 'Mounted archer. Keeps its distance and shoots; fast, fragile, pricey.' },
 };
 /** Steppe riders in your warband: mounted, ranged. */
-export const RIDER = { speed: 200, range: 220, cooldown: 1.2, keepDistance: 150, arrowSpeed: 380, scale: 1.15 };
+export const RIDER = { speed: 200, range: 220, cooldown: 1.2, keepDistance: 150, arrowSpeed: 380, scale: 1.15, leash: 340 };
 /** Armies eat: wages per troop per day while you travel. */
 export const UPKEEP = { wage: 2, graceDays: 2, startingGold: 40 };
 /** Daily tribute from an occupied settlement (villages by tier; the town flat). */

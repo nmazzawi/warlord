@@ -93,8 +93,10 @@ export class Hero extends Unit {
           // something to shoot at — not just on the frame the arrow flies. The composite bow bends the
           // rule: it shoots from a slow ride (or a brisk walk on foot).
           const frac = this.mode === 'composite' ? COMPOSITE_BOW.moveFraction : RANGED.walkFraction;
-          if (this.mounted) spd *= frac;
-          if (this.attackTimer <= 0 && (this.mounted || moveMag <= frac)) {
+          const composite = this.mode === 'composite';
+          // mounted (any bow) or composite on foot: you slow to the fraction and keep shooting
+          if (this.mounted || composite) { if (moveMag > frac) spd *= frac / Math.max(moveMag, 0.01); }
+          if (this.attackTimer <= 0 && (this.mounted || composite || moveMag <= frac)) {
             if (target) this.shoot(target); else if (gate) this.shootGate(gate.x, gate.y);
           }
         }

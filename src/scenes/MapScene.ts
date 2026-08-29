@@ -9,7 +9,7 @@ import { INFAMY, SIEGE, STEPPE, TRAVEL } from '../config/balance';
 import { EDGES, edgeBetween, findPath, nodeById, NODES, type MapNode } from '../world/WorldMap';
 import { campBattle, patrolBattle, siegeBattle, steppePatrolBattle, villageBattle } from '../world/Battles';
 import { LAYOUTS } from '../world/Layouts';
-import { CAMPS, campAt, campLocation } from '../world/Steppe';
+import { CAMPS, campAt, campById, campLocation } from '../world/Steppe';
 import { centroid, CHART, chartTexture, distToPolyline, regionAt, REGIONS, SEA_ROUTES, type Region } from '../world/WorldChart';
 import { TEX } from '../systems/Textures';
 import { Sound } from '../systems/Sound';
@@ -102,7 +102,7 @@ export class MapScene extends Phaser.Scene {
         this.token.setPosition(Phaser.Math.Linear(a.x, b.x, 0.5), Phaser.Math.Linear(a.y, b.y, 0.5) - 12);
         this.cameras.main.centerOn(this.token.x, this.token.y);
         this.traveling = true;
-        this.showPatrolPanel(nodeById(rt.to).territory === 'steppe');
+        this.showPatrolPanel(a.territory === 'steppe' && b.territory === 'steppe');
       } else if (rt) {
         const a = nodeById(rt.from), b = nodeById(rt.to);
         const edge = edgeBetween(rt.from, rt.to)!;
@@ -145,7 +145,11 @@ export class MapScene extends Phaser.Scene {
     const detail = Phaser.Math.Clamp((zoom - 0.7) / 0.5, 0, 1); // 0 at far, 1 at zoom ≥ 1.2
     for (const o of this.territoryObjects) (o as unknown as Phaser.GameObjects.Components.Alpha & Phaser.GameObjects.Components.Visible).setAlpha(detail).setVisible(detail > 0.02);
     const iconScale = Phaser.Math.Clamp(0.75 / zoom, 0.28, 1.1);
-    for (const i of this.icons) i.setScale(i.texture.key === TEX.mapPalisade ? iconScale * 1.2 : i.texture.key === TEX.mapToken ? iconScale * 0.6 : iconScale);
+    for (const i of this.icons) {
+      const k = i.texture.key;
+      i.setScale(k === TEX.mapPalisade ? iconScale * 1.2 : k === TEX.mapToken ? iconScale * 0.6 : iconScale);
+      if (k === TEX.shadow) i.setDisplaySize(52 * iconScale, 24 * iconScale);
+    }
     for (const [, c] of this.campIcons) c.setScale(iconScale);
     (this.token.list[0] as Phaser.GameObjects.Image).setScale(Phaser.Math.Clamp(1.1 / zoom, 0.35, 1.6));
     const regionAlpha = Phaser.Math.Clamp((1.9 - zoom) / 0.8, 0, 1);
@@ -196,7 +200,9 @@ export class MapScene extends Phaser.Scene {
   }
 
   private icon(x: number, y: number, tex: string, depth = 5) {
-    this.add.image(x + 2, y + 3, TEX.shadow).setAlpha(0.35).setDisplaySize(40, 18).setDepth(4).setName('shadow');
+    const sh = this.add.image(x + 2, y + 3, TEX.shadow).setAlpha(0.35).setDepth(4).setName('shadow');
+    this.territoryObjects.push(sh);
+    this.icons.push(sh);
     const i = this.add.image(x, y, tex).setDepth(depth);
     this.icons.push(i);
     this.territoryObjects.push(i);
@@ -336,11 +342,20 @@ export class MapScene extends Phaser.Scene {
         const d = Phaser.Math.Distance.Between(wp.x, wp.y, n.x, n.y);
         if (d < bd) { bd = d; best = n; }
       }
+      // a camp's yurts sit beside their waypoint — tapping them means that waypoint
+      for (const [id, c] of this.campIcons) {
+        const at = c.visible ? campLocation(campById(id)) : null;
+        if (!at) continue;
+        const d = Phaser.Math.Distance.Between(wp.x, wp.y, c.x, c.y - 4);
+        if (d < bd + 8) { bd = d; best = nodeById(at); }
+      }
     }
     if (best) {
       if (best.id === GameState.location) { this.showNodePanel(best); return; }
-      const s = GameState.settlement(best.id);
-      if ((best.kind === 'town' && !s.occupied) || s.sacked) { this.showNodePanel(best); return; }
+      if (best.kind !== 'waypoint' && best.kind !== 'gate' && best.kind !== 'trade') { // grass keeps no settlement record
+        const s = GameState.settlement(best.id);
+        if ((best.kind === 'town' && !s.occupied) || s.sacked) { this.showNodePanel(best); return; }
+      }
       this.travelTo(best.id);
       return;
     }

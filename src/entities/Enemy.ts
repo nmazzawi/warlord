@@ -19,6 +19,8 @@ export interface EnemyMult { hp: number; dmg: number; gold: number; }
 
 export class Enemy extends Unit {
   readonly kind: EnemyKind;
+  /** Mounted figures stand a little taller; the wind-up swell is relative to this. */
+  private baseScale = 1;
   readonly goldValue: number;
   readonly damageAmount: number;
   aggro = false;
@@ -56,6 +58,7 @@ export class Enemy extends Unit {
       barWidth: kind === 'captain' || kind === 'noyan' ? 34 : kind === 'boss' ? 44 : 22, scale: mounted ? 1.1 : 1,
     });
     if (mounted) this.mount = scene.add.image(x, y + 4, TEX.horse).setDepth(19).setScale(1.1).setTint(kind === 'noyan' ? 0xd9c4a0 : 0xffffff);
+    this.baseScale = mounted ? 1.1 : 1;
     this.kind = kind;
     this.stats = { speed: s.speed, cooldown: s.cooldown, windup: s.windup, reach: s.reach, aggro: s.aggro };
     this.damageAmount = s.damage * mult.dmg;
@@ -117,7 +120,7 @@ export class Enemy extends Unit {
       // swell up as the blow approaches; snapping back to normal size IS the strike
       const p = 1 - Math.max(0, this.windupTimer) / this.stats.windup;
       const grow = this.heavy ? 1.4 : 1.22;
-      this.setScale(1 + (grow - 1) * p * p);
+      this.setScale(this.baseScale * (1 + (grow - 1) * p * p));
       if (this.windupTimer <= 0) this.finishAttack();
       this.applyVelocity(dt);
       return;
@@ -301,7 +304,7 @@ export class Enemy extends Unit {
     this.windingUp = false;
     this.baseTint = null;
     this.applyTint();
-    this.setScale(1);
+    this.setScale(this.baseScale);
     this.telegraph = null;
     this.attackTimer = this.stats.cooldown;
     const t = this.target;

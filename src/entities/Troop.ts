@@ -77,7 +77,8 @@ export class Troop extends Unit {
       this.target = null;
       this.goToSlot(hero, heading, spd * 1.15, distHero);
     } else {
-      if (distHero > TROOP.leash) { this.target = null; }
+      const leash = this.ranged ? RIDER.leash : TROOP.leash; // riders range wider — horse archers hang back
+      if (distHero > leash) { this.target = null; }
       else if (this.retargetTimer <= 0 || !this.target || !this.target.alive) {
         this.retargetTimer = 0.25;
         this.target = this.findTarget(hero);
@@ -98,7 +99,7 @@ export class Troop extends Unit {
         } else {
           this.moveToward(Phaser.Math.Clamp(this.x, gate.rect.left - 2, gate.rect.right + 2), Phaser.Math.Clamp(this.y, gate.rect.top + 4, gate.rect.bottom - 4), spd);
         }
-      } else if (this.target && distHero <= TROOP.leash && this.ranged) {
+      } else if (this.target && distHero <= leash && this.ranged) {
         // a steppe rider keeps its distance and shoots
         this.state = 'engage';
         const d = this.distTo(this.target);
@@ -113,7 +114,7 @@ export class Troop extends Unit {
           this.attackTimer = RIDER.cooldown;
           this.raid.fireTroopArrow(this, this.target, this.damageAmount);
         }
-      } else if (this.target && distHero <= TROOP.leash) {
+      } else if (this.target && distHero <= leash) {
         this.state = 'engage';
         const ed = this.edgeDistTo(this.target);
         if (ed <= TROOP.reach) {
@@ -151,7 +152,7 @@ export class Troop extends Unit {
     for (const e of this.raid.enemies) {
       if (!e.alive || e.onWall || e.dormant) continue;
       const d = this.distTo(e);
-      if (d > (this.ranged ? RIDER.range : TROOP.engageRadius) || e.distTo(hero) > TROOP.leash) continue;
+      if (d > (this.ranged ? RIDER.range : TROOP.engageRadius) || e.distTo(hero) > (this.ranged ? RIDER.leash : TROOP.leash)) continue;
       if (!hasLineOfSight(this.x, this.y, e.x, e.y)) continue;
       if (d < bestD) { best = e; bestD = d; }
     }

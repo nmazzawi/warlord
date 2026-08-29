@@ -4,7 +4,7 @@
 // archers on the wall, and two waves behind it.
 import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
-import { ABILITIES, ENEMIES, EQUIPMENT, PIERCE, RIDER, SIEGE } from '../config/balance';
+import { ABILITIES, ENEMIES, PIERCE, RIDER, SIEGE } from '../config/balance';
 import { Hero } from '../entities/Hero';
 import { Troop } from '../entities/Troop';
 import { Enemy, type EnemyKind } from '../entities/Enemy';
@@ -397,7 +397,7 @@ export class RaidScene extends Phaser.Scene {
   }
 
   fireArrow(from: Enemy, target: Unit, overWalls = false) {
-    const s = ENEMIES.archer;
+    const s = from.kind === 'horsearcher' ? ENEMIES.horsearcher : ENEMIES.archer;
     const dist = from.distTo(target);
     const t = dist / s.arrowSpeed;
     const px = target.x + target.body.velocity.x * t * 0.7;
@@ -428,6 +428,7 @@ export class RaidScene extends Phaser.Scene {
     const arrow = this.arrows.get(x, y, TEX.arrow) as Arrow | null;
     if (!arrow) return;
     arrow.fire(x, y, this.tmp.x * RIDER.arrowSpeed, this.tmp.y * RIDER.arrowSpeed, damage, RIDER.range / RIDER.arrowSpeed + 0.2, 'player', false);
+    arrow.fromHero = false;
     Sound.arrow();
   }
 
@@ -442,10 +443,13 @@ export class RaidScene extends Phaser.Scene {
     if (arrow.team === 'player') {
       // your side's arrows PIERCE: on through the first target at reduced damage, up to a few bodies deep
       arrow.hits.add(unit);
-      dealDamage(this, unit, arrow.damageAmount, unit.x - vx, unit.y - vy, 110, 'hero');
-      this.juice.hitStop(EQUIPMENT.bow.hitStop);
-      this.juice.shake(EQUIPMENT.bow.shake, 60, true);
-      Sound.heroHit(1);
+      dealDamage(this, unit, arrow.damageAmount, unit.x - vx, unit.y - vy, arrow.fromHero ? 110 : 60, arrow.fromHero ? 'hero' : 'troop');
+      if (arrow.fromHero) {
+        // only the hero's own shots get the crunch — six riders volleying would freeze the world constantly
+        this.juice.hitStop(this.hero.bow.hitStop);
+        this.juice.shake(this.hero.bow.shake, 60, true);
+        Sound.heroHit(1);
+      }
       arrow.damageAmount = Math.round(arrow.damageAmount * PIERCE.damageMult);
       if (arrow.hits.size >= PIERCE.maxHits || arrow.damageAmount < 2) arrow.kill();
     } else {
@@ -527,7 +531,8 @@ export class RaidScene extends Phaser.Scene {
       this.juice.damageNumber(this.hero.x, this.hero.y - 30, `+${swept}`, COLORS.gold, 15);
     }
     Sound.victory();
-    const msg = this.cfg.kind === 'patrol' ? 'PATROL ROUTED' : this.cfg.kind === 'siege' ? 'KINGSPORT FALLS' : 'VILLAGE CLEARED';
+    const msg = this.cfg.kind === 'patrol' ? 'PATROL ROUTED' : this.cfg.kind === 'siege' ? 'KINGSPORT FALLS'
+      : this.cfg.kind === 'camp' ? 'CAMP PLUNDERED' : this.cfg.kind === 'steppePatrol' ? 'RIDERS ROUTED' : 'VILLAGE CLEARED';
     this.juice.banner(this.hero.x, this.hero.y - 50, msg, '#f5c542', 22);
     this.time.delayedCall(1100, () => this.showResult('victory'));
   }
@@ -539,7 +544,7 @@ export class RaidScene extends Phaser.Scene {
     if (outcome === 'victory') {
       // a won battle survives a reload: the sack/occupy choice is offered again on the map
       GameState.pendingVictory = { goldEarned: this.goldEarned, deadTroopIds: [...this.deadTroopIds], fallen,
-        battle: { kind: this.cfg.kind, villageId: this.cfg.villageId, tier: this.cfg.tier, name: this.cfg.name } };
+        battle: { kind: this.cfg.kind, villageId: this.cfg.villageId, tier: this.cfg.tier, name: this.cfg.name, campId: this.cfg.campId } };
       GameState.save();
     }
     this.scene.launch('Result', data);

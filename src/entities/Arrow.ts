@@ -12,6 +12,8 @@ export class Arrow extends Phaser.Physics.Arcade.Image {
   overWalls = false;
   /** Bodies this arrow has already gone through (your side's arrows pierce). */
   hits = new Set<Unit>();
+  /** The hero's own shot (gets hit-stop and shake) rather than a hired rider's. */
+  fromHero = true;
 
   fire(x: number, y: number, vx: number, vy: number, damage: number, life: number, team: Team, overWalls = false) {
     this.enableBody(true, x, y, true, true);
@@ -24,6 +26,7 @@ export class Arrow extends Phaser.Physics.Arcade.Image {
     this.team = team;
     this.overWalls = overWalls;
     this.hits.clear();
+    this.fromHero = team === 'player';
     this.setTint(team === 'player' ? 0xbfe8ff : 0xffffff);
   }
 
