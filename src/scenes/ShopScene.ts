@@ -105,7 +105,7 @@ export class ShopScene extends Phaser.Scene {
         rows.push({ name: 'Fight with', desc: 'The sword cleaves up close; bows shoot from range (stand still — the composite bow lets you keep a slow ride). Your arrows pierce.', button: null, choices });
       }
       const weaponName = g.weaponKind === 'bow' ? 'Hunting Bow' : g.weaponKind === 'composite' ? 'Composite Bow' : g.weaponKind === 'halberd' ? 'Kingsport Halberd' : WEAPONS[tier - 1].name;
-      return { title: 'THE FORGE', blurb: `Defense ${g.defense}  ·  weapon: ${weaponName}${markup}`, rows };
+      return { title: 'THE FORGE', blurb: `${foreign ? `${foreign.forge.note}\n` : ''}Defense ${g.defense}  ·  weapon: ${weaponName}${markup}`, rows };
     }
     if (this.building === 'barracks') {
       const kindKey = stock.barracks?.kind ?? 'raider';
@@ -148,7 +148,7 @@ export class ShopScene extends Phaser.Scene {
     if (!rows.length) rows.push({ name: 'Empty stalls', desc: 'Nothing for sale here.', button: null });
     const ride = (k: HorseKind, label: string) => ({ label, active: g.horse === k, enabled: k === 'none' || g.owned[k], onPress: () => { g.horse = k; Sound.click(); g.save(); this.build(); } });
     rows.push({ name: 'Ride', desc: 'Mounted you are faster and a bigger target. A horse slows to a walk when you shoot.', button: null, choices: [ride('none', 'On foot'), ride('courser', 'Courser'), ride('destrier', 'Destrier')] });
-    return { title: 'THE STABLES', blurb: (g.horse === 'none' ? 'On foot.' : `Riding the ${HORSES[g.horse].name}.`) + markup, rows };
+    return { title: 'THE STABLES', blurb: (foreign ? `${foreign.stables.note}\n` : '') + (g.horse === 'none' ? 'On foot.' : `Riding the ${HORSES[g.horse].name}.`) + markup, rows };
   }
 
   private build() {
@@ -160,12 +160,18 @@ export class ShopScene extends Phaser.Scene {
     const pw = Math.min(w * 0.96, 520 * u);
     const cx = w / 2;
     const rowH = Math.min(62 * u, (h - 150 * u) / Math.max(rows.length, 1));
-    const headH = 78 * u;
+    // measure the head before drawing the plate: an inn abroad has a long name and a line about its
+    // own craft, so neither the title nor the blurb can be assumed to be one line of a fixed size
+    const titleT = this.add.text(0, -9999, title, displayStyle(22 * u, CSS.emberDeep, false)).setOrigin(0.5, 0);
+    if (titleT.width > pw - 24 * u) titleT.setFontSize(Math.max(12 * u, 22 * u * ((pw - 24 * u) / titleT.width)));
+    const blurbT = this.add.text(0, -9999, `Gold ${GameState.gold}   ·   ${blurb}`, uiStyle(11 * u, CSS.inkSoft, { bold: false, wrap: pw - 30 * u })).setOrigin(0.5, 0);
+    const headH = Math.max(78 * u, 12 * u + titleT.height + 6 * u + blurbT.height + 12 * u);
     const ph = headH + rows.length * rowH + 70 * u;
     const py = Math.max(8 * u, (h - ph) / 2);
     panel(this, cx - pw / 2, py, pw, ph);
-    this.add.text(cx, py + 12 * u, title, displayStyle(22 * u, CSS.emberDeep, false)).setOrigin(0.5, 0);
-    this.add.text(cx, py + 42 * u, `Gold ${GameState.gold}   ·   ${blurb}`, uiStyle(11 * u, CSS.inkSoft, { bold: false, wrap: pw - 30 * u })).setOrigin(0.5, 0);
+    titleT.setPosition(cx, py + 12 * u);
+    blurbT.setPosition(cx, py + 12 * u + titleT.height + 6 * u);
+    this.children.bringToTop(titleT); this.children.bringToTop(blurbT);
     let y = py + headH;
     const left = cx - pw / 2 + 16 * u;
     const btnW = 112 * u;

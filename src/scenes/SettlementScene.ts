@@ -97,8 +97,10 @@ export class SettlementScene extends Phaser.Scene {
       : this.visiting ? `Visiting as a customer  ·  prices ${up}  ·  the locals watch you`
       : `Occupied  ·  tribute +${tribute}/day  ·  garrison: ${garrison || 'none'}`;
     this.add.text(w / 2, 12 * u, name, displayStyle(28 * u, CSS.goldHi)).setOrigin(0.5, 0);
-    this.add.text(w / 2, 48 * u, sub, uiStyle(12 * u, CSS.cream, { bold: false, stroke: true, wrap: w * 0.9 })).setOrigin(0.5, 0);
-    this.add.text(w / 2, 70 * u, `${GameState.dateLabel}   ·   ⬤ ${GameState.gold} gold   ·   troops ${GameState.troops.length}`, uiStyle(12 * u, CSS.gold, { stroke: true })).setOrigin(0.5, 0);
+    // the foreigner's line is long and wraps on a phone, so everything under it is placed from its
+    // real height rather than from a number that assumed one line
+    const subT = this.add.text(w / 2, 48 * u, sub, uiStyle(12 * u, CSS.cream, { bold: false, stroke: true, wrap: w * 0.9 })).setOrigin(0.5, 0);
+    const dateT = this.add.text(w / 2, subT.y + subT.height + 4 * u, `${GameState.dateLabel}   ·   ⬤ ${GameState.gold} gold   ·   troops ${GameState.troops.length}`, uiStyle(12 * u, CSS.gold, { stroke: true })).setOrigin(0.5, 0);
 
     // the buildings: big tap targets, a row (landscape) or a column (portrait)
     const cards: Card[] = [
@@ -107,17 +109,17 @@ export class SettlementScene extends Phaser.Scene {
     if (stock.barracks) cards.push({ id: 'barracks', label: 'BARRACKS', tex: TEX.barracks, sub: stock.barracks.kind === 'guard' ? 'recruit town guards' : stock.barracks.kind === 'levy' ? 'recruit levies' : stock.barracks.kind === 'rider' ? 'hire steppe riders' : 'recruit raiders' });
     else if (!isCamp) cards.push({ id: 'barracks', label: 'BARRACKS', tex: TEX.barracks, sub: '', locked: foreign ? foreign.barracksLocked : "the locals won't fight for you" });
     if (stock.stables.length) cards.push({ id: 'stables', label: 'STABLES', tex: TEX.stables, sub: stock.stables.join(', ') + (this.visiting ? ` · ${up}` : '') });
-    if (stock.inn) cards.push({ id: 'inn', label: foreign ? foreign.inn.name.toUpperCase() : 'INN', tex: TEX.inn,
-      sub: nextRumor(this.id) ? (foreign ? 'buy a rumor — what they know of their own land' : 'buy a rumor — news of the world') : 'you have heard all they know' });
+    // the card's name stays one short word — a foreign inn's real name is long, and belongs on the
+    // line underneath where there is room for it
+    if (stock.inn) cards.push({ id: 'inn', label: 'INN', tex: TEX.inn,
+      sub: nextRumor(this.id)
+        ? (foreign ? `${foreign.inn.name} — buy a rumor of their own land` : 'buy a rumor — news of the world')
+        : (foreign ? `${foreign.inn.name} — you have heard it all` : 'you have heard all they know') });
     const portrait = h > w * 1.1;
     const n = cards.length;
     const cw = Math.min(portrait ? w * 0.88 : (w - 40 * u) / n - 14 * u, 300 * u);
     const ch = portrait ? Math.min(140 * u, (h - 200 * u - 90 * u) / n - 10 * u) : Math.min(230 * u, h - 200 * u);
-    const top = 100 * u;
-    if (foreign) {
-      const f = cards.find(c => c.id === 'forge'); if (f) f.sub = `${foreign.forge.note}  ·  ${up}`;
-      const st = cards.find(c => c.id === 'stables'); if (st) st.sub = `${foreign.stables.note}  ·  ${up}`;
-    }
+    const top = Math.max(100 * u, dateT.y + dateT.height + 10 * u);
     cards.forEach((card, i) => {
       const x = portrait ? w / 2 : w / 2 + (i - (n - 1) / 2) * (cw + 14 * u);
       const y = portrait ? top + i * (ch + 10 * u) + ch / 2 : top + ch / 2;
