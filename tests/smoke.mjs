@@ -223,7 +223,7 @@ async function desktopRun(browser) {
   await page.mouse.click(at.x, at.y);
   await sleep(400);
   const romeSpec = await page.evaluate(() => { const h = window.__warlord.scene.getScene('MapHud'); return { title: h.spec?.title, lines: (h.spec?.lines ?? []).join(' ') }; });
-  check(romeSpec.title === 'THE ROMAN EMPIRE' && /Throne: Roma/.test(romeSpec.lines) && /Not yet/.test(romeSpec.lines),
+  check(romeSpec.title === 'THE ROMAN EMPIRE' && /Throne: Roma/.test(romeSpec.lines) && /gates are open to a stranger/.test(romeSpec.lines),
     `tapping a realm gives its card (${romeSpec.title})`);
   await hidePanel(page);
   // a sea road, wherever it actually runs
@@ -265,6 +265,115 @@ async function desktopRun(browser) {
   }
   await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); m.zoomToTerritory(); });
   await sleep(300);
+
+  // --- controls: pinch, double click, LOCATE, and no edge scrolling
+  await noPatrols(page);
+  const wheelAt = async (dy, ctrl) => page.evaluate(([d, c]) => {
+    const cv = window.__warlord.canvas;
+    cv.dispatchEvent(new WheelEvent('wheel', { deltaY: d, ctrlKey: c, clientX: cv.clientWidth / 2, clientY: cv.clientHeight / 2, bubbles: true, cancelable: true }));
+  }, [dy, ctrl]);
+  const zoomNow = () => page.evaluate(() => window.__warlord.scene.getScene('Map').cameras.main.zoom);
+  const z0 = await zoomNow();
+  await wheelAt(-120, true); await sleep(150);
+  const zIn = await zoomNow();
+  check(zIn > z0, `trackpad pinch out zooms IN (${z0.toFixed(3)} -> ${zIn.toFixed(3)})`);
+  await wheelAt(120, true); await wheelAt(120, true); await sleep(150);
+  const zOut = await zoomNow();
+  check(zOut < zIn, `trackpad pinch in zooms OUT (${zIn.toFixed(3)} -> ${zOut.toFixed(3)})`);
+
+  // a double click zooms toward the pointer and must NEVER offer or start a march
+  await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); m.setZoom(1.2); m.cameras.main.centerOn(3590, 1005); m.cameras.main.preRender(); });
+  await sleep(200);
+  const beforeDbl = await page.evaluate(() => { const S = window.__GameState; const m = window.__warlord.scene.getScene('Map');
+    return { zoom: m.cameras.main.zoom, day: S.day, pos: { ...S.pos } }; });
+  await page.mouse.dblclick(720, 520);
+  await sleep(500);
+  const afterDbl = await page.evaluate(() => { const S = window.__GameState; const m = window.__warlord.scene.getScene('Map'); const h = window.__warlord.scene.getScene('MapHud');
+    return { zoom: m.cameras.main.zoom, day: S.day, pos: { ...S.pos }, panel: h.spec?.title ?? null,
+      plan: m.planLine.commandBuffer.length, traveling: m.traveling }; });
+  check(afterDbl.zoom > beforeDbl.zoom, `double click zooms in (${beforeDbl.zoom.toFixed(2)} -> ${afterDbl.zoom.toFixed(2)})`);
+  check(afterDbl.panel === null && afterDbl.plan === 0 && !afterDbl.traveling,
+    `double click never offers a march (panel ${afterDbl.panel}, ${afterDbl.plan} plan strokes)`);
+  check(afterDbl.day === beforeDbl.day && afterDbl.pos.x === beforeDbl.pos.x && afterDbl.pos.y === beforeDbl.pos.y,
+    'double click never moves the warband');
+
+  // LOCATE flies the camera to the warband and the game keeps running
+  await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); m.cameras.main.centerOn(900, 2400); m.cameras.main.preRender(); });
+  await sleep(200);
+  const locateBtn = await buttonPos(page, 'MapHud', '⌖');
+  check(!!locateBtn, 'the LOCATE button is on screen');
+  if (locateBtn) {
+    await page.mouse.click(locateBtn.x, locateBtn.y);
+    await sleep(900);
+    const home = await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); const cam = m.cameras.main;
+      return { dx: Math.abs(cam.midPoint.x - m.token.x), dy: Math.abs(cam.midPoint.y - m.token.y), fps: window.__warlord.loop.actualFps }; });
+    check(home.dx < 40 && home.dy < 40, `LOCATE centres on the warband (off by ${Math.round(home.dx)},${Math.round(home.dy)})`);
+    check(home.fps > 5, `the app is still running after LOCATE (${Math.round(home.fps)} fps)`);
+    // pressing it again while it is already flying must not stack a second flight
+    await page.mouse.click(locateBtn.x, locateBtn.y);
+    await page.mouse.click(locateBtn.x, locateBtn.y);
+    await sleep(900);
+    const twice = await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); const cam = m.cameras.main;
+      return { dx: Math.abs(cam.midPoint.x - m.token.x), fps: window.__warlord.loop.actualFps }; });
+    check(twice.dx < 40 && twice.fps > 5, `LOCATE twice in a row is still fine (${Math.round(twice.fps)} fps)`);
+  }
+
+  // edge scrolling is gone: a mouse parked at the edge moves nothing
+  const edgeBefore = await page.evaluate(() => { const c = window.__warlord.scene.getScene('Map').cameras.main; return { x: c.scrollX, y: c.scrollY }; });
+  await page.mouse.move(1438, 600);
+  await sleep(700);
+  const edgeAfter = await page.evaluate(() => { const c = window.__warlord.scene.getScene('Map').cameras.main; return { x: c.scrollX, y: c.scrollY }; });
+  check(edgeBefore.x === edgeAfter.x && edgeBefore.y === edgeAfter.y, 'a mouse resting at the screen edge no longer scrolls the map');
+
+  // the road-leg UI is gone: no "3d" written along a road any more
+  const dayLabels = await page.evaluate(() => {
+    const m = window.__warlord.scene.getScene('Map');
+    return m.children.list.filter(c => c.type === 'Text' && /^\d+d$/.test(c.text)).length;
+  });
+  check(dayLabels === 0, `no day labels drawn on roads (${dayLabels} found)`);
+
+  // --- the foreign gates
+  const gates = await page.evaluate(() => {
+    const foreign = window.__NODES.filter(n => n.kind === 'foreign');
+    return { count: foreign.length, realms: [...new Set(foreign.map(n => n.territory))].sort(),
+      capitals: foreign.filter(n => n.capital).length };
+  });
+  check(gates.count >= 25 && gates.capitals >= 9,
+    `${gates.count} foreign gates open in ${gates.realms.length} realms (${gates.capitals} thrones)`);
+  check(!gates.realms.includes('japan') && !gates.realms.includes('viking') && !gates.realms.includes('aztecs') && !gates.realms.includes('inca'),
+    'realms across water stay shut');
+  const romaDays = await page.evaluate(() => window.__warlord.scene.getScene('Map').routeDays('f_rome_roma'));
+  check(romaDays >= 21, `Rome is honestly far: ${romaDays} days' march from the camp`);
+
+  // walk into Rus, the nearest realm, and be a customer in Kiev
+  await page.evaluate(() => { const S = window.__GameState; const n = window.__NODES.find(k => k.id === 'f_rus_kiev');
+    S.pos = { x: n.x + 60, y: n.y + 60 }; S.location = ''; S.save(); });
+  await sleep(200);
+  check(await marchTo(page, 'f_rus_kiev'), 'marched into Rus and reached Kiev');
+  const inRus = await page.evaluate(() => { const S = window.__GameState; const h = window.__warlord.scene.getScene('MapHud');
+    return { territory: S.territory, meter: S.territoryInfamy(), name: S.territoryName(), label: h.infamyLabel.text,
+      buttons: (h.spec?.buttons ?? []).map(b => b.label), lines: (h.spec?.lines ?? []).join(' ') }; });
+  check(inRus.territory === 'rus' && inRus.meter === 0 && /RUS INFAMY 0/.test(inRus.label),
+    `a new realm opens its own meter at nothing (${inRus.label.slice(0, 34)})`);
+  check(inRus.buttons.includes('ENTER THE CITY'), `Kiev opens its gates (${inRus.buttons.join(', ')})`);
+  check(/later age|comes in a/.test(inRus.lines), 'and says plainly that war there is for a later age');
+  await clickBtn(page, 'MapHud', 'ENTER');
+  check(await waitScene(page, 'Settlement'), 'entered Kiev as a foreigner');
+  const kiev = await page.evaluate(() => {
+    const s = window.__warlord.scene.getScene('Settlement');
+    const texts = s.children.list.filter(c => c.type === 'Text').map(c => c.text);
+    return { texts, sub: texts.find(t => /foreigner here/i.test(t)) ?? '' };
+  });
+  check(/stranger's prices/.test(kiev.sub), `a foreigner pays a foreigner's price (${kiev.sub.slice(0, 48)})`);
+  check(kiev.texts.some(t => /^locked — /.test(t)), 'the barracks stays shut to a foreigner');
+  check(kiev.texts.some(t => /FORGE/.test(t)) && kiev.texts.some(t => /rumor/.test(t)), 'the forge and the inn are open');
+  await page.evaluate(() => { const s = window.__warlord.scene.getScene('Settlement'); s.scene.start('Map'); });
+  await sleep(1200);
+  // put the warband back where the rest of the run expects it
+  await page.evaluate(() => { const S = window.__GameState; const n = window.__NODES.find(k => k.id === 'camp');
+    S.pos = { x: n.x, y: n.y }; S.location = 'camp'; S.hunters = []; S.save(); });
+  await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); m.token.setPosition(window.__GameState.pos.x, window.__GameState.pos.y - 12); m.zoomToTerritory(); });
+  await sleep(400);
 
   // --- raid Ashford and just leave
   check(await marchTo(page, 'ashford'), 'marched to Ashford');

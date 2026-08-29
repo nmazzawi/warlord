@@ -7,6 +7,7 @@ import { TEX } from '../systems/Textures';
 import { Sound } from '../systems/Sound';
 import { mulberry32 } from '../utils/rng';
 import { nodeById } from '../world/WorldMap';
+import { visitOf } from '../world/Realms';
 import { stockFor } from '../world/Stock';
 import { nextRumor } from '../world/Rumors';
 import { CSS, displayStyle, dprOf, drawPanel, makeButton, PAL, uiStyle, uiUnit } from './ui';
@@ -80,35 +81,43 @@ export class SettlementScene extends Phaser.Scene {
     const isCamp = this.id === 'camp';
     const node = isCamp ? null : nodeById(this.id);
     const trade = node?.kind === 'trade';
-    const kind: 'camp' | 'village' | 'town' = isCamp || trade ? 'camp' : node!.kind === 'town' ? 'town' : 'village';
+    const foreign = node?.kind === 'foreign' ? visitOf(node.territory) : null;
+    const kind: 'camp' | 'village' | 'town' = isCamp || trade ? 'camp' : node!.kind === 'town' || node!.kind === 'foreign' ? 'town' : 'village';
     this.add.image(0, 0, this.backdrop(kind, Math.ceil(w), Math.ceil(h))).setOrigin(0);
 
     // title block
     const name = isCamp ? 'BANDIT CAMP' : node!.name.toUpperCase();
     const garrison = (GameState.garrisons[this.id] ?? []).map(t => t.name).join(', ');
     const tribute = isCamp ? 0 : node!.kind === 'town' ? 15 : 4 + (node!.tier ?? 1);
+    const stock = stockFor(this.id, this.visiting);
+    const up = `+${Math.round((stock.markup - 1) * 100)}%`;
     const sub = isCamp ? 'Home. Your forge, barracks and stables.'
       : trade ? "Neutral ground. Khoja trades with anyone — steppe riders for hire, and the composite bow."
-      : this.visiting ? 'Visiting as a customer  ·  prices +50%  ·  the locals watch you'
+      : foreign ? `A foreigner here  ·  stranger's prices ${up}  ·  every eye in the street on you`
+      : this.visiting ? `Visiting as a customer  ·  prices ${up}  ·  the locals watch you`
       : `Occupied  ·  tribute +${tribute}/day  ·  garrison: ${garrison || 'none'}`;
     this.add.text(w / 2, 12 * u, name, displayStyle(28 * u, CSS.goldHi)).setOrigin(0.5, 0);
     this.add.text(w / 2, 48 * u, sub, uiStyle(12 * u, CSS.cream, { bold: false, stroke: true, wrap: w * 0.9 })).setOrigin(0.5, 0);
     this.add.text(w / 2, 70 * u, `${GameState.dateLabel}   ·   ⬤ ${GameState.gold} gold   ·   troops ${GameState.troops.length}`, uiStyle(12 * u, CSS.gold, { stroke: true })).setOrigin(0.5, 0);
 
     // the buildings: big tap targets, a row (landscape) or a column (portrait)
-    const stock = stockFor(this.id, this.visiting);
     const cards: Card[] = [
-      { id: 'forge', label: 'FORGE', tex: TEX.forge, sub: `${stock.forge.swordMaxTier > 1 ? `swords to tier ${stock.forge.swordMaxTier}` : 'no swords'}${stock.forge.items.includes('plate') ? ', plate' : stock.forge.items.includes('leather') ? ', armor' : ''}${stock.forge.items.includes('bow') ? ', bow' : ''}${stock.forge.items.includes('composite') ? ', composite bow' : ''}${this.visiting ? ' · +50%' : ''}` },
+      { id: 'forge', label: 'FORGE', tex: TEX.forge, sub: `${stock.forge.swordMaxTier > 1 ? `swords to tier ${stock.forge.swordMaxTier}` : 'no swords'}${stock.forge.items.includes('plate') ? ', plate' : stock.forge.items.includes('leather') ? ', armor' : ''}${stock.forge.items.includes('bow') ? ', bow' : ''}${stock.forge.items.includes('composite') ? ', composite bow' : ''}${this.visiting ? ` · ${up}` : ''}` },
     ];
     if (stock.barracks) cards.push({ id: 'barracks', label: 'BARRACKS', tex: TEX.barracks, sub: stock.barracks.kind === 'guard' ? 'recruit town guards' : stock.barracks.kind === 'levy' ? 'recruit levies' : stock.barracks.kind === 'rider' ? 'hire steppe riders' : 'recruit raiders' });
-    else if (!isCamp) cards.push({ id: 'barracks', label: 'BARRACKS', tex: TEX.barracks, sub: '', locked: "the locals won't fight for you" });
-    if (stock.stables.length) cards.push({ id: 'stables', label: 'STABLES', tex: TEX.stables, sub: stock.stables.join(', ') + (this.visiting ? ' · +50%' : '') });
-    if (stock.inn) cards.push({ id: 'inn', label: 'INN', tex: TEX.inn, sub: nextRumor(this.id) ? 'buy a rumor — news of the world' : 'you have heard all they know' });
+    else if (!isCamp) cards.push({ id: 'barracks', label: 'BARRACKS', tex: TEX.barracks, sub: '', locked: foreign ? foreign.barracksLocked : "the locals won't fight for you" });
+    if (stock.stables.length) cards.push({ id: 'stables', label: 'STABLES', tex: TEX.stables, sub: stock.stables.join(', ') + (this.visiting ? ` · ${up}` : '') });
+    if (stock.inn) cards.push({ id: 'inn', label: foreign ? foreign.inn.name.toUpperCase() : 'INN', tex: TEX.inn,
+      sub: nextRumor(this.id) ? (foreign ? 'buy a rumor — what they know of their own land' : 'buy a rumor — news of the world') : 'you have heard all they know' });
     const portrait = h > w * 1.1;
     const n = cards.length;
     const cw = Math.min(portrait ? w * 0.88 : (w - 40 * u) / n - 14 * u, 300 * u);
     const ch = portrait ? Math.min(140 * u, (h - 200 * u - 90 * u) / n - 10 * u) : Math.min(230 * u, h - 200 * u);
     const top = 100 * u;
+    if (foreign) {
+      const f = cards.find(c => c.id === 'forge'); if (f) f.sub = `${foreign.forge.note}  ·  ${up}`;
+      const st = cards.find(c => c.id === 'stables'); if (st) st.sub = `${foreign.stables.note}  ·  ${up}`;
+    }
     cards.forEach((card, i) => {
       const x = portrait ? w / 2 : w / 2 + (i - (n - 1) / 2) * (cw + 14 * u);
       const y = portrait ? top + i * (ch + 10 * u) + ch / 2 : top + ch / 2;

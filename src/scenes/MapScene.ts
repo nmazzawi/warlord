@@ -7,7 +7,8 @@
 import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
 import { INFAMY, SIEGE, STEPPE } from '../config/balance';
-import { EDGES, nodeById, NODES, type MapNode, type Territory } from '../world/WorldMap';
+import { capitalOf, EDGES, FOREIGN, nodeById, NODES, type MapNode, type Territory } from '../world/WorldMap';
+import { visitOf } from '../world/Realms';
 import { route as findRoute, terrain, totalLength, type Route } from '../world/Terrain';
 import { CONTACT } from '../world/Hunters';
 import type { Pt } from '../world/geo';
@@ -95,7 +96,8 @@ export class MapScene extends Phaser.Scene {
   private hunterIcons = new Map<number, Phaser.GameObjects.Container>();
   private lastTap = 0;
   private lastTapAt = new Phaser.Math.Vector2();
-  private edgePan = new Phaser.Math.Vector2();
+  /** Set by a double click so the pointer-up that ends it cannot also be read as a tap on the map. */
+  private swallowTap = false;
 
   constructor() { super('Map'); }
 
@@ -138,11 +140,16 @@ export class MapScene extends Phaser.Scene {
     this.cameras.main.preRender();
     this.chart.refresh(this.cameras.main);
     this.scale.on('resize', this.onResize, this);
+    // A double click or double tap is a ZOOM and nothing else: it throws away any march being offered
+    // and swallows the tap that follows it, so you can never zoom in and set off walking by accident.
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       const now = this.time.now;
       if (now - this.lastTap < 320 && Phaser.Math.Distance.Between(p.x, p.y, this.lastTapAt.x, this.lastTapAt.y) < 40 * (this.scale.displayScale.x || 1)) {
+        if (this.hud?.panelOpen && !this.hud.panelModal) this.hud.hidePanel();
+        this.clearPlan();
         this.zoomAt(p.x, p.y, 1.6);              // double tap: a step in, toward what you pointed at
         this.lastTap = 0;
+        this.swallowTap = true;
         return;
       }
       this.lastTap = now;
@@ -165,10 +172,14 @@ export class MapScene extends Phaser.Scene {
     this.input.on('pointerdown', this.onDown, this);
     this.input.on('pointermove', this.onMove, this);
     this.input.on('pointerup', this.onUp, this);
-    this.input.on('wheel', (p: Phaser.Input.Pointer, _o: unknown, dx: number, dy: number, _dz: number, ev?: WheelEvent) => {
+    this.input.on('wheel', (p: Phaser.Input.Pointer, _o: unknown, dx: number, dy: number) => {
+      // A trackpad pinch reaches the browser as a wheel event with ctrl held — that is the ONLY way a
+      // page can see one. Phaser does not pass the raw event to this callback, so read it off the
+      // pointer, which is where Phaser parks it. Pinch out is a negative delta: in. Pinch in: out.
+      const ev = p.event as WheelEvent | undefined;
+      if (ev && ev.ctrlKey) { this.zoomAt(p.x, p.y, dy < 0 ? 1.06 : 1 / 1.06); return; }
       // a trackpad sends small fractional deltas and real sideways movement; a mouse wheel does not
       const trackpadPan = Math.abs(dx) > 0.5 || (!Number.isInteger(dy) && Math.abs(dy) < 40);
-      if (ev?.ctrlKey) { this.zoomAt(p.x, p.y, dy > 0 ? 1 / 1.06 : 1.06); return; }
       if (trackpadPan) {
         const z = this.cameras.main.zoom;
         this.cameras.main.stopFollow();
@@ -183,7 +194,7 @@ export class MapScene extends Phaser.Scene {
       this.scene.stop('MapHud');
     });
 
-    // pick up where we left off: a patrol still blocking the road, mid-road after one, mid-journey, or standing somewhere
+    // pick up where we left off: a hunting party on top of you, or standing somewhere
     this.time.delayedCall(30, () => {
       this.refresh();
       if (this.pendingToast) { this.hud.toast([this.pendingToast], '#f5c542'); this.pendingToast = null; }
@@ -279,15 +290,9 @@ export class MapScene extends Phaser.Scene {
     (this.token.list[0] as Phaser.GameObjects.Image).setScale(Phaser.Math.Clamp((0.9 * dpr) / zoom, 0.3, 2));
   }
 
-  /** Every frame: nudge the camera if the mouse is resting at a screen edge, and let the chart notice
-   *  when we have settled somewhere new so it can repaint itself sharp. */
-  update(_t: number, dt: number) {
-    if (this.edgePan.x || this.edgePan.y) {
-      const cam = this.cameras.main;
-      cam.stopFollow();
-      const k = (dt / 16) * (14 / cam.zoom);
-      cam.setScroll(cam.scrollX + this.edgePan.x * k, cam.scrollY + this.edgePan.y * k);
-    }
+  /** Every frame: let the chart notice when we have settled somewhere new, so it can repaint itself
+   *  sharp at that zoom. Nothing else moves the camera on its own — the map only goes where you send it. */
+  update() {
     this.chart?.tick(this.cameras.main);
   }
 
@@ -363,7 +368,7 @@ export class MapScene extends Phaser.Scene {
     // your own places hold their ground: an empire's village never writes over one of your villages
     if (MapScene.fade(zoom, BAND.minor) > 0.3) {
       for (const n of NODES) {
-        if (n.kind === 'cross') continue;
+        if (n.kind === 'cross' || n.kind === 'foreign') continue;
         taken.push([n.x, n.y, 40 * u, 40 * u]);
         solid.push([n.x, n.y, 40 * u, 40 * u]);
         taken.push([n.x, n.y + 20 * u, 124 * u, 38 * u]);
@@ -402,7 +407,6 @@ export class MapScene extends Phaser.Scene {
       const len = Math.hypot(b.x - a.x, b.y - a.y), ux = (b.x - a.x) / len, uy = (b.y - a.y) / len;
       g.lineStyle(0.8, 0xa88d62, 0.7);
       for (let d = 4; d < len - 4; d += 7) g.lineBetween(a.x + ux * d, a.y + uy * d, a.x + ux * (d + 3), a.y + uy * (d + 3));
-      this.label((a.x + b.x) / 2, (a.y + b.y) / 2, `${e.days}d`, 11, CSS.cream, 0.5).setDepth(2).setAlpha(0.95);
     }
   }
 
@@ -429,6 +433,9 @@ export class MapScene extends Phaser.Scene {
   }
 
   private drawNode(n: MapNode) {
+    // foreign cities are drawn by the atlas as crowns and towers already; they are only in NODES so
+    // that you can stand on them, so there is nothing to draw here
+    if (n.kind === 'foreign') return;
     if (n.kind === 'cross') { this.territoryObjects.push(this.add.image(n.x, n.y, TEX.mapCross).setDepth(3).setScale(0.5)); return; }
     const tex = n.kind === 'camp' ? TEX.mapCamp : n.kind === 'village' ? TEX.mapVillage : n.kind === 'town' ? TEX.mapTown
       : n.kind === 'waypoint' ? TEX.mapWaypoint : n.kind === 'trade' ? TEX.mapTrade : TEX.mapGate;
@@ -515,7 +522,7 @@ export class MapScene extends Phaser.Scene {
   }
 
   private onDown(p: Phaser.Input.Pointer) {
-    this.edgePan.set(0, 0);
+    this.cameras.main.panEffect.reset();   // a hand on the map cancels the LOCATE flight
     this.dragStart.set(p.x, p.y);
     this.camStart.set(this.cameras.main.scrollX, this.cameras.main.scrollY);
     this.dragMoved = false;
@@ -524,18 +531,7 @@ export class MapScene extends Phaser.Scene {
   }
 
   private onMove(p: Phaser.Input.Pointer) {
-    if (!p.isDown) {
-      // resting near a screen edge nudges the map along (desktop only — a finger is never "resting")
-      const { width, height } = this.scale;
-      const band = 26 * (this.scale.displayScale.x || 1);
-      const top = this.hud?.mapTop ?? 0;
-      this.edgePan.set(
-        p.x < band ? -1 : p.x > width - band ? 1 : 0,
-        p.y < top + band ? (p.y > top ? -1 : 0) : p.y > height - band ? 1 : 0,
-      );
-      return;
-    }
-    this.edgePan.set(0, 0);
+    if (!p.isDown) return;                       // the map only moves when you move it
     const tf = this.twoFingers();
     if (tf && this.pinchDist > 0) {
       const d = Phaser.Math.Distance.Between(tf[0].x, tf[0].y, tf[1].x, tf[1].y);
@@ -555,6 +551,7 @@ export class MapScene extends Phaser.Scene {
 
   private onUp(p: Phaser.Input.Pointer) {
     if (!this.twoFingers()) this.pinchDist = 0;
+    if (this.swallowTap) { this.swallowTap = false; return; }
     if (this.dragMoved) return;
     if (this.hud.barContains(p.downX, p.downY) || this.hud.barContains(p.x, p.y) || this.hud.zoomContains(p.x, p.y)) return;
     if (this.hud.panelOpen) {
@@ -671,6 +668,8 @@ export class MapScene extends Phaser.Scene {
           GameState.pos = { x: at[0], y: at[1] };
           const here = NODES.find(n => n.kind !== 'cross' && Math.hypot(n.x - at[0], n.y - at[1]) < 22);
           GameState.location = here ? here.id : '';
+          const crossed = GameState.noteRealm();
+          if (crossed) this.hud.toast([crossed, 'Nobody here has heard of you.'], '#f5c542');
           this.passDays(1);
           const caught = GameState.runHunters(1);
           GameState.save();
@@ -712,10 +711,17 @@ export class MapScene extends Phaser.Scene {
     return r ? r.days : 0;
   }
 
-  /** Smoothly bring the camera back to the warband. */
+  /** Smoothly bring the camera back to the warband. Pressing it again while it is already flying
+   *  restarts the flight rather than stacking a second one on top of the first. */
   private locate() {
-    this.cameras.main.stopFollow();
-    this.cameras.main.pan(this.token.x, this.token.y, 420, 'Sine.InOut');
+    const cam = this.cameras.main;
+    cam.stopFollow();
+    cam.panEffect.reset();
+    // NOT an ease NAME: the camera's pan looks its ease up in a table directly (unlike a tween, which
+    // is forgiving about spelling), and an unknown name leaves it holding a string where a function
+    // should be — it then throws on every frame and the whole game appears to freeze. Pass the
+    // function itself and there is nothing to spell wrong.
+    cam.pan(this.token.x, this.token.y, 420, Phaser.Math.Easing.Sine.InOut, true);
   }
 
   /** Zoom a step, keeping whatever is under the pointer roughly under the pointer. */
@@ -750,6 +756,14 @@ export class MapScene extends Phaser.Scene {
     return null;
   }
 
+  /** What a realm you cannot conquer tells you: why not, and whether you can walk in as a customer. */
+  private foreignLines(r: Region): string[] {
+    const v = visitOf(r.id);
+    if (!v) return ['Across water, and no ship will carry you — yet.'];
+    const cap = capitalOf(r.id);
+    return [v.warLocked, cap ? `Their gates are open to a stranger with coin. ${cap.name} is ${this.routeDays(cap.id)} days' march from where you stand.` : ''].filter(Boolean);
+  }
+
   private zoomInButton(t: Territory) {
     return { label: 'ZOOM IN', color: 0x2f6b8a, onPress: () => { this.hud.hidePanel(); this.zoomToTerritory(t); } };
   }
@@ -770,17 +784,26 @@ export class MapScene extends Phaser.Scene {
     const lines = [r.note];
     if (r.throne) lines.push(`Throne: ${r.throne}`);
     if (great.length) lines.push(`${great.join(' · ')}${lesser > 0 ? `, and ${lesser} lesser places` : ''}`);
-    lines.push('Not yet — your road ends at the steppe.');
-    this.hud.showPanel({ title: r.name.toUpperCase(), lines, buttons: [leave] });
+    lines.push(...this.foreignLines(r));
+    const cap = visitOf(r.id) ? capitalOf(r.id) : null;
+    this.hud.showPanel({ title: r.name.toUpperCase(), lines,
+      buttons: [
+        ...(cap && GameState.location !== cap.id ? [{ label: `MARCH TO ${cap.name.toUpperCase()} (${this.routeDays(cap.id)}d)`, color: 0x2f6b8a, onPress: () => this.travelTo(cap.id) }] : []),
+        ...(cap ? [this.zoomInButton(r.id)] : []),
+        leave] });
   }
 
   /** One of the world's settlements, seen from very far away. */
   private showPlacePanel(m: Marker) {
+    const open = FOREIGN.find(n => n.territory === m.empire.id && n.name === m.place.name);
+    if (open) { this.showNodePanel(open); return; }
     const rank = m.place.kind === 'capital' ? `The throne of ${m.empire.name}` : m.place.kind === 'city' ? `A great city of ${m.empire.name}`
       : m.place.kind === 'town' ? `A town of ${m.empire.name}` : `A village of ${m.empire.name}`;
     this.hud.showPanel({
       title: m.place.name.toUpperCase(),
-      lines: [m.place.note, rank, 'Not yet — your road ends at the steppe.'],
+      lines: [m.place.note, rank, visitOf(m.empire.id)
+        ? 'A place too small to open its gates to a stranger. Their capital and great cities would.'
+        : 'Across water, and no ship will carry you — yet.'],
       buttons: [{ label: 'Leave', color: 0x555555, onPress: () => this.hud.hidePanel() }],
     });
   }
@@ -794,6 +817,24 @@ export class MapScene extends Phaser.Scene {
     const here = GameState.location === n.id;
     // anywhere you are not standing can be marched to, whatever kind of place it is
     const march = here ? null : { label: `MARCH (${this.routeDays(n.id)}d)`, color: 0x2f6b8a, onPress: () => this.travelTo(n.id) };
+    if (n.kind === 'foreign') {
+      const v = visitOf(n.territory);
+      const realm = REGIONS.find(r => r.id === n.territory);
+      const lines = [n.blurb ?? '', n.capital ? `The throne of ${realm?.name ?? 'a foreign realm'}.` : `A great city of ${realm?.name ?? 'a foreign realm'}.`];
+      if (v) lines.push(v.warLocked);
+      lines.push(here
+        ? 'Their gates are open to you as a customer and nothing else — the forge, the stables, the inn. Their barracks are not, and neither is their war.'
+        : `${this.routeDays(n.id)} days' march from where you stand.`);
+      this.hud.showPanel({
+        title: n.name.toUpperCase(), lines,
+        buttons: [
+          here
+            ? { label: 'ENTER THE CITY', color: 0x2f6b8a, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: n.id, visit: true }); } }
+            : march!,
+          leave],
+      });
+      return;
+    }
     if (n.kind === 'camp') {
       this.hud.showPanel({
         title: 'BANDIT CAMP', lines: ['Your home. Tap the Forge, the Barracks or the Stables to spend your gold. Waiting here still costs wages.'],
@@ -842,7 +883,7 @@ export class MapScene extends Phaser.Scene {
     if (n.kind === 'town') {
       if (!GameState.siegeUnlocked) {
         const lines = [n.blurb ?? '', `The garrison is far too strong for a nobody. Become a ${INFAMY.tiers[SIEGE.unlockTier].name} (infamy ${INFAMY.tiers[SIEGE.unlockTier].min}) and they will take you seriously.`,
-          !here ? `The road there takes ${this.routeDays(n.id)} days.` : ''].filter(Boolean);
+          !here ? `${this.routeDays(n.id)} days' march from where you stand.` : ''].filter(Boolean);
         const visit = this.visitButton(n, lines);
         this.hud.showPanel({ title: n.name.toUpperCase(), lines, buttons: [...(visit ? [visit] : []), leave] });
       } else {
@@ -893,8 +934,8 @@ export class MapScene extends Phaser.Scene {
     const p = GameState.patrolConfig();
     const n = p ? p.militia + p.archers + p.captains : 6;
     this.hud.showPanel({
-      title: 'ROAD PATROL', modal: true,
-      lines: [`${n} riders block the road — your bounty has drawn them. There is no way around.`],
+      title: 'HUNTERS', modal: true,
+      lines: [`${n} riders have run you down — your bounty brought them out. They are on top of you; there is no outriding them now.`],
       buttons: [{ label: 'FIGHT', color: 0xa0341f, onPress: () => { GameState.save(); this.scene.start('Raid', patrolBattle()); } }],
     });
   }

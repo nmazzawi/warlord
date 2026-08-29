@@ -102,11 +102,10 @@ export class ResultScene extends Phaser.Scene {
       }));
       y += 54 * u + 12 * u;
       items.push(makeButton(this, cx, y + 22 * u, {
-        width: Math.min(colW, 260 * u), height: 44 * u, label: patrol ? 'Fall back the way you came' : 'Retreat to the map', tone: 'ghost',
+        width: Math.min(colW, 260 * u), height: 44 * u, label: patrol ? 'Fall back' : 'Retreat to the map', tone: 'ghost',
         onPress: () => {
           GameState.restoreSnapshot();
-          if (patrol && GameState.resumeTravel) { GameState.location = GameState.resumeTravel.from; }
-          GameState.resumeTravel = null; GameState.pendingPath = []; GameState.patrolPending = false;
+          GameState.patrolPending = false;
           GameState.save();
           this.toMap();
         },

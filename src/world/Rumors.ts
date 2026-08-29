@@ -3,6 +3,7 @@ import { INFAMY, SIEGE, STEPPE } from '../config/balance';
 import { GameState } from '../state/GameState';
 import { LAYOUTS } from './Layouts';
 import { NODES } from './WorldMap';
+import { visitOf } from './Realms';
 
 export interface Rumor { id: string; text: string; }
 
@@ -37,8 +38,21 @@ export function currentRumors(): Rumor[] {
 }
 
 /** The next rumor this settlement will sell (each place tells you something you haven't heard). */
+/** What a foreign inn knows: its own realm, told to a stranger who paid for it. */
+export function realmRumors(realm: string): Rumor[] {
+  const v = visitOf(realm);
+  return v ? v.inn.rumors.map((text, i) => ({ id: `realm:${realm}:${i}`, text })) : [];
+}
+
 export function nextRumor(settlementId: string): Rumor | null {
   const heard = new Set(GameState.rumorsHeard);
+  // abroad, the innkeeper talks about where you ARE — that is what you walked all this way for
+  const node = NODES.find(n => n.id === settlementId);
+  if (node?.kind === 'foreign') {
+    const own = realmRumors(node.territory).filter(r => !heard.has(`${settlementId}:${r.id}`));
+    if (own.length) return own[0];
+    return null;
+  }
   const pool = currentRumors().filter(r => !heard.has(`${settlementId}:${r.id}`));
   if (!pool.length) return null;
   // spread them out: each settlement starts at a different point in the list

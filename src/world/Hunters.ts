@@ -61,7 +61,7 @@ export interface HuntResult { hunters: Hunter[]; caught: Hunter | null; }
  */
 export function advanceHunters(
   hunters: Hunter[], pos: { x: number; y: number }, days: number,
-  opts: { tier: number; steppeTier: number; hunted: boolean; territory: Territory; mounted: boolean; rnd: () => number },
+  opts: { tier: number; hunted: boolean; territory: Territory; mounted: boolean; rnd: () => number },
 ): HuntResult {
   const out: Hunter[] = [];
   let caught: Hunter | null = null;
@@ -77,8 +77,9 @@ export function advanceHunters(
     if (Math.hypot(pos.x - next.x, pos.y - next.y) <= CONTACT && !caught) caught = next;
     out.push(next);
   }
-  // do the country's riders want another party out?
-  const tier = opts.territory === 'steppe' ? opts.steppeTier : opts.tier;
+  // do the country's riders want another party out? Only a country that has heard of you does: a
+  // foreign realm you have just walked into grades you at nothing, and nobody there is looking.
+  const tier = opts.tier;
   const want = wanted(tier, opts.hunted && opts.territory === 'steppe');
   const here = out.filter(h => h.kind === opts.territory).length;
   if (here < want && opts.rnd() < (opts.territory === 'steppe' ? STEPPE.huntChance : (INFAMY.interceptChance[tier] ?? 0)) * days) {

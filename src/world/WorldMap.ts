@@ -1,22 +1,30 @@
-// WorldMap.ts — the places you can stand on and the roads between them, in world-chart coordinates.
-// Two territories so far: the homeland (fixed villages, Kingsport) and the Mongol steppe (waypoints
-// that roaming camps drift between, one neutral trade camp). Travel costs days.
+// WorldMap.ts — the places you can stand on, in world-chart coordinates. The homeland (fixed villages,
+// Kingsport), the Mongol steppe (waypoints that roaming camps drift between, one neutral trade camp),
+// and the capitals and great cities of every foreign realm you can reach on foot. The lines between
+// homeland places are ROADS: they are drawn, and a march that follows one goes half again as fast,
+// but nothing routes along them any more — you walk where you like.
 
-export type NodeKind = 'camp' | 'village' | 'town' | 'cross' | 'waypoint' | 'trade' | 'gate';
-export type Territory = 'homeland' | 'steppe';
+import { ATLAS_EMPIRES } from './AtlasData';
+import { REALM_VISITS } from './Realms';
+
+export type NodeKind = 'camp' | 'village' | 'town' | 'cross' | 'waypoint' | 'trade' | 'gate' | 'foreign';
+/** 'homeland', 'steppe', or the id of a foreign realm you have walked into. Every one of them keeps
+ *  its own opinion of you — see GameState.territoryInfamy. */
+export type Territory = string;
 
 export interface MapNode {
   id: string; name: string; kind: NodeKind; x: number; y: number; territory: Territory;
   tier?: number;      // villages: 1..4
   layout?: string;    // villages / town: which raid layout
   blurb?: string;
+  capital?: boolean;  // foreign: the realm's throne
 }
 export interface MapEdge { a: string; b: string; days: number; }
 
 /** The homeland's own little map (the old 1480x1000 layout) squeezed into the Borderland on the chart. */
 const H = (x: number, y: number) => ({ x: Math.round(3590 + ((x - 200) * 220) / 1040), y: Math.round(845 + ((y - 300) * 160) / 420) });
 
-export const NODES: MapNode[] = [
+const HOME: MapNode[] = [
   { id: 'camp', name: 'Bandit Camp', kind: 'camp', ...H(200, 720), territory: 'homeland', blurb: 'Home. Forge, barracks and stables.' },
   { id: 'ashford', name: 'Ashford', kind: 'village', ...H(470, 640), territory: 'homeland', tier: 1, layout: 'ashford', blurb: 'A sleepy hamlet on the old road.' },
   { id: 'x1', name: '', kind: 'cross', ...H(690, 540), territory: 'homeland' },
@@ -35,6 +43,27 @@ export const NODES: MapNode[] = [
   { id: 'steppe_trade', name: "Khoja's Camp", kind: 'trade', x: 4470, y: 1075, territory: 'steppe', blurb: 'A neutral trade camp. Everyone is welcome here, and everyone pays.' },
 ];
 
+/** The foreign places whose gates open to a stranger with coin: every capital and great city of a
+ *  realm you can reach on foot. Towns and villages abroad stay flavour on the chart — you can look at
+ *  them, and that is all. Their ids are derived from the atlas, so adding a city to a pack adds a
+ *  place you can walk to without touching this file. */
+export const FOREIGN: MapNode[] = ATLAS_EMPIRES
+  .filter(e => !!REALM_VISITS[e.id])
+  .flatMap(e => e.places
+    .filter(p => p.kind === 'capital' || p.kind === 'city')
+    .map(p => ({
+      id: `f_${e.id}_${p.name.toLowerCase().replace(/[^a-z0-9]+/g, '')}`,
+      name: p.name, kind: 'foreign' as const, x: p.x, y: p.y, territory: e.id,
+      blurb: p.note, capital: p.kind === 'capital',
+    })));
+
+export const NODES: MapNode[] = [...HOME, ...FOREIGN];
+
+/** The throne of a realm, as somewhere you can march to. */
+export function capitalOf(realm: string): MapNode | null {
+  return FOREIGN.find(n => n.territory === realm && n.capital) ?? null;
+}
+
 export function nodeById(id: string): MapNode {
   const n = NODES.find(n => n.id === id);
   if (!n) throw new Error(`unknown map node ${id}`);
@@ -42,8 +71,8 @@ export function nodeById(id: string): MapNode {
 }
 export function territoryOf(id: string): Territory { return nodeById(id).territory; }
 
-/** Roads, and what each one costs in days. Days are fixed by hand — the chart's geometry can change
- *  (a redraw, a new continent) without ever changing how long a march takes. */
+/** The roads themselves. The number is what the leg used to cost in days, kept only so the terrain
+ *  grid can weight the older, better-trodden roads; nothing reads it as a travel time. */
 const LINKS: Array<[string, string, number]> = [
   ['camp', 'ashford', 3], ['ashford', 'x1', 3], ['x1', 'millbrook', 3], ['x1', 'thornhill', 3],
   ['millbrook', 'greywater', 5], ['thornhill', 'kingsport', 4], ['greywater', 'kingsport', 4], ['x1', 'greywater', 5],
@@ -54,33 +83,5 @@ const LINKS: Array<[string, string, number]> = [
 ];
 export const EDGES: MapEdge[] = LINKS.map(([a, b, days]) => ({ a, b, days }));
 
-export function edgeBetween(a: string, b: string): MapEdge | null {
-  return EDGES.find(e => (e.a === a && e.b === b) || (e.a === b && e.b === a)) ?? null;
-}
-export function neighbours(id: string): string[] {
-  return EDGES.filter(e => e.a === id || e.b === id).map(e => (e.a === id ? e.b : e.a));
-}
-
-/** Cheapest route in days (tiny Dijkstra). Returns the node ids after `from`, or [] if unreachable. */
-export function findPath(from: string, to: string): string[] {
-  if (from === to) return [];
-  const best = new Map<string, number>([[from, 0]]);
-  const prev = new Map<string, string>();
-  const open = new Set<string>([from]);
-  while (open.size) {
-    let cur = '';
-    let cd = Infinity;
-    for (const id of open) { const d = best.get(id)!; if (d < cd) { cd = d; cur = id; } }
-    open.delete(cur);
-    if (cur === to) break;
-    for (const nb of neighbours(cur)) {
-      const e = edgeBetween(cur, nb)!;
-      const nd = cd + e.days;
-      if (nd < (best.get(nb) ?? Infinity)) { best.set(nb, nd); prev.set(nb, cur); open.add(nb); }
-    }
-  }
-  if (!prev.has(to)) return [];
-  const path: string[] = [];
-  for (let c = to; c !== from; c = prev.get(c)!) path.unshift(c);
-  return path;
-}
+/** Roads are drawn features and a speed bonus now — nothing routes along them. Travel is free
+ *  movement across the terrain (see Terrain.ts), so the old Dijkstra over this graph is gone. */

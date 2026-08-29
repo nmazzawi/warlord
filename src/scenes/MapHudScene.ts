@@ -111,13 +111,13 @@ export class MapHudScene extends Phaser.Scene {
     this.ledgerText.setText(`Troops ${GameState.troops.length}  ·  wages −${wages}/day  ·  tribute +${tribute}/day  ·  net ${net >= 0 ? '+' : ''}${net}/day${unpaid ? '   ·   UNPAID — the men grumble' : ''}`)
       .setColor(unpaid ? '#ff9a8a' : net >= 0 ? '#c8f0c8' : '#ffe9a8');
     // the meter shows how the territory you stand in sees you
-    const steppe = GameState.territory === 'steppe';
+    const where = GameState.territoryName();
     const value = GameState.territoryInfamy();
     const tier = GameState.tierOf(value);
     const next = INFAMY.tiers[tier + 1]?.min ?? null;
     const cur = INFAMY.tiers[tier].min;
     const frac = next === null ? 1 : Phaser.Math.Clamp((value - cur) / (next - cur), 0, 1);
-    this.infamyLabel.setText(`${steppe ? 'STEPPE ' : ''}INFAMY ${value}  ·  ${INFAMY.tiers[tier].name.toUpperCase()}${next !== null ? `  (${INFAMY.tiers[tier + 1].name} at ${next})` : ''}${GameState.hunted ? '  ·  HUNTED' : ''}`);
+    this.infamyLabel.setText(`${where ? `${where} ` : ''}INFAMY ${value}  ·  ${INFAMY.tiers[tier].name.toUpperCase()}${next !== null ? `  (${INFAMY.tiers[tier + 1].name} at ${next})` : ''}${GameState.hunted ? '  ·  HUNTED' : ''}`);
     this.infamyFg.width = this.infamyBg.width * frac;
     this.bountyText.setText(GameState.bounty > 0 ? `bounty ${GameState.bounty}g (homeland)` : 'no bounty yet');
   }

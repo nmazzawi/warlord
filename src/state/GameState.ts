@@ -4,6 +4,7 @@
 import { CONQUEST, DEFENSE_SOFTCAP, EQUIPMENT, HERO, HORSES, INFAMY, PATROLS, RERAID, SIEGE, STEPPE, TRIBUTE, TROOP, UPKEEP, VILLAGE_TIERS } from '../config/balance';
 import { nameAt } from '../utils/names';
 import { NODES, nodeById, territoryOf, type Territory } from '../world/WorldMap';
+import { REALM_SHORT, visitOf } from '../world/Realms';
 import type { Hunter } from '../world/Hunters';
 import { advanceHunters, nearestTerritory } from '../world/Hunters';
 
@@ -16,10 +17,9 @@ export type ShieldKind = 'none' | 'round' | 'kite';
 export type HorseKind = 'none' | 'courser' | 'destrier';
 export interface Owned { leather: boolean; plate: boolean; round: boolean; kite: boolean; bow: boolean; halberd: boolean; courser: boolean; destrier: boolean; composite: boolean; }
 export interface SettlementState { timesRaided: number; lastRaidDay: number | null; occupied: boolean; sacked: boolean; wealth: number; }
-export interface TravelResume { from: string; to: string; }
 export type Conquest = 'sack' | 'occupy' | 'leave';
 export interface DayEvent { kind: 'unpaid' | 'desert'; text: string; }
-export type Access = 'camp' | 'occupied' | 'visit' | 'closed' | 'sacked' | 'trade';
+export type Access = 'camp' | 'occupied' | 'visit' | 'closed' | 'sacked' | 'trade' | 'foreign';
 /** A won battle whose sack/occupy choice has not been made yet (survives a reload). */
 export interface PendingVictory { goldEarned: number; deadTroopIds: number[]; battle: BattleOutcome; fallen: string[]; }
 
@@ -39,12 +39,13 @@ interface SaveData {
   version: number; gold: number; day: number; infamy: number; weaponTier: number; equippedWeapon: WeaponKind; horse: HorseKind;
   armor: ArmorKind; shield: ShieldKind; owned: Owned; troops: TroopRecord[]; fallen: FallenRecord[]; deserted: string[];
   nextId: number; nameCursor: number; raidsDone: number;
-  location: string; pendingPath: string[]; resumeTravel: TravelResume | null; patrolPending: boolean;
+  location: string; patrolPending: boolean;
   pos?: { x: number; y: number }; hunters?: Hunter[];
   settlements: Record<string, SettlementState>; garrisons: Record<string, TroopRecord[]>;
   fortifyStepsDone: number; fortifyCarry: number; lastPatrolDay: number; unpaidDays: number; seenMapHint: boolean;
   rumorsHeard: string[]; pendingVictory: PendingVictory | null;
   steppeInfamy: number; campScattered: Record<string, number>; huntedUntil: number; lastSteppePatrolDay: number;
+  realmInfamy?: Record<string, number>;
 }
 
 class GameStateStore {
@@ -66,8 +67,6 @@ class GameStateStore {
   pos: { x: number; y: number } = { ...nodeById('camp') };
   /** Hunter parties on the map: they know your face and they are looking for you. */
   hunters: Hunter[] = [];
-  pendingPath: string[] = [];
-  resumeTravel: TravelResume | null = null;
   patrolPending = false;
   settlements: Record<string, SettlementState> = {};
   garrisons: Record<string, TroopRecord[]> = {};
@@ -80,6 +79,9 @@ class GameStateStore {
   pendingVictory: PendingVictory | null = null;
   /** the steppe keeps its own opinion of you; homeland infamy and bounty are untouched by it */
   steppeInfamy = 0;
+  /** What each foreign realm you have walked into thinks of you. A realm you have never entered is
+   *  not in here at all; the day you cross its border it starts at nothing, like everywhere else did. */
+  realmInfamy: Record<string, number> = {};
   campScattered: Record<string, number> = {};
   huntedUntil = -1;
   lastSteppePatrolDay = -99;
@@ -96,8 +98,8 @@ class GameStateStore {
     this.gold = UPKEEP.startingGold; this.day = 1; this.infamy = 0; this.weaponTier = 1; this.equippedWeapon = 'sword'; this.horse = 'none';
     this.armor = 'none'; this.shield = 'none';
     this.owned = { leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false, composite: false };
-    this.steppeInfamy = 0; this.campScattered = {}; this.huntedUntil = -1; this.lastSteppePatrolDay = -99;
-    this.troops = []; this.fallen = []; this.deserted = []; this.raidsDone = 0; this.location = 'camp'; this.pendingPath = []; this.resumeTravel = null;
+    this.steppeInfamy = 0; this.realmInfamy = {}; this.campScattered = {}; this.huntedUntil = -1; this.lastSteppePatrolDay = -99;
+    this.troops = []; this.fallen = []; this.deserted = []; this.raidsDone = 0; this.location = 'camp';
     this.patrolPending = false; this.pos = { x: nodeById('camp').x, y: nodeById('camp').y }; this.hunters = []; this.settlements = {}; this.garrisons = {}; this.fortifyStepsDone = 0; this.fortifyCarry = 0; this.lastPatrolDay = -99;
     this.unpaidDays = 0; this.seenMapHint = false; this.rumorsHeard = []; this.pendingVictory = null;
     this.nextId = 1; this.nameCursor = 0; this.snapshot = null;
@@ -155,10 +157,25 @@ class GameStateStore {
 
   // ------------------------------------------------------------ territories
   get territory(): Territory { return this.location ? territoryOf(this.location) : nearestTerritory(this.pos.x, this.pos.y); }
-  /** Infamy as the territory you are standing in sees it. */
-  territoryInfamy(t: Territory = this.territory) { return t === 'steppe' ? this.steppeInfamy : this.infamy; }
+  /** Infamy as the territory you are standing in sees it. Your homeland and the steppe keep the two
+   *  old meters; every foreign realm keeps its own, and starts you at nothing. */
+  territoryInfamy(t: Territory = this.territory): number {
+    if (t === 'steppe') return this.steppeInfamy;
+    if (t === 'homeland') return this.infamy;
+    return this.realmInfamy[t] ?? 0;
+  }
+  /** The realm's name for the meter ('' for your own borderland, which needs no naming). */
+  territoryName(t: Territory = this.territory) { return REALM_SHORT[t] ?? t.toUpperCase(); }
+  /** Have we set foot in this realm before? Opening its meter is what marks the crossing. */
+  noteRealm(t: Territory = this.territory): string | null {
+    if (t === 'homeland' || t === 'steppe' || this.realmInfamy[t] !== undefined) return null;
+    this.realmInfamy[t] = 0;
+    return visitOf(t)?.enter ?? null;
+  }
   tierOf(value: number) { let t = 0; INFAMY.tiers.forEach((tier, i) => { if (value >= tier.min) t = i; }); return t; }
   get steppeTier() { return this.tierOf(this.steppeInfamy); }
+  /** The tier the ground you are standing on grades you at. */
+  tierIn(t: Territory = this.territory) { return this.tierOf(this.territoryInfamy(t)); }
   get hunted() { return this.day < this.huntedUntil; }
 
   // ------------------------------------------------------------ the ledger
@@ -181,7 +198,7 @@ class GameStateStore {
    *  reaches you, if any — there is no dodging that fight. */
   runHunters(days: number) {
     const res = advanceHunters(this.hunters, this.pos, days, {
-      tier: this.infamyTier, steppeTier: this.steppeTier, hunted: this.hunted,
+      tier: this.tierIn(), hunted: this.hunted,
       territory: this.territory, mounted: !!this.horse, rnd: Math.random,
     });
     this.hunters = res.hunters;
@@ -247,7 +264,9 @@ class GameStateStore {
    */
   access(id: string): Access {
     if (id === 'camp') return 'camp';
-    if (nodeById(id).kind === 'trade') return 'trade';
+    const kind = nodeById(id).kind;
+    if (kind === 'trade') return 'trade';
+    if (kind === 'foreign') return 'foreign';
     const s = this.settlement(id);
     if (s.occupied) return 'occupied';
     if (s.sacked) return 'sacked';
@@ -361,13 +380,13 @@ class GameStateStore {
       equippedWeapon: this.equippedWeapon, horse: this.horse, armor: this.armor, shield: this.shield, owned: { ...this.owned },
       troops: this.troops.map(t => ({ ...t })), fallen: this.fallen.map(f => ({ ...f })), deserted: [...this.deserted],
       nextId: this.nextId, nameCursor: this.nameCursor, raidsDone: this.raidsDone,
-      location: this.location, pendingPath: [...this.pendingPath], resumeTravel: this.resumeTravel ? { ...this.resumeTravel } : null,
+      location: this.location,
       patrolPending: this.patrolPending, pos: { ...this.pos }, hunters: this.hunters.map(h => ({ ...h })),
       settlements: JSON.parse(JSON.stringify(this.settlements)), garrisons: JSON.parse(JSON.stringify(this.garrisons)),
       fortifyStepsDone: this.fortifyStepsDone, fortifyCarry: this.fortifyCarry, lastPatrolDay: this.lastPatrolDay,
       unpaidDays: this.unpaidDays, seenMapHint: this.seenMapHint,
       rumorsHeard: [...this.rumorsHeard], pendingVictory: this.pendingVictory ? JSON.parse(JSON.stringify(this.pendingVictory)) : null,
-      steppeInfamy: this.steppeInfamy, campScattered: { ...this.campScattered }, huntedUntil: this.huntedUntil, lastSteppePatrolDay: this.lastSteppePatrolDay,
+      steppeInfamy: this.steppeInfamy, realmInfamy: { ...this.realmInfamy }, campScattered: { ...this.campScattered }, huntedUntil: this.huntedUntil, lastSteppePatrolDay: this.lastSteppePatrolDay,
     };
   }
   fromJSON(d: SaveData) {
@@ -376,7 +395,7 @@ class GameStateStore {
     this.owned = Object.assign({ leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false, composite: false }, d.owned);
     this.troops = d.troops.map(t => ({ ...t, kind: t.kind ?? 'raider' })); this.fallen = (d.fallen ?? []).map(f => ({ ...f })); this.deserted = [...(d.deserted ?? [])];
     this.nextId = d.nextId; this.nameCursor = d.nameCursor; this.raidsDone = d.raidsDone;
-    this.location = d.location; this.pendingPath = [...(d.pendingPath ?? [])]; this.resumeTravel = d.resumeTravel ? { ...d.resumeTravel } : null;
+    this.location = d.location;
     // a save from before free movement only knows which place you were standing at; start you there
     const at = d.location && NODES.some(n => n.id === d.location) ? nodeById(d.location) : nodeById('camp');
     this.pos = d.pos ? { ...d.pos } : { x: at.x, y: at.y };
@@ -386,7 +405,7 @@ class GameStateStore {
     this.fortifyStepsDone = d.fortifyStepsDone ?? 0; this.fortifyCarry = d.fortifyCarry ?? 0; this.lastPatrolDay = d.lastPatrolDay ?? -99;
     this.unpaidDays = d.unpaidDays ?? 0; this.seenMapHint = d.seenMapHint ?? false;
     this.rumorsHeard = [...(d.rumorsHeard ?? [])]; this.pendingVictory = d.pendingVictory ? JSON.parse(JSON.stringify(d.pendingVictory)) : null;
-    this.steppeInfamy = d.steppeInfamy ?? 0; this.campScattered = { ...(d.campScattered ?? {}) }; this.huntedUntil = d.huntedUntil ?? -1; this.lastSteppePatrolDay = d.lastSteppePatrolDay ?? -99;
+    this.steppeInfamy = d.steppeInfamy ?? 0; this.realmInfamy = { ...(d.realmInfamy ?? {}) }; this.campScattered = { ...(d.campScattered ?? {}) }; this.huntedUntil = d.huntedUntil ?? -1; this.lastSteppePatrolDay = d.lastSteppePatrolDay ?? -99;
     this.owned.composite = this.owned.composite ?? false;
   }
   /** Parse and sanity-check the stored save without touching the live state. */

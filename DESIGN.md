@@ -260,3 +260,9 @@ The chart must be crisp at every zoom. Fix the architecture, not just the art.
 - **The seas are named** in faint italic caps that follow the water and drop out when they would be too small to read.
 - **The Wilds** are the unclaimed land: fogged, stippled, and marked with the beast that belongs there — a bison in the far west, an elephant in the south, a kangaroo in the southern land, a bear in the northern forests — plus the old warning. The chart carries a title cartouche, a scale bar in days of marching, and a ticked border frame.
 - Kept: pinch, wheel and +/− zoom; added double-tap zoom toward the pointer, two-finger trackpad panning, edge scrolling on desktop, and a ⌖ button that flies the camera back to your warband (which is also where the map opens).
+
+## FOREIGN GATES OPEN (designer, 2026-08-29)
+
+Land-reachable locked realms' capitals and major cities become VISITABLE through the existing visit system: a Forge and Stables carrying culture-flavoured stock at a steep foreigner markup, an INN that sells rumors about that realm, a Barracks that stays locked ("the locals won't fight for a foreigner"), and all war actions locked with honest in-fiction text (e.g. "Rome's legions are far beyond a Borderland warband — war in the west comes in a later age"). Towns and villages of locked realms stay flavour-tap only. Sea-locked realms (Japan, the Aztecs, the Inca, the Norse) keep "no ship will carry you — yet." Entering a new realm spawns its own infamy meter at Nobody — the steppe system, generalized. Travel times stay honest: Rome should be weeks from the Borderland.
+
+Also fixed this pass: trackpad pinch must zoom both ways; a double-click zooms and never places a waypoint or starts a march; the LOCATE button must not freeze the app; edge-of-screen scrolling is removed entirely; and the last of the road-leg travel goes — no day labels on roads, no road-based messages. Roads remain only as drawn speed-bonus features.
