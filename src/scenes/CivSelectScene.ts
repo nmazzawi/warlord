@@ -110,11 +110,10 @@ export class CivSelectScene extends Phaser.Scene {
       this.add.text(colX, y + 34 * u, `Rides out with:\n${civ.troops.slice(0, 3).map(t => `\u00b7 ${t.name}`).join('\n')}`,
         uiStyle(Math.round(11 * u), CSS.ink, { bold: false, wrap: colW })).setOrigin(0, 0);
     }
-    if (CONFINED.has(civ.id)) {
-      this.add.text(px0 + pad, y + mapH + 2 * u,
-        'NO ROAD LEAVES THIS COUNTRY. Until there are ships, the whole run is fought here.',
-        uiStyle(Math.round(10.5 * u), '#8a3a10', { wrap: pw - pad * 2 })).setOrigin(0, 0);
-      y += 16 * u;
+    if (CONFINED[civ.id]) {
+      const note = this.add.text(px0 + pad, y + mapH + 2 * u, CONFINED[civ.id],
+        uiStyle(Math.round(10.5 * u), '#8a3a10', { bold: false, wrap: pw - pad * 2 })).setOrigin(0, 0);
+      y += note.height - 12 * u;
     }
     y += mapH + 10 * u;
 

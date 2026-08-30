@@ -35,6 +35,22 @@ const ROLE = {
 };
 const has = (s, ...words) => words.some(w => s.toLowerCase().includes(w));
 
+/** The ONE thing this unit visibly does, read out of the signature its author wrote for it. Every
+ *  unit gets exactly one; a plain line unit gets none and is the better for it. */
+function abilityFor(u) {
+  const sig = `${u.signature} ${u.desc} ${u.name}`.toLowerCase();
+  if (has(sig, 'javelin', 'pilum', 'throw', 'dart', 'sling', 'shot puts')) return 'javelin';
+  if (has(sig, 'never routs', 'frenz', 'berserk', 'rage', 'bleeds', 'harder as')) return 'frenzy';
+  if (has(sig, 'behind', 'backstab', 'shadow', 'night', 'silent', 'before he turns')) return 'backstab';
+  if (has(sig, 'nearby', 'either side', 'close up', 'inspire', 'courage', 'drum', 'walk back into rank', 'fight harder')) return 'inspire';
+  if (has(sig, 'singles out', 'duel', 'alone until', 'whoever leads', 'commander')) return 'duel';
+  if (has(sig, 'elephant', 'trample', 'chariot', 'through the line', 'scythe')) return 'trample';
+  if (has(sig, 'shield', 'wall', 'overlap', 'roof', 'locks')) return 'shieldwall';
+  if (has(sig, 'bow', 'arrow', 'shoot', 'loose', 'crossbow', 'archer')) return 'volley';
+  if (has(sig, 'horse', 'saddle', 'rider', 'lancer', 'gallop')) return 'lance';
+  return 'none';
+}
+
 function statsFor(u) {
   const b = { ...ROLE[u.role] };
   const sig = `${u.signature} ${u.desc} ${u.name}`;
@@ -59,7 +75,7 @@ const body = starts.map(c => {
   const troops = c.troops.map((t, i) => {
     const s = statsFor(t);
     const id = `${c.id}_${t.name.toLowerCase().replace(/[^a-z0-9]+/g, '')}`;
-    return `      { id: ${q(id)}, name: ${q(t.name)}, role: ${q(t.role)},
+    return `      { id: ${q(id)}, name: ${q(t.name)}, role: ${q(t.role)}, ability: ${q(abilityFor(t))},
         attack: ${s.attack}, defense: ${s.defense}, speed: ${s.speed}, evasion: ${s.evasion}, range: ${s.range},
         hp: ${s.hp}, cost: ${s.cost}, wage: ${s.wage},
         signature: ${q(t.signature)},

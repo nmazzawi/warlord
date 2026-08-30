@@ -114,9 +114,31 @@ const marchTo = async (page, id, touch = false) => {
   }
   return false;
 };
+/** Every fight now opens with one tap: how the warband stands. Answer it and the battle begins. */
+const pickFormation = async (page, kind = 'line') => {
+  for (let i = 0; i < 40; i++) {
+    const waiting = await page.evaluate(() => { const r = window.__warlord.scene.getScene('Raid'); return !!(r && r.awaitingFormation); });
+    if (!waiting) return i > 0;
+    const hit = await page.evaluate((k) => {
+      const hud = window.__warlord.scene.getScene('Hud');
+      if (!hud || !hud.children) return false;
+      for (const c of hud.children.list) {
+        if (c.type !== 'Container') continue;
+        const t = c.list.find(x => x.type === 'Text' && x.text === k.toUpperCase());
+        if (t) { c.emit('pointerdown', { id: 1 }); c.emit('pointerup', { id: 1 }); return true; }
+      }
+      return false;
+    }, kind);
+    if (!hit) await sleep(120);
+    await sleep(120);
+  }
+  return false;
+};
+
 async function raidHere(page, expectKind = 'village') {
   await clickBtn(page, 'MapHud', expectKind === 'siege' ? 'SIEGE' : 'RAID');
   check(await waitScene(page, 'Raid'), `${expectKind} battle started`);
+  await pickFormation(page);
   await sleep(700);
   return raidState(page);
 }
@@ -604,6 +626,7 @@ async function desktopRun(browser) {
       return { id: v.id, name: v.name, total: cfg.defenders.militia + cfg.defenders.archers + cfg.defenders.captains + cfg.elite.count, elite: cfg.elite.kind };
     });
     check(await waitScene(page, 'Raid'), `assaulted ${fought.name}, a village of Rome`);
+    await pickFormation(page);
     const spawned = await page.evaluate(() => { const r = window.__warlord.scene.getScene('Raid');
       const k = {}; for (const e of r.enemies) k[e.kind] = (k[e.kind] ?? 0) + 1;
       return { n: r.enemies.length, k, tinted: r.enemies.filter(e => e.liveryTint !== null).length }; });
@@ -653,6 +676,18 @@ async function desktopRun(browser) {
   }
 
   // --- raid Ashford and just leave
+  // --- M5.3: armies of the world
+  const army = await page.evaluate(() => {
+    const C = window.__CIVS; const ids = Object.keys(C);
+    const abilities = {};
+    for (const id of ids) for (const t of C[id].troops) abilities[t.ability] = (abilities[t.ability] ?? 0) + 1;
+    const S = window.__GameState;
+    const wage = S.wagesPerDay;
+    return { abilities, kinds: Object.keys(abilities).length, wage, troops: S.troops.length,
+      flat: S.troops.length * 2 };
+  });
+  check(army.kinds >= 7, `the rosters field ${army.kinds} kinds of behaviour (${JSON.stringify(army.abilities)})`);
+  check(army.wage !== army.flat, `every man is paid his own wage (${army.wage} a day for ${army.troops}, not a flat ${army.flat})`);
   check(await marchTo(page, 'ashford'), 'marched to Ashford');
   let r = await raidHere(page);
   check(r && r.enemies === 11, `Ashford: ${r && r.enemies} defenders`);
@@ -807,6 +842,7 @@ async function desktopRun(browser) {
     await page.evaluate((vid) => { const S = window.__GameState; S.fortifyStepsDone = 4; const st = S.settlement(vid); st.timesRaided = 0; st.lastRaidDay = null; st.occupied = false; st.sacked = false;
       const g = window.__warlord; g.scene.stop('MapHud'); g.scene.stop('Map'); g.scene.start('Raid', window.__battles.villageBattle(vid)); }, id);
     await waitScene(page, 'Raid');
+    await pickFormation(page);
     await sleep(800);
     const reach = await page.evaluate(() => {
       const r = window.__warlord.scene.getScene('Raid');
@@ -825,6 +861,7 @@ async function desktopRun(browser) {
   await page.evaluate(() => { const S = window.__GameState; S.owned.bow = true; S.equippedWeapon = 'bow'; S.horse = 'none'; S.save();
     const g = window.__warlord; g.scene.stop('Raid'); g.scene.start('Raid', window.__battles.villageBattle('greywater')); });
   await waitScene(page, 'Raid');
+  await pickFormation(page);
   await sleep(800);
   await page.evaluate(() => { const r = window.__warlord.scene.getScene('Raid'); r.hero.setPosition(640, 700); r.hero.hp = 9999; r.hero.maxHp = 9999; for (const e of r.enemies) e.wakeQuiet(); r.playerInput.joyX = 0; r.playerInput.joyY = 1; });
   await page.evaluate(() => { window.__warlord.scene.getScene('Raid').shots = 0; });
@@ -869,6 +906,7 @@ async function desktopRun(browser) {
   check(!!hereCamp, `standing at a camp (${hereCamp})`);
   await clickBtn(page, 'MapHud', 'RAID');
   check(await waitScene(page, 'Raid'), 'camp raid started');
+  await pickFormation(page);
   await sleep(1200);
   r = await raidState(page);
   check(r && r.kind === 'camp' && r.layout === 'steppe' && r.kinds.filter(k => k === 'horsearcher').length === 5, `steppe camp: ${r && r.kinds.join(',')}`);
@@ -907,6 +945,7 @@ async function desktopRun(browser) {
   check(await waitPanel(page, 30000) && (await panelTitle(page)) === 'RIDERS', `hunted on the grass: ${await panelTitle(page)}`);
   await clickBtn(page, 'MapHud', 'FIGHT');
   await waitScene(page, 'Raid');
+  await pickFormation(page);
   await sleep(700);
   r = await raidState(page);
   check(r && r.kind === 'steppePatrol' && r.layout === 'steppeField', `riders' ambush on the open steppe (${r && r.kinds.length} riders)`);
@@ -943,6 +982,7 @@ async function desktopRun(browser) {
   // the composite bow shoots from a slow ride, and arrows pierce
   await page.evaluate(() => { const g = window.__warlord; g.scene.stop('MapHud'); g.scene.stop('Map'); g.scene.start('Raid', window.__battles.steppePatrolBattle()); });
   await waitScene(page, 'Raid');
+  await pickFormation(page);
   await sleep(800);
   await page.evaluate(() => { const rr = window.__warlord.scene.getScene('Raid'); rr.hero.setPosition(700, 480); rr.hero.hp = 9999; rr.hero.maxHp = 9999; for (const e of rr.enemies) e.wakeQuiet(); rr.playerInput.joyX = 0; rr.playerInput.joyY = 0.6; rr.shots = 0; });
   await sleep(2000);

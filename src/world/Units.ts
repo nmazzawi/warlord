@@ -3,11 +3,11 @@
 // roster lives in Civs.ts. A warband late in a run is cross-cultural, so nothing may assume that a
 // troop's kind belongs to any one list.
 import { TROOP_KINDS } from '../config/balance';
-import { CIVS, type UnitDef } from './Civs';
+import { CIVS, type UnitAbility, type UnitDef } from './Civs';
 
 export interface UnitStats {
   id: string; label: string; hp: number; damage: number; cost: number; wage: number;
-  tint: number; desc: string; signature: string; role: string;
+  tint: number; desc: string; signature: string; role: string; ability: UnitAbility;
   /** ranged units keep their distance and shoot; everyone else closes */
   ranged: boolean;
   /** and the mounted ones do it from a horse */
@@ -26,18 +26,18 @@ export function unitDef(id: string): UnitStats {
   if (legacy) {
     out = { id, label: legacy.label, hp: legacy.hp, damage: legacy.damage, cost: legacy.cost, wage: LEGACY_WAGE,
       tint: legacy.tint, desc: legacy.desc, signature: '', role: id === 'guard' ? 'elite' : 'line',
-      ranged: id === 'rider', mounted: id === 'rider' };
+      ability: id === 'rider' ? 'volley' : 'none', ranged: id === 'rider', mounted: id === 'rider' };
   } else {
     let found: UnitDef | null = null;
     for (const c of Object.values(CIVS)) { const u = c.troops.find(t => t.id === id); if (u) { found = u; break; } }
     if (found) {
       out = { id, label: found.name, hp: found.hp, damage: found.attack, cost: found.cost, wage: found.wage,
         tint: tintFor(found), desc: found.desc, signature: found.signature, role: found.role,
-        ranged: found.range > 60, mounted: found.speed >= 185 };
+        ability: found.ability, ranged: found.range > 60, mounted: found.speed >= 185 };
     } else {
       const r = TROOP_KINDS.raider;
       out = { id: 'raider', label: r.label, hp: r.hp, damage: r.damage, cost: r.cost, wage: LEGACY_WAGE,
-        tint: r.tint, desc: r.desc, signature: '', role: 'line', ranged: false, mounted: false };
+        tint: r.tint, desc: r.desc, signature: '', role: 'line', ability: 'none', ranged: false, mounted: false };
     }
   }
   cache.set(id, out);

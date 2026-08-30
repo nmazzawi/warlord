@@ -3,7 +3,8 @@
 import Phaser from 'phaser';
 import type { PlayerInput } from '../systems/PlayerInput';
 import { Joystick } from '../systems/Joystick';
-import { CSS, displayStyle, dprOf, FONT, PAL, safeInsets, uiStyle } from './ui';
+import { CSS, displayStyle, dprOf, FONT, makeButton, PAL, safeInsets, uiStyle, uiUnit } from './ui';
+import { FORMATIONS, type FormationKind } from '../systems/Formation';
 
 export interface HudModel {
   title: string; hint: string; name: string;
@@ -57,8 +58,6 @@ export class HudScene extends Phaser.Scene {
 
     this.intro = this.add.text(0, 0, `${this.model.title}\n${this.model.objective}`, { ...displayStyle(22, CSS.goldHi), align: 'center' }).setOrigin(0.5);
     this.hint = this.add.text(0, 0, this.model.hint, uiStyle(13, CSS.cream, { stroke: true })).setOrigin(0.5);
-    this.tweens.add({ targets: this.intro, alpha: 0, delay: 3200, duration: 700 });
-    this.tweens.add({ targets: this.hint, alpha: 0, delay: 5500, duration: 700 });
 
     this.layout();
     this.scale.on('resize', this.layout, this);
@@ -67,6 +66,40 @@ export class HudScene extends Phaser.Scene {
       this.input_.joyX = 0; this.input_.joyY = 0;
     });
     this.input.on('pointerdown', this.onDown, this);
+  }
+
+  /** Let the title and the ground read for a moment, then fade them out of the way. */
+  private revealIntro() {
+    this.intro.setVisible(true).setAlpha(1);
+    this.hint.setVisible(true).setAlpha(1);
+    this.tweens.add({ targets: this.intro, alpha: 0, delay: 3200, duration: 700 });
+    this.tweens.add({ targets: this.hint, alpha: 0, delay: 5500, duration: 700 });
+  }
+
+  /**
+   * The one choice before a fight. It lives up here rather than in the battle because this scene is
+   * drawn ON TOP of it — a veil painted down there can never cover the title written up here.
+   */
+  askFormation(current: FormationKind, onPick: (k: FormationKind) => void) {
+    const { width: w, height: h } = this.scale;
+    const u = uiUnit(w, h, dprOf(this));
+    // the battle's own title waits its turn — two things shouting at once is neither of them
+    this.intro.setVisible(false);
+    this.hint.setVisible(false);
+    const ui: Phaser.GameObjects.GameObject[] = [];
+    ui.push(this.add.rectangle(0, 0, w, h, 0x120d08, 0.78).setOrigin(0).setDepth(90).setInteractive());
+    ui.push(this.add.text(w / 2, h * 0.5 - 132 * u, 'HOW DO THEY STAND?', displayStyle(Math.round(21 * u), CSS.goldHi))
+      .setOrigin(0.5).setDepth(91));
+    const bw = Math.min(w * 0.88, 400 * u), bh = 64 * u;
+    FORMATIONS.forEach((f, i) => {
+      const b = makeButton(this, w / 2, h * 0.5 - 68 * u + i * (bh + 12 * u), {
+        width: bw, height: bh, label: f.label, sub: f.note,
+        tone: current === f.id ? 'primary' : 'neutral', fontSize: Math.round(17 * u),
+        onPress: () => { for (const o of ui) o.destroy(); this.revealIntro(); onPick(f.id); },
+      });
+      b.setDepth(91);
+      ui.push(b);
+    });
   }
 
   private makeBtn(label: string, key: string, color: number): Btn {

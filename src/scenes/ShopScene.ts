@@ -129,7 +129,7 @@ export class ShopScene extends Phaser.Scene {
       const garrisoned = Object.entries(g.garrisons).filter(([, list]) => list.length).map(([id, list]) => `${list.map(t => t.name).join(', ')} at ${nodeById(id).name}`);
       if (garrisoned.length) rows.push({ name: 'Garrisons', desc: garrisoned.join('; '), button: null });
       if (g.fallen.length || g.deserted.length) rows.push({ name: 'Gone', desc: [...g.fallen.slice(-6).map(f => `${f.name} fell at ${f.where}`), ...g.deserted.slice(-4).map(n => `${n} deserted`)].join(', '), button: null });
-      return { title: 'THE BARRACKS', blurb: 'Recruits follow you in formation and fight on their own. Every troop eats 2 gold a day on the road.', rows };
+      return { title: 'THE BARRACKS', blurb: `Recruits follow you in formation and fight on their own. Your warband eats ${g.wagesPerDay} gold a day as it stands.`, rows };
     }
     if (this.building === 'inn') {
       const rows: Row[] = [];

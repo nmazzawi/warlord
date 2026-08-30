@@ -6,10 +6,12 @@ import type { Enemy } from './Enemy';
 import type { Hero } from './Hero';
 import type { RaidScene } from '../scenes/RaidScene';
 import type { TroopRecord } from '../state/GameState';
-import { ABILITIES, RIDER, TROOP } from '../config/balance';
+import { ABILITIES, RIDER, TROOP, TROOP_ABILITY } from '../config/balance';
 import { unitDef } from '../world/Units';
+import type { UnitAbility } from '../world/Civs';
 import { TEX } from '../systems/Textures';
 import { formationSlot } from '../systems/Formation';
+import { GameState } from '../state/GameState';
 import { dealDamage } from '../systems/Combat';
 import { hasLineOfSight } from '../systems/LineOfSight';
 
@@ -32,15 +34,22 @@ export class Troop extends Unit {
   private readonly damageAmount: number;
   private readonly kindTint: number;
   readonly ranged: boolean;
+  /** The one thing this man visibly does that a plain spear does not. */
+  readonly ability: UnitAbility;
+  /** A shieldman is open only in the moment his own blow lands. */
+  private openUntil = 0;
+  /** A javelin is thrown once per target, on the way in. */
+  private threw: Enemy | null = null;
   private mount: Phaser.GameObjects.Image | null = null;
 
   constructor(scene: RaidScene, x: number, y: number, record: TroopRecord, slot: number) {
     const k = unitDef(record.kind ?? 'raider');
-    const ranged = record.kind === 'rider';
+    const ranged = k.ranged;
     super(scene, x, y, ranged ? TEX.trooprider : TEX.troop, { hp: k.hp, speed: ranged ? RIDER.speed : TROOP.speed, radius: TROOP.radius, team: 'player', barColor: 0x5ec26a, scale: ranged ? RIDER.scale : 1 });
     this.ranged = ranged;
     if (ranged) this.mount = scene.add.image(x, y + 4, TEX.horse).setDepth(19).setScale(RIDER.scale).setTint(0xd9c4a0);
     this.damageAmount = k.damage;
+    this.ability = k.ability;
     this.kindTint = ranged ? 0xffffff : k.tint;
     this.applyTint();
     this.record = record;
@@ -122,6 +131,13 @@ export class Troop extends Unit {
           this.desired.set(0, 0);
           if (this.attackTimer <= 0) this.strike(this.target);
         } else {
+          // a skirmisher throws ONCE at each man he is closing on, and then goes in with the rest
+          if (this.ability === 'javelin' && this.threw !== this.target && this.attackTimer <= 0
+            && ed <= TROOP_ABILITY.javelinRange && hasLineOfSight(this.x, this.y, this.target.x, this.target.y)) {
+            this.threw = this.target;
+            this.attackTimer = TROOP.cooldown * 0.8;
+            this.raid.fireTroopArrow(this, this.target, Math.round(this.blow(this.target) * TROOP_ABILITY.javelinShare));
+          }
           this.moveToward(this.target.x, this.target.y, spd);
           // wedged against a hut while chasing? give up on that target for a moment and regroup
           if (moved < 8) this.stuckTimer += dt; else this.stuckTimer = 0;
@@ -137,13 +153,13 @@ export class Troop extends Unit {
 
   /** Walk to my formation slot; if the hero is far or a hut is in the way, follow the flow field round it first. */
   private goToSlot(hero: Hero, heading: number, spd: number, distHero: number) {
-    formationSlot(hero.x, hero.y, heading, this.slot, this.tmp);
+    formationSlot(hero.x, hero.y, heading, this.slot, this.tmp, GameState.formation);
     const blocked = !hasLineOfSight(this.x, this.y, this.tmp.x, this.tmp.y);
     if ((distHero > 120 || blocked) && this.raid.flow.direction(this.x, this.y, this.tmp)) {
       this.desired.set(this.tmp.x * spd, this.tmp.y * spd);
       return;
     }
-    formationSlot(hero.x, hero.y, heading, this.slot, this.tmp);
+    formationSlot(hero.x, hero.y, heading, this.slot, this.tmp, GameState.formation);
     const d = this.moveToward(this.tmp.x, this.tmp.y, spd, 40);
     if (d < 6) this.desired.set(0, 0);
   }
@@ -155,16 +171,49 @@ export class Troop extends Unit {
       const d = this.distTo(e);
       if (d > (this.ranged ? RIDER.range : TROOP.engageRadius) || e.distTo(hero) > (this.ranged ? RIDER.leash : TROOP.leash)) continue;
       if (!hasLineOfSight(this.x, this.y, e.x, e.y)) continue;
-      if (d < bestD) { best = e; bestD = d; }
+      // a duellist does not take the nearest man. He looks for whoever is worth killing.
+      const score = this.ability === 'duel' ? d * (1 - TROOP_ABILITY.duelBias * Math.min(1, e.maxHp / 200)) : d;
+      if (score < bestD) { best = e; bestD = score; }
     }
     return best;
   }
 
+  /**
+   * What this blow is actually worth. Three of the abilities live here because they are all the same
+   * question asked differently — is he bleeding, is the man looking the other way, is somebody
+   * standing behind him telling him to hold.
+   */
+  private blow(e: Enemy) {
+    let dmg = this.damageAmount;
+    // a berserker is worth more the worse he is doing
+    if (this.ability === 'frenzy') dmg *= 1 + TROOP_ABILITY.frenzyMax * (1 - this.hp / this.maxHp);
+    // a knife in the back of a man busy with somebody else
+    if (this.ability === 'backstab' && e.target && e.target !== this) dmg *= TROOP_ABILITY.backstab;
+    // and whoever is near a man who is paid to be the last one standing
+    dmg *= 1 + this.raid.inspiration(this);
+    return Math.round(dmg);
+  }
+
   private strike(e: Enemy) {
     this.attackTimer = TROOP.cooldown;
+    this.openUntil = this.raid.time.now + TROOP_ABILITY.openMs;   // the shield comes down to swing
     const angle = Math.atan2(e.y - this.y, e.x - this.x);
-    this.raid.juice.slash(this.x, this.y, angle, 1, 0xb8ffb8, 0.55);
-    dealDamage(this.raid, e, this.damageAmount, this.x, this.y, 120, 'troop');
+    this.raid.juice.slash(this.x, this.y, angle, 1, this.ability === 'frenzy' ? 0xff9a6a : 0xb8ffb8, 0.55);
+    dealDamage(this.raid, e, this.blow(e), this.x, this.y, this.ability === 'trample' ? 220 : 120, 'troop');
+    // a long haft, or a beast: whatever is standing beside him goes over too
+    if (this.ability === 'trample') {
+      for (const other of this.raid.enemies) {
+        if (other === e || !other.alive) continue;
+        if (Phaser.Math.Distance.Between(other.x, other.y, e.x, e.y) > TROOP_ABILITY.trampleRadius) continue;
+        dealDamage(this.raid, other, Math.round(this.blow(other) * TROOP_ABILITY.trampleShare), this.x, this.y, 240, 'troop');
+      }
+    }
+  }
+
+  /** A shield turns most of what lands on it — but it is down while its own blow is going out. */
+  override mitigate(amount: number) {
+    if (this.ability !== 'shieldwall' || this.raid.time.now < this.openUntil) return amount;
+    return Math.max(1, Math.round(amount * (1 - TROOP_ABILITY.shieldTurns)));
   }
 
   /** Levies and town guards carry a colour of their own (a flash still overrides it). */

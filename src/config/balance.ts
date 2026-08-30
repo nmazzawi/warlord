@@ -74,9 +74,23 @@ export const TROOP_KINDS = {
   guard:  { label: 'Town guard', hp: 75, damage: 10, cost: 60, tint: 0x9fd8ff, desc: 'Drilled, armored, expensive.' },
   rider:  { label: 'Steppe rider', hp: 50, damage: 7, cost: 90, tint: 0xffe0a0, desc: 'Mounted archer. Keeps its distance and shoots; fast, fragile, pricey.' },
 };
+/** What the nine visible troop abilities are worth. Each is one number so a player can feel it. */
+export const TROOP_ABILITY = {
+  frenzyMax: 0.6,        // a berserker at death's door hits 60% harder
+  backstab: 1.8,         // a man fighting somebody else takes nearly double
+  inspire: 0.25,         // everyone near a standard-bearer
+  inspireRadius: 150,
+  shieldTurns: 0.4,      // turned while the shield is up...
+  openMs: 420,           // ...and it is down for this long after his own blow
+  javelinRange: 170, javelinShare: 0.9,
+  trampleRadius: 46, trampleShare: 0.6,
+  duelBias: 0.55,        // a duellist scores the toughest man on the field this much better
+};
+
 /** Steppe riders in your warband: mounted, ranged. */
 export const RIDER = { speed: 200, range: 220, cooldown: 1.2, keepDistance: 150, arrowSpeed: 380, scale: 1.15, leash: 340 };
-/** Armies eat: wages per troop per day while you travel. */
+/** Armies eat. Each unit carries its OWN wage (see Civs.ts); this is what a man costs when nothing
+ *  else says otherwise, and it is what the four original kinds are paid. */
 export const UPKEEP = { wage: 2, graceDays: 2, startingGold: 40 };
 /** Daily tribute from an occupied settlement (villages by tier; the town flat). */
 export const TRIBUTE = { villageBase: 4, villagePerTier: 1, town: 15 };

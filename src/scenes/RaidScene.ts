@@ -4,7 +4,7 @@
 // archers on the wall, and two waves behind it.
 import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
-import { ABILITIES, ENEMIES, PIERCE, RIDER, SIEGE } from '../config/balance';
+import { ABILITIES, ENEMIES, PIERCE, RIDER, SIEGE, TROOP_ABILITY } from '../config/balance';
 import { Hero } from '../entities/Hero';
 import { Troop } from '../entities/Troop';
 import { Enemy, type EnemyKind } from '../entities/Enemy';
@@ -22,7 +22,7 @@ import { Sound } from '../systems/Sound';
 import { COLORS, TEX } from '../systems/Textures';
 import { buildLayout, clearOf, LAYOUTS, palisadeFor, type LayoutDef, type Obstacle } from '../world/Layouts';
 import type { BattleConfig } from '../world/Battles';
-import type { HudModel } from './HudScene';
+import type { HudModel, HudScene } from './HudScene';
 import type { ResultData } from './ResultScene';
 
 export class RaidScene extends Phaser.Scene {
@@ -50,6 +50,9 @@ export class RaidScene extends Phaser.Scene {
   private deadTroopIds: number[] = [];
   private over = false;
   private wave2Spawned = false;
+  private inspireRing!: Phaser.GameObjects.Graphics;
+  /** True while the fight is held for the one choice you make before it. */
+  awaitingFormation = false;
   /** Where a realm's own men stand, and how many of their dead the ranks will still close over. */
   private elitePosts: Array<{ x: number; y: number }> = [];
   reformsLeft = 0;
@@ -65,6 +68,7 @@ export class RaidScene extends Phaser.Scene {
   create() {
     // Scene objects are reused between battles, so reset everything here.
     this.troops = [];
+    this.inspireRing = this.add.graphics().setDepth(1.5);
     this.enemies = [];
     this.gate = null;
     this.shots = 0;
@@ -75,6 +79,7 @@ export class RaidScene extends Phaser.Scene {
     this.wave2Spawned = false;
     this.pendingReforms = 0;
     this.formationHeading = 0;
+    this.awaitingFormation = false;
     this.surround = new SurroundManager();
     this.tweens.timeScale = 1;
     GameState.takeSnapshot();
@@ -195,6 +200,13 @@ export class RaidScene extends Phaser.Scene {
       objective: cfg.kind === 'siege' ? 'Break the gate' : `Clear ${this.enemies.length} defenders`,
     };
     this.scene.launch('Hud', { input: this.playerInput, model: this.hud });
+    // nothing moves until the warband is told how to stand
+    this.awaitingFormation = true;
+    const hudScene = this.scene.get('Hud') as HudScene;
+    this.time.delayedCall(0, () => hudScene.askFormation(GameState.formation, k => {
+      GameState.formation = k;
+      this.awaitingFormation = false;
+    }));
 
     this.events.once('shutdown', () => {
       this.scale.off('resize', this.applyZoom, this);
@@ -219,6 +231,8 @@ export class RaidScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number) {
+    // one tap before anything moves: how do these men stand today
+    if (this.awaitingFormation) { this.syncVisuals(time); return; }
     const dt = Math.min(delta, 50) / 1000;
     if (this.physics.world.isPaused) {
       if (time < this.freezeUntil) { this.syncVisuals(time); return; }
@@ -245,6 +259,7 @@ export class RaidScene extends Phaser.Scene {
     for (const c of this.coins.getChildren()) (c as Coin).tick(dt, hero);
     for (const a of this.arrows.getChildren()) (a as Arrow).tick(dt);
 
+    this.drawInspiration();
     this.syncVisuals(time);
     this.cleanupDead();
     this.syncHud();
@@ -532,6 +547,29 @@ export class RaidScene extends Phaser.Scene {
         // arrive — so the ranks close on the spot, and the battle does not end on a lie
         this.closeTheRanks(u.x, u.y, !this.enemies.some(e => e.alive && e !== u));
       }
+    }
+  }
+
+  /**
+   * How much harder a man fights because of who is standing near him. One pass over the warband
+   * rather than one per troop per frame, and the ring under an inspirer is drawn from the same list,
+   * so what the player sees and what the numbers do are the same thing.
+   */
+  inspiration(of: Troop) {
+    for (const t of this.troops) {
+      if (t === of || !t.alive || t.ability !== 'inspire') continue;
+      if (Phaser.Math.Distance.Between(t.x, t.y, of.x, of.y) <= TROOP_ABILITY.inspireRadius) return TROOP_ABILITY.inspire;
+    }
+    return 0;
+  }
+
+  /** A gold ring under every man whose job is to make the others hold. */
+  private drawInspiration() {
+    this.inspireRing.clear();
+    for (const t of this.troops) {
+      if (!t.alive || t.ability !== 'inspire') continue;
+      this.inspireRing.lineStyle(2, 0xf1cf6a, 0.26).strokeCircle(t.x, t.y + 6, TROOP_ABILITY.inspireRadius);
+      this.inspireRing.fillStyle(0xf1cf6a, 0.045).fillCircle(t.x, t.y + 6, TROOP_ABILITY.inspireRadius);
     }
   }
 

@@ -6,6 +6,8 @@ import { nameAt } from '../utils/names';
 import { NODES, nodeById, territoryOf, type Territory } from '../world/WorldMap';
 import { ELITE_TINT, REALM_SHORT, visitOf } from '../world/Realms';
 import { campPoint, civOf } from '../world/Civs';
+import { unitDef } from '../world/Units';
+import type { FormationKind } from '../systems/Formation';
 import type { PlaceKind } from '../world/AtlasData';
 import type { Hunter } from '../world/Hunters';
 import { advanceHunters, nearestTerritory } from '../world/Hunters';
@@ -43,7 +45,7 @@ interface SaveData {
   version: number; gold: number; day: number; infamy: number; weaponTier: number; equippedWeapon: WeaponKind; horse: HorseKind;
   armor: ArmorKind; shield: ShieldKind; owned: Owned; troops: TroopRecord[]; fallen: FallenRecord[]; deserted: string[];
   nextId: number; nameCursor: number; raidsDone: number;
-  location: string; patrolPending: boolean; patrolFrom?: Territory;
+  location: string; patrolPending: boolean; patrolFrom?: Territory; formation?: FormationKind;
   pos?: { x: number; y: number }; hunters?: Hunter[];
   settlements: Record<string, SettlementState>; garrisons: Record<string, TroopRecord[]>;
   fortifyStepsDone: number; fortifyCarry: number; unpaidDays: number; seenMapHint: boolean;
@@ -86,6 +88,8 @@ class GameStateStore {
   steppeInfamy = 0;
   /** Which of the fifteen starts this run is. Everything else about "home" follows from it. */
   civ = 'outlaw';
+  /** How the warband stands when a fight begins. Chosen once per battle, remembered between them. */
+  formation: FormationKind = 'line';
   /** What each foreign realm you have walked into thinks of you. A realm you have never entered is
    *  not in here at all; the day you cross its border it starts at nothing, like everywhere else did. */
   realmInfamy: Record<string, number> = {};
@@ -218,7 +222,8 @@ class GameStateStore {
   get hunted() { return this.day < this.huntedUntil; }
 
   // ------------------------------------------------------------ the ledger
-  get wagesPerDay() { return this.troops.length * UPKEEP.wage; }
+  /** Every man is paid his own wage — a samurai is not a levy, on the field or in the ledger. */
+  get wagesPerDay() { return this.troops.reduce((n, t) => n + unitDef(t.kind ?? 'raider').wage, 0); }
   get tributePerDay() {
     let t = 0;
     for (const n of NODES) {
@@ -554,7 +559,7 @@ class GameStateStore {
       fortifyStepsDone: this.fortifyStepsDone, fortifyCarry: this.fortifyCarry,
       unpaidDays: this.unpaidDays, seenMapHint: this.seenMapHint,
       rumorsHeard: [...this.rumorsHeard], pendingVictory: this.pendingVictory ? JSON.parse(JSON.stringify(this.pendingVictory)) : null,
-      civ: this.civ, steppeInfamy: this.steppeInfamy, realmInfamy: { ...this.realmInfamy }, campScattered: { ...this.campScattered }, huntedUntil: this.huntedUntil,
+      civ: this.civ, formation: this.formation, steppeInfamy: this.steppeInfamy, realmInfamy: { ...this.realmInfamy }, campScattered: { ...this.campScattered }, huntedUntil: this.huntedUntil,
     };
   }
   fromJSON(d: SaveData) {
@@ -576,6 +581,7 @@ class GameStateStore {
     this.rumorsHeard = [...(d.rumorsHeard ?? [])]; this.pendingVictory = d.pendingVictory ? JSON.parse(JSON.stringify(d.pendingVictory)) : null;
     // a save written before there was a choice is the Borderland Outlaw, which is what it was playing
     this.setCiv(d.civ ?? 'outlaw');
+    this.formation = d.formation ?? 'line';
     this.steppeInfamy = d.steppeInfamy ?? 0; this.realmInfamy = { ...(d.realmInfamy ?? {}) }; this.campScattered = { ...(d.campScattered ?? {}) }; this.huntedUntil = d.huntedUntil ?? -1;
     this.owned.composite = this.owned.composite ?? false;
   }
