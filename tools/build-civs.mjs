@@ -88,7 +88,7 @@ const body = starts.map(c => {
     playstyle: ${q(c.playstyle)},
     weapon: ${q(c.weapon)}, dress: ${q(c.dress)},
     tint: 0x${tint.toString(16)}, accent: 0x${accent.toString(16)}, lean: ${q(c.lean)},
-    camp: campPoint(${q(c.id)}), campName: ${q(CAMP[c.id] ?? 'Camp')},
+    campName: ${q(CAMP[c.id] ?? 'Camp')},
     troops: [
 ${troops}
     ],

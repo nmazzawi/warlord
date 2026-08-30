@@ -5,6 +5,7 @@
 // but nothing routes along them any more — you walk where you like.
 
 import { ATLAS_EMPIRES, type PlaceKind } from './AtlasData';
+import { hamlets } from './Hamlets';
 
 export type NodeKind = 'camp' | 'village' | 'town' | 'cross' | 'waypoint' | 'trade' | 'gate' | 'foreign';
 /** 'homeland', 'steppe', or the id of a foreign realm you have walked into. Every one of them keeps
@@ -18,6 +19,7 @@ export interface MapNode {
   blurb?: string;
   capital?: boolean;    // foreign: the realm's throne
   rank?: PlaceKind;     // foreign: how big a place it is, which decides its garrison
+  fringe?: boolean;     // a border hamlet, not a place the atlas ever named
 }
 export interface MapEdge { a: string; b: string; days: number; }
 
@@ -62,7 +64,35 @@ export const FOREIGN: MapNode[] = ATLAS_EMPIRES
 /** Only the big places sell to a foreigner; a fringe village has nothing for a stranger but a fight. */
 export function tradesWithForeigners(n: MapNode) { return n.rank === 'capital' || n.rank === 'city'; }
 
-export const NODES: MapNode[] = [...HOME, ...FOREIGN];
+/** The fringe: three small places per realm, out where its grip is thinnest. They are villages like
+ *  any other — attackable, rateable, and the first thing a new warband can plausibly take. */
+export const FRINGE: MapNode[] = hamlets().map(h => ({
+  id: `f_${h.realm}_${h.name.toLowerCase().replace(/[^a-z0-9]+/g, '')}`,
+  name: h.name, kind: 'foreign' as const, x: h.xy[0], y: h.xy[1], territory: h.realm,
+  blurb: 'A few roofs where the road gives out. Nobody important has ever been here.',
+  rank: 'village' as const, fringe: true,
+}));
+
+export const NODES: MapNode[] = [...HOME, ...FOREIGN, ...FRINGE];
+
+/**
+ * How far out on the edge a place is, 0 at its own throne and 1 at the furthest corner of the realm.
+ * A country is not uniformly held: the capital is the hardest thing on the board and the last village
+ * before the frontier is a place a new warband can actually take. Worked out once.
+ */
+const frontierCache = new Map<string, number>();
+export function frontier(n: MapNode): number {
+  if (n.kind !== 'foreign') return 0;
+  const hit = frontierCache.get(n.id);
+  if (hit !== undefined) return hit;
+  const cap = capitalOf(n.territory);
+  if (!cap) { frontierCache.set(n.id, 0); return 0; }
+  const kin = [...FOREIGN, ...FRINGE].filter(k => k.territory === n.territory);
+  const far = Math.max(1, ...kin.map(k => Math.hypot(k.x - cap.x, k.y - cap.y)));
+  const f = Math.min(1, Math.hypot(n.x - cap.x, n.y - cap.y) / far);
+  frontierCache.set(n.id, f);
+  return f;
+}
 
 /** The throne of a realm, as somewhere you can march to. */
 export function capitalOf(realm: string): MapNode | null {

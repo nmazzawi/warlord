@@ -64,7 +64,9 @@ export const TROOP = {
   radius: 11,
   engageRadius: 110,  // how far a troop will wander from its slot to pick a fight
   leash: 230,         // farther than this from the hero -> troop breaks off and returns
-  max: 6,
+  max: 6,               // the floor; the real cap is capByTier, read through GameState.troopCap
+  /** How many will follow you, by the highest tier ANY country has put on you. */
+  capByTier: [6, 10, 16, 24, 32, 40],
   starting: 3,
 };
 /** Where you recruit decides who you get: camp raiders, village levies, Kingsport's town guard. */
@@ -161,6 +163,15 @@ export const FOREIGN_GARRISON = {
   city:    { militia: 25, archers: 8,  captains: 4, elites: 8,  statMult: 2.5, goldMult: 4.0 },
   capital: { militia: 30, archers: 10, captains: 5, elites: 11, statMult: 3.0, goldMult: 5.5 },
 };
+/**
+ * How thin a realm's grip is out at its edge, by rank. A throne is held with everything the country
+ * has; a village on the frontier is held by whoever lives in it. This is what makes every realm grade
+ * from a place a new warband can take to a place that will kill it.
+ */
+export const FRONTIER_THIN: Record<string, number> = { village: 0.72, town: 0.6, city: 0.34, capital: 0,
+  /** Not a discount but the value itself: a border hamlet keeps about a fifth of what a throne keeps. */
+  fringe: 0.2 };
+
 /** And how hard the realm itself is. Kush is a kingdom; Rome is Rome. */
 export const REALM_POWER: Record<string, number> = {
   kush: 0.78, rus: 0.86, greece: 0.94, egypt: 1.0, india: 1.06, arabia: 1.1, persia: 1.16, china: 1.22, rome: 1.28,
@@ -208,17 +219,22 @@ export const RERAID = { recoverDays: 8, militiaPerRaid: 2, statPerRaid: 0.15, go
 
 /** Infamy: how the world reacts to you. */
 export const INFAMY = {
+  // Six rungs, because legend IS command: the same ladder that decides how badly a country wants you
+  // dead decides how many men will follow you. The cap is in TROOP.capByTier, index for index.
   tiers: [
-    { name: 'Nobody', min: 0,  desc: 'No one has heard of you yet.' },
-    { name: 'Bandit', min: 15, desc: 'Patrols roam the roads (1 stretch in 4). Villages you have not raided hire guards and raise palisades.' },
-    { name: 'Raider', min: 45, desc: 'Bigger patrols (1 stretch in 3), villages fortify faster.' },
+    { name: 'Nobody', min: 0, desc: 'No one has heard of you yet.' },
+    { name: 'Bandit', min: 15, desc: 'Riders are out looking. Villages you have not raided hire guards and raise palisades.' },
+    { name: 'Raider', min: 45, desc: 'Whole countries have your name. Their parties hunt you inside their borders.' },
+    { name: 'Warlord', min: 110, desc: 'Men come to you unasked. Kings write to each other about you.' },
+    { name: 'Conqueror', min: 220, desc: 'You are a power, not a problem. Garrisons are raised against you by name.' },
+    { name: 'World Threat', min: 400, desc: 'Every throne on the chart has heard it, and none of them sleeps well.' },
   ],
   perRaidBase: 5,          // infamy for raiding a village...
   perRaidPerTier: 2,       // ...plus this per village tier
   perPatrol: 2,            // for cutting down a road patrol
-  interceptChance: [0, 0.25, 0.30], // chance a patrol stops you on a road, by tier
+  interceptChance: [0, 0.25, 0.30, 0.34, 0.38, 0.42], // how badly a country wants you, by tier
   patrolCooldownDays: 3,   // at least this many days between patrols
-  fortifyDays: [0, 4, 3],  // days per fortification step for unraided villages, by tier (0 = never)
+  fortifyDays: [0, 4, 3, 3, 2, 2],  // days per fortification step for unraided villages, by tier (0 = never)
   fortifyMax: 4,           // steps (each step = +1 militia)
   palisadeAt: 2,           // steps at which a palisade goes up
   archerAt: 4,             // steps at which an extra archer arrives
@@ -230,7 +246,20 @@ export const PATROLS = [
   null,
   { militia: 5, archers: 1, captains: 0, statMult: 1.1, goldMult: 0.8 },
   { militia: 6, archers: 2, captains: 1, statMult: 1.3, goldMult: 1.0 },
+  { militia: 9, archers: 3, captains: 1, statMult: 1.6, goldMult: 1.3 },
+  { militia: 12, archers: 4, captains: 2, statMult: 1.9, goldMult: 1.7 },
+  { militia: 16, archers: 6, captains: 3, statMult: 2.3, goldMult: 2.2 },
 ];
+
+/** How a hunt is paced, so being wanted is a weather system and not a metronome. */
+export const HUNT = {
+  /** Days of quiet in a territory after you put one of its parties down. */
+  graceDays: 5,
+  /** Only a country that grades you Raider or worse bothers to send anyone. */
+  fromTier: 2,
+  /** One party at a time. Two only once the whole chart is awake. */
+  maxParties: 1, maxPartiesAtWorldThreat: 2,
+};
 
 /** Overworld travel (the chart is compressed: 1 world px ≈ 6.7 old px). */
 export const TRAVEL = { pxPerDay: 19.5, tokenSpeed: 26 };

@@ -6,6 +6,8 @@
 // The deep per-culture rulesets — Horde momentum, Doctrine, and the rest — are a later milestone. What
 // separates a start today is its roster, its kit, its home ground, its hero's lean, and who they were.
 import { ll, type Pt } from './geo';
+import { FOREIGN, FRINGE, frontier } from './WorldMap';
+import { isLand, nearestLand } from './Terrain';
 import type { WeaponKind } from '../state/GameState';
 
 export type UnitRole = 'line' | 'elite' | 'specialist';
@@ -56,13 +58,13 @@ export interface CivDef {
   tint: number;
   accent: number;
   lean: StatLean;
-  /** Where the camp stands: real longitude and latitude, inside the home realm. */
-  camp: Pt;
+  /** Where the camp stands. Resolved on demand by campPoint(id) — never read this at import time. */
+  camp?: Pt;
   campName: string;
   troops: UnitDef[];
 }
 
-/** Where each start pitches its first camp — real ground inside its own country, clear of its capital. */
+/** A fallback, if a realm somehow has no settlements to stand near. */
 export const CAMP_AT: Record<string, [number, number]> = {
   outlaw: [61.5, 51.8], rome: [12.9, 43.4], greece: [22.9, 38.6], japan: [136.2, 35.4],
   china: [110.8, 33.6], mongolia: [104.5, 47.2], rus: [32.4, 52.6], arabia: [42.6, 32.1],
@@ -83,7 +85,7 @@ export const CIVS: Record<string, CivDef> = {
     playstyle: "Nothing is given. Hit first, hit hard, and take the rest off the dead.",
     weapon: "sword", dress: "Bare head, hair hacked short, Rus mail over sheepskin with rust through one shoulder, grey wool, mud-brown leather, a taken red sash.",
     tint: 0x6b5030, accent: 0x9a7a44, lean: "attack",
-    camp: campPoint("outlaw"), campName: "Bandit Camp",
+    campName: "Bandit Camp",
     troops: [
       { id: "outlaw_brigand", name: "Brigand", role: "line", ability: "none",
         attack: 8, defense: 2, speed: 150, evasion: 2, range: 0,
@@ -114,7 +116,7 @@ export const CIVS: Record<string, CivDef> = {
     playstyle: "Advance in order, hold what you take, and let them break on the shields.",
     weapon: "sword", dress: "Iron helmet with cheek plates and a transverse crest, segmented plate over a red tunic, short red cloak, tall rectangular shield.",
     tint: 0xa8412f, accent: 0xd8b45a, lean: "defense",
-    camp: campPoint("rome"), campName: "The Old Villa",
+    campName: "The Old Villa",
     troops: [
       { id: "rome_auxiliary", name: "Auxiliary", role: "line", ability: "none",
         attack: 8, defense: 2, speed: 150, evasion: 2, range: 0,
@@ -145,7 +147,7 @@ export const CIVS: Record<string, CivDef> = {
     playstyle: "A hedge of points at the front. Guard the open side and nothing gets through.",
     weapon: "sword", dress: "Bronze helmet, horsehair crest pushed back off the face, bronze breastplate over a red tunic, greaves, round shield, no cloak.",
     tint: 0x3f6f9a, accent: 0xc9a049, lean: "defense",
-    camp: campPoint("greece"), campName: "The Ruined Sanctuary",
+    campName: "The Ruined Sanctuary",
     troops: [
       { id: "greece_hoplite", name: "Hoplite", role: "line", ability: "shieldwall",
         attack: 8, defense: 5, speed: 140, evasion: 2, range: 0,
@@ -171,7 +173,7 @@ export const CIVS: Record<string, CivDef> = {
     playstyle: "Few men, chosen ground. Take the man who commands and the rest gives way.",
     weapon: "sword", dress: "Black lacquered plates laced with red cord, iron-horned helmet, white silk sleeves, indigo leggings, no cloak, one long sword at the hip.",
     tint: 0x2f3a4a, accent: 0xc4443a, lean: "attack",
-    camp: campPoint("japan"), campName: "The Mountain Hall",
+    campName: "The Mountain Hall",
     troops: [
       { id: "japan_ashigaru", name: "Ashigaru", role: "line", ability: "none",
         attack: 8, defense: 2, speed: 150, evasion: 2, range: 0,
@@ -202,7 +204,7 @@ export const CIVS: Record<string, CivDef> = {
     playstyle: "Everything moves on the drum, and nothing closes while the bolts are still coming.",
     weapon: "composite", dress: "Dark iron lamellar coat, crimson sash, black lacquered helmet with a low crest, no cloak, a saddle bow across his back.",
     tint: 0x8a2f3a, accent: 0xd6b45c, lean: "defense",
-    camp: campPoint("china"), campName: "The Abandoned Ward",
+    campName: "The Abandoned Ward",
     troops: [
       { id: "china_fubing", name: "Fubing", role: "line", ability: "inspire",
         attack: 8, defense: 7, speed: 140, evasion: 2, range: 0,
@@ -233,7 +235,7 @@ export const CIVS: Record<string, CivDef> = {
     playstyle: "Ride, shoot, ride away. Come back when they are strung out and finish them.",
     weapon: "composite", dress: "Fur-brimmed iron helm with a horsehair tassel, brown quilted deel over lamellar, sky-blue sash, no cloak, bowcase and quiver on one belt.",
     tint: 0x7a5a2f, accent: 0xbfa05a, lean: "speed",
-    camp: campPoint("mongolia"), campName: "Your Camp",
+    campName: "Your Camp",
     troops: [
       { id: "mongolia_stepperider", name: "Steppe Rider", role: "line", ability: "volley",
         attack: 7, defense: 2, speed: 195, evasion: 2, range: 210,
@@ -264,7 +266,7 @@ export const CIVS: Record<string, CivDef> = {
     playstyle: "Let the road and the winter thin them, then take the rest with two hands on an axe.",
     weapon: "sword", dress: "Conical nasal helm with mail aventail, riveted mail shirt, red cloak at one shoulder, green and white kite shield, wolf fur at the collar.",
     tint: 0x3f6b4a, accent: 0xc0c8d8, lean: "defense",
-    camp: campPoint("rus"), campName: "The River Fort",
+    campName: "The River Fort",
     troops: [
       { id: "rus_voi", name: "Voi", role: "line", ability: "shieldwall",
         attack: 8, defense: 5, speed: 140, evasion: 2, range: 0,
@@ -290,7 +292,7 @@ export const CIVS: Record<string, CivDef> = {
     playstyle: "Pay for better men than theirs, and put them straight through the middle.",
     weapon: "composite", dress: "Conical helm wound with black turban cloth, mail to the shoulders, sand-coloured coat, saffron sash, cased bow at the hip, no cloak.",
     tint: 0x2f6b6b, accent: 0xe0c46a, lean: "attack",
-    camp: campPoint("arabia"), campName: "The Dry Well",
+    campName: "The Dry Well",
     troops: [
       { id: "arabia_jundi", name: "Jundi", role: "line", ability: "shieldwall",
         attack: 8, defense: 5, speed: 140, evasion: 2, range: 0,
@@ -321,7 +323,7 @@ export const CIVS: Record<string, CivDef> = {
     playstyle: "Come off the water and break them before they are formed. A beach at a time.",
     weapon: "sword", dress: "Iron helm with a nose bar, riveted mail over grey wool, madder-red sleeves, blue and white shield boards, no cloak, salt-stiff beard.",
     tint: 0x4a5a6b, accent: 0xb9c2cc, lean: "attack",
-    camp: campPoint("viking"), campName: "The Boat Shed",
+    campName: "The Boat Shed",
     troops: [
       { id: "viking_raider", name: "Raider", role: "line", ability: "none",
         attack: 8, defense: 2, speed: 150, evasion: 2, range: 0,
@@ -352,7 +354,7 @@ export const CIVS: Record<string, CivDef> = {
     playstyle: "Spears in front, bows behind them, and the line fills faster than they can empty it.",
     weapon: "composite", dress: "Soft felt tiara wound across the mouth, saffron sleeves over scale, violet cloak, gilded quiver at the hip.",
     tint: 0x6b3f7a, accent: 0xd8b45a, lean: "defense",
-    camp: campPoint("persia"), campName: "The Way Station",
+    campName: "The Way Station",
     troops: [
       { id: "persia_sparabara", name: "Sparabara", role: "line", ability: "backstab",
         attack: 10, defense: 5, speed: 140, evasion: 12, range: 210,
@@ -383,7 +385,7 @@ export const CIVS: Record<string, CivDef> = {
     playstyle: "Pin them on the spears, then walk in with the best steel in the world.",
     weapon: "sword", dress: "Turban wound over a steel cap, bare arms, saffron and indigo cotton, a gold armring, a curved southern blade watered grey, no cloak.",
     tint: 0xb5602a, accent: 0xe8c060, lean: "attack",
-    camp: campPoint("india"), campName: "The Grove Camp",
+    campName: "The Grove Camp",
     troops: [
       { id: "india_bhata", name: "Bhata", role: "line", ability: "none",
         attack: 8, defense: 2, speed: 150, evasion: 2, range: 0,
@@ -414,7 +416,7 @@ export const CIVS: Record<string, CivDef> = {
     playstyle: "Take the level ground, run them down on it, and never fight where wheels break.",
     weapon: "bow", dress: "Blue-green faience war-cap, white linen kilt, bronze scale over the chest, red sash, hide-and-wood shield slung at his back, no cloak.",
     tint: 0x2f7a6b, accent: 0xe0c060, lean: "speed",
-    camp: campPoint("egypt"), campName: "The Old Quarry",
+    campName: "The Old Quarry",
     troops: [
       { id: "egypt_menfyt", name: "Menfyt", role: "line", ability: "lance",
         attack: 8, defense: 2, speed: 195, evasion: 2, range: 0,
@@ -445,7 +447,7 @@ export const CIVS: Record<string, CivDef> = {
     playstyle: "Kill them a long way off, and meet what is left behind a wall of hide.",
     weapon: "bow", dress: "No helmet: shaved head, gold ram-head earring, leopard hide across one shoulder, ochre linen, indigo sash, stone ring on the thumb.",
     tint: 0x8a4a2f, accent: 0xd8a860, lean: "attack",
-    camp: campPoint("kush"), campName: "The Furnace Camp",
+    campName: "The Furnace Camp",
     troops: [
       { id: "kush_tasetibowman", name: "Ta-Seti Bowman", role: "line", ability: "volley",
         attack: 7, defense: 2, speed: 150, evasion: 2, range: 210,
@@ -476,7 +478,7 @@ export const CIVS: Record<string, CivDef> = {
     playstyle: "Break them, then take them alive. Every man carried off is one who never comes back.",
     weapon: "sword", dress: "Jaguar pelt hood with his face in the open jaws, quilted cotton war-shirt, turquoise ear-plug, ochre red, black glass, green feathers.",
     tint: 0x2f6b4a, accent: 0xd85a3a, lean: "speed",
-    camp: campPoint("aztecs"), campName: "The Lake Village",
+    campName: "The Lake Village",
     troops: [
       { id: "aztecs_yaoquizqui", name: "Yaoquizqui", role: "line", ability: "shieldwall",
         attack: 8, defense: 5, speed: 140, evasion: 2, range: 0,
@@ -507,7 +509,7 @@ export const CIVS: Record<string, CivDef> = {
     playstyle: "Take the high ground first. They are already broken when you come down the road.",
     weapon: "sword", dress: "Quilted tunic in black-and-white checks with a red yoke, wooden helm wound in cord, gold discs in the ears, sling coiled at the wrist.",
     tint: 0x9a4a3a, accent: 0xd8c060, lean: "speed",
-    camp: campPoint("inca"), campName: "The High Terrace",
+    campName: "The High Terrace",
     troops: [
       { id: "inca_mitayuq", name: "Mit'ayuq", role: "line", ability: "javelin",
         attack: 7, defense: 2, speed: 150, evasion: 2, range: 210,
@@ -549,8 +551,51 @@ export const CONFINED: Record<string, string> = {
   inca: 'Mountains on one hand and ocean on the other, and the road runs only between them. This country is the war, from the coast to the last high pass.',
 };
 
+/**
+ * Where a start pitches its first camp: OUT ON ITS OWN COUNTRY'S EDGE, among the places its king holds
+ * least well. A warband does not begin in the throne room — it begins where nobody is looking, with
+ * two or three thin villages in reach and the capital a long way off. Worked out from the map rather
+ * than authored, so it stays true if the atlas changes.
+ */
 export function campPoint(id: string): Pt {
   if (id === 'outlaw') return OUTLAW_CAMP;
+  const home = CIVS[id]?.home ?? id;
+  const mine = (t: string) => t === home || (home === 'steppe' && t === 'mongolia');
+  const fringe = FRINGE.filter(n => mine(n.territory));
+  // a warband camps among the hamlets, which is the whole reason the hamlets exist
+  if (fringe.length >= 2) {
+    // Stand among them — but "among" means beside the one with the others CLOSEST, not at the average
+    // of three points scattered across Rus, which is a spot with nothing within a month's walk.
+    // the hamlets are a cluster now, so the middle of them really is among them
+    const mx = fringe.reduce((n, k) => n + k.x, 0) / fringe.length;
+    const my = fringe.reduce((n, k) => n + k.y, 0) / fringe.length;
+    if (isLand(mx, my)) return [Math.round(mx), Math.round(my)];
+    const snap = nearestLand(mx, my, 8);
+    if (snap) return [Math.round(snap[0]), Math.round(snap[1])];
+    const c = fringe[0];
+    for (const [dx, dy] of [[34, 26], [-34, 26], [34, -26], [-34, -26], [0, 44], [0, -44]]) {
+      const p: Pt = [Math.round(c.x + dx), Math.round(c.y + dy)];
+      if (isLand(p[0], p[1])) return p;
+    }
+    return [c.x, c.y];
+  }
+  const kin = FOREIGN.filter(n => mine(n.territory));
+  if (kin.length >= 2) {
+    // out on the edge, but not out on a limb: the best corner is the one that is BOTH far from the
+    // throne and has neighbours worth walking to. Averaging the frontier instead of choosing from it
+    // is how you end up camped in the middle of the Mediterranean.
+    const near = (n: typeof kin[number]) => kin.filter(k => k !== n && Math.hypot(k.x - n.x, k.y - n.y) < 300).length;
+    const most = Math.max(1, ...kin.map(near));
+    const best = [...kin].sort((a, b) =>
+      (frontier(b) * 0.66 + (near(b) / most) * 0.34) - (frontier(a) * 0.66 + (near(a) / most) * 0.34))[0];
+    // a short walk off it, and on ground a warband can actually stand on
+    for (const [dx, dy] of [[34, 26], [-34, 26], [34, -26], [-34, -26], [0, 40], [0, -40]]) {
+      const p: Pt = [Math.round(best.x + dx), Math.round(best.y + dy)];
+      if (isLand(p[0], p[1])) return p;
+    }
+    const snap = nearestLand(best.x + 34, best.y + 26, 6);
+    return snap ?? [best.x, best.y];
+  }
   const at = CAMP_AT[id] ?? CAMP_AT.outlaw;
   return ll(at[0], at[1]);
 }

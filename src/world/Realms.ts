@@ -48,7 +48,7 @@ export interface RealmVisit {
 export const ELITE_TINT: Record<string, number> = {
   rome: 0xe8705f, greece: 0xe8cf7a, rus: 0xb9c6e0, arabia: 0xefd98a, persia: 0xd0a6e8,
   egypt: 0x7fdcd0, kush: 0xf0c48a, india: 0xf0a95c, china: 0xef8f8f,
-  japan: 0xe8dcc8, viking: 0xa8c4dc, aztecs: 0x9ad8a0, inca: 0xe0a8b0,
+  japan: 0xe8dcc8, viking: 0xa8c4dc, aztecs: 0x9ad8a0, inca: 0xe0a8b0, mongolia: 0xe0c89a,
 };
 
 /** The name the meter uses when you are standing in a realm. Short enough for a phone's status bar. */
@@ -385,6 +385,31 @@ export const REALM_VISITS: Record<string, RealmVisit> = {
       ],
     },
     markup: 2.5,
+  },
+  mongolia: {
+    id: "mongolia",
+    enter: "You are on the grass. No wall, no gate, no road worth the name — only tracks, and riders on every one of them.",
+    army: {
+      style: "spearman",
+      eliteName: "Noyan",
+      elitePlural: "Noyans",
+      eliteNote: "Lance couched, and he comes through at a canter with the horse's weight behind it. The ten behind him fill the hole he makes.",
+      armyNote: "No line to break. Horse archers on both wings shooting as they wheel, lancers held back, and a camp that will be somewhere else tomorrow.",
+      capitalWarning: "Karakorum is a camp, not a city. Burn it and you have burned tents, and every rider on the grass now knows exactly where you are.",
+      villageNote: "A dozen tents and a horse line, and every man in it has shot from the saddle since he was six. They will be gone by morning if you give them one.",
+    },
+    barracksLocked: "a man rides for his own ten, and his ten for its own thousand",
+    forge: { items: ["leather", "composite"], swordMaxTier: 1, note: "Horn and sinew glued and left a year to set. The bow is everything here; a blade is what you carry for after." },
+    stables: { horses: ["courser"], note: "Every man has five and rides them in turn, so none is ever blown. You will be sold the worst of somebody's string." },
+    inn: {
+      name: "the airag tent by the horse lines",
+      rumors: [
+        "The Khan's word runs from the Kherlen to wherever his riders have got to this season, and no further. A camp that misses two musters is not punished. It is simply no longer counted, and nobody comes when it is raided.",
+        "They shoot at a full gallop, which nobody else on the chart can do, and they never stand to take a charge. Ride at them and they open, shoot you as you pass, and close behind you. The only ground you beat them on is ground they cannot ride around.",
+        "There are no granaries to burn and no walls to sit outside. A camp moves the day after it is threatened, and everything it owns goes with it. Whoever holds the wells at the end of a dry summer holds the grass, and the grass is the country.",
+      ],
+    },
+    markup: 2,
   },
 };
 /** The realms whose gates are open to a foreigner on foot. */

@@ -356,3 +356,33 @@ This absorbs the old Milestone 7 (culture starts). Governance and coalition mile
 - **A market in every settlement that trades**, with a small board hung beside each door instead of a caption. It buys what you stripped off the dead — captains, the garrison captain and an empire's own elites drop gear about a third of the time, and it is only yours if you win — and it buys low, lower still if you are a stranger there.
 - **The notice board is small work, honestly paid.** Carry something to a named place, or bring down the next party that country sends after you. Each board's offer is fixed per settlement per day, so it is the same job whether you look before or after a fight. Three jobs at a time.
 - **A harbour on any settlement with water in sight**, which is flavour until there are ships and says so.
+
+## MILESTONE 5.5 — THE CROWN AND THE CROWD (designer, 2026-08-30)
+
+**A. ARMY GROWTH.** The warband cap scales with my highest infamy tier anywhere — Nobody 6, Bandit 10, Raider 16, Warlord 24, Conqueror 32, World Threat 40. The barracks shows the current cap and what unlocks the next. Legend *is* command: growth and heat are one ladder. Performance must hold on a phone at 40 v 40 (simplify far-from-camera AI if needed).
+
+**B. TROOP DEPTH.**
+1. Garrisons draw from their culture's real roster, with the tier mix set by star rating: a 1-star place is mostly line troops; a 4–5 star place fields elites, specialists and a champion. Settlement panels list the composition honestly.
+2. Warband gear tiers at any friendly forge: squad-wide arms and armour upgrades, three tiers, price scaling with army size, visibly better-equipped figures, +attack and +defense for all troops.
+3. A pay-rate lever at the camp and any barracks: HALF / FULL / DOUBLE wages. Half — morale sags, desertion risk on the road, troops rout easier. Double — no desertion, rout-resistant, a slight damage bonus. The ledger shows the setting.
+
+**C. RULERSHIP.** Dominate a realm and become its sovereign. Taking a realm's capital AND all of its major cities makes its remaining villages send fealty — they submit to my banner, with no mop-up tedium. The realm becomes RULED: a crown on its name, my title updates ("King of the Borderland", and culture-appropriate titles are welcome), its bounty on me clears, its hunts and patrols against me END and its patrols now serve me, every gate opens at citizen prices, and tribute flows from all of it. Other realms notice a king rising: their infamy meters toward me tick up one step. This is the first piece of the world-responds system.
+
+**D. SETTLEMENT SCENES V2 — towns that look like towns.** Rebuild settlement scenes as elevated three-quarter bird's-eye vignettes in the spirit of old Flash-era village screens: organic contoured terrain in banded greens, a water edge with boats where coastal, small houses scattered along dirt paths, LARGE landmark buildings that anchor the scene (keep, temple, pagoda, dome — by culture), every functional building tappable with a small name plate. It should feel like looking down on a living town from a hillside, not a street-level elevation.
+
+**E. HUNT PACING.** After any hunter or patrol battle, a 5-day no-spawn grace in that territory. At most one hunter party active near me at a time (two only at World Threat). Defeating a party removes it for good. Hunts only trigger at Raider and above in that specific territory, and rulership ends them there permanently.
+
+**F. STAR REDISTRIBUTION.** Every realm grades from frontier to capital. Guarantee 2–3 one-star villages within easy reach of EVERY start's camp — home realms included — scaling up to the 5-star capital. A Roman start must have plausible first raids without leaving Italy. Foreign realms keep their prestige, but their fringes dip to 1–2 stars.
+
+### Build order (proposed by the build, 2026-08-30)
+1. **the ladder and the pace**: A + E + F — the rules and numbers, felt immediately.
+2. **depth and the crown**: B + C — garrison composition, gear tiers, the pay lever, rulership.
+3. **towns that look like towns**: D — the bird's-eye rebuild.
+
+## Milestone 5.5 — the ladder and the pace (built 2026-08-30)
+
+**Working assumptions made by the build — overrule by feel:**
+- **Six rungs, one ladder.** Nobody / Bandit / Raider / Warlord / Conqueror / World Threat at 0 / 15 / 45 / 110 / 220 / 400, and the cap that follows them is 6 / 10 / 16 / 24 / 32 / 40. The rung is whatever the WORST country thinks of you, so growth and heat really are the same number. Measured at 56 fps on a phone with 35 men against Roma's 58 — no far-from-camera simplification was needed, so none was added.
+- **Being hunted is weather, not a metronome.** Nobody bothers with you below Raider *in that country*. One party at a time, two only at World Threat. Putting one down removes it for good and buys five days of quiet from that country. A realm you rule never sends anyone again.
+- **Every realm has a fringe now, because every realm had one.** The atlas names thrones, cities and the towns between them — it never named the three roofs where the road gives out. Each country gets three border hamlets, clustered on one frontier, on land, clear of what is already there, named the way that country names a small place: Ad Fines, Sekiyado, Zaseka, Bir Sada, Willkapampa. They are the thinnest thing on the board by definition — about a fifth of what a throne keeps — and every start now camps among its own.
+- **A country is not held evenly.** Between the fringe and the throne, a realm's grip thins with distance from its capital: a village on the border keeps a third of what one under the walls does, a city most of it, and a capital all of it. Measured: every one of the fifteen starts has between two and eight one-star places within twelve days' march, in its own country.

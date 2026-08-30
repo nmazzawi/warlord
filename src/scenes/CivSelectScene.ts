@@ -4,7 +4,7 @@
 // camp will stand. The Borderland Outlaw stands first: it is the game as it was, and the hard way in.
 import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
-import { civList, CONFINED, type CivDef } from '../world/Civs';
+import { campPoint, civList, CONFINED, type CivDef } from '../world/Civs';
 import { portrait, type Headgear } from '../systems/Portraits';
 import { REGIONS } from '../world/WorldChart';
 import { baseTexture } from '../world/ChartLayer';
@@ -149,7 +149,8 @@ export class CivSelectScene extends Phaser.Scene {
       g.fillPath();
       g.strokePath();
     }
-    const [cx, cy] = [civ.camp[0] * sx + x, civ.camp[1] * sy + y];
+    const at = campPoint(civ.id);
+    const [cx, cy] = [at[0] * sx + x, at[1] * sy + y];
     g.fillStyle(0xd94f3a, 1).fillCircle(cx, cy, 3.2);
     g.lineStyle(1.2, 0xffffff, 0.9).strokeCircle(cx, cy, 5.2);
     g.lineStyle(1, PAL.gold, 0.5).strokeRect(x, y, w, h);

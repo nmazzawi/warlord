@@ -2,7 +2,7 @@
 // working the country you are in: they appear a few days' ride away, move every day, and close on you
 // when they catch your scent. There is no dice roll on a road any more — you can see them coming, and
 // you can try to lose them. Get close enough and there is no avoiding the fight.
-import { INFAMY, STEPPE } from '../config/balance';
+import { HUNT, INFAMY, STEPPE } from '../config/balance';
 import { NODES, type Territory } from './WorldMap';
 import { isLand, nearestLand, route, stepAlong } from './Terrain';
 import type { Pt } from './geo';
@@ -35,10 +35,14 @@ export function nearestTerritory(x: number, y: number): Territory {
   return best;
 }
 
-/** How many parties should be out looking, given how badly they want you. */
+/**
+ * How many parties a country has out. Being wanted should be weather, not a metronome: one party at a
+ * time until the whole chart is awake, and nobody at all until a country grades you Raider. A hunt you
+ * survive is a story; a hunt every third day is a chore.
+ */
 export function wanted(tier: number, hunted: boolean) {
-  if (hunted) return 2;
-  return tier >= 2 ? 2 : tier >= 1 ? 1 : 0;
+  if (tier < HUNT.fromTier && !hunted) return 0;
+  return tier >= INFAMY.tiers.length - 1 ? HUNT.maxPartiesAtWorldThreat : HUNT.maxParties;
 }
 
 function spawnNear(x: number, y: number, rnd: () => number): Pt | null {
@@ -61,7 +65,9 @@ export interface HuntResult { hunters: Hunter[]; caught: Hunter | null; }
  */
 export function advanceHunters(
   hunters: Hunter[], pos: { x: number; y: number }, days: number,
-  opts: { tier: number; hunted: boolean; territory: Territory; mounted: boolean; rnd: () => number },
+  opts: { tier: number; hunted: boolean; territory: Territory; mounted: boolean; rnd: () => number;
+    /** No party sets out in a country whose last one you just put down. */
+    quiet?: boolean; },
 ): HuntResult {
   const out: Hunter[] = [];
   let caught: Hunter | null = null;
@@ -80,7 +86,7 @@ export function advanceHunters(
   // do the country's riders want another party out? Only a country that has heard of you does: a
   // foreign realm you have just walked into grades you at nothing, and nobody there is looking.
   const tier = opts.tier;
-  const want = wanted(tier, opts.hunted && opts.territory === 'steppe');
+  const want = opts.quiet ? 0 : wanted(tier, opts.hunted && opts.territory === 'steppe');
   const here = out.filter(h => h.kind === opts.territory).length;
   if (here < want && opts.rnd() < (opts.territory === 'steppe' ? STEPPE.huntChance : (INFAMY.interceptChance[tier] ?? 0)) * days) {
     const at = spawnNear(pos.x, pos.y, opts.rnd);

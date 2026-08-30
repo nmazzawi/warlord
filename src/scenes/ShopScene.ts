@@ -3,7 +3,7 @@
 // settlement and on whether you own the place or are merely visiting.
 import Phaser from 'phaser';
 import { GameState, type ArmorKind, type HorseKind, type ShieldKind, type WeaponKind } from '../state/GameState';
-import { COMPOSITE_BOW, EQUIPMENT, HORSES, TROOP, WEAPONS } from '../config/balance';
+import { COMPOSITE_BOW, EQUIPMENT, HORSES, WEAPONS } from '../config/balance';
 import { unitDef } from '../world/Units';
 import { Sound } from '../systems/Sound';
 import { stockFor } from '../world/Stock';
@@ -121,7 +121,7 @@ export class ShopScene extends Phaser.Scene {
       // a barracks hires out the roster of whoever holds the place — the whole of it, so you can see
       // what this country actually fields and what each of them costs you every day thereafter
       const kinds = stock.barracks?.kinds ?? ['raider'];
-      const full = g.troops.length >= TROOP.max;
+      const full = g.troops.length >= g.troopCap;
       const rows: Row[] = kinds.map(key => {
         const k = unitDef(key);
         return {
@@ -132,8 +132,14 @@ export class ShopScene extends Phaser.Scene {
                 onPress: () => this.buy(Math.ceil(k.cost * stock.markup), () => { g.recruit(key); }) },
         };
       });
-      rows.unshift({ name: full ? 'Warband is full' : `${g.troops.length}/${TROOP.max} in the warband`,
-        desc: full ? 'Nobody else will follow you until someone falls.' : 'Every man eats every day, whether you march or not.', button: null });
+      // legend is command: the cap IS the ladder, and the barracks says so out loud
+      const nxt = g.nextCommand();
+      rows.unshift({
+        name: `${g.troops.length}/${g.troopCap} in the warband  ·  ${g.highestTierName}`,
+        desc: nxt
+          ? `${full ? 'Nobody else will follow you at this name. ' : ''}Reach ${nxt.name} — ${nxt.at} in any one country, and you are at ${nxt.have} — and ${nxt.cap} will ride with you.`
+          : `${full ? 'Full. ' : ''}There is no name above this one, and no more men to be had.`,
+        button: null });
       rows.push({ name: 'Your warband', desc: g.troops.map(t => `${t.name} (${unitDef(t.kind ?? 'raider').label})`).join(', ') || 'nobody — recruit before you raid', button: null });
       const garrisoned = Object.entries(g.garrisons).filter(([, list]) => list.length).map(([id, list]) => `${list.map(t => t.name).join(', ')} at ${nodeById(id).name}`);
       if (garrisoned.length) rows.push({ name: 'Garrisons', desc: garrisoned.join('; '), button: null });

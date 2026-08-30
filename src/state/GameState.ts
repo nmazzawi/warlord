@@ -1,9 +1,9 @@
 // GameState.ts — the whole run: gold, day, infamy, gear, horse, your named troops, where you are on
 // the map, what state each settlement is in, who garrisons what, and the daily ledger (wages in,
 // tribute out). Saved to browser storage (single slot).
-import { CONQUEST, FOREIGN, FOREIGN_GARRISON, FOREIGN_MAX_DEFENDERS, REALM_POWER, DEFENSE_SOFTCAP, EQUIPMENT, HERO, HORSES, INFAMY, PATROLS, RERAID, SIEGE, STEPPE, TRIBUTE, TROOP, UPKEEP, VILLAGE_TIERS } from '../config/balance';
+import { CONQUEST, FOREIGN, FOREIGN_GARRISON, FOREIGN_MAX_DEFENDERS, FRONTIER_THIN, HUNT, REALM_POWER, DEFENSE_SOFTCAP, EQUIPMENT, HERO, HORSES, INFAMY, PATROLS, RERAID, SIEGE, STEPPE, TRIBUTE, TROOP, UPKEEP, VILLAGE_TIERS } from '../config/balance';
 import { nameAt } from '../utils/names';
-import { NODES, nodeById, territoryOf, type Territory } from '../world/WorldMap';
+import { frontier, NODES, nodeById, territoryOf, type Territory } from '../world/WorldMap';
 import { ELITE_TINT, REALM_SHORT, visitOf } from '../world/Realms';
 import { campPoint, civOf } from '../world/Civs';
 import { unitDef } from '../world/Units';
@@ -56,7 +56,7 @@ interface SaveData {
   fortifyStepsDone: number; fortifyCarry: number; unpaidDays: number; seenMapHint: boolean;
   rumorsHeard: string[]; pendingVictory: PendingVictory | null;
   steppeInfamy: number; campScattered: Record<string, number>; huntedUntil: number; civ?: string;
-  loot?: LootItem[]; quests?: Quest[];
+  loot?: LootItem[]; quests?: Quest[]; huntQuiet?: Record<string, number>;
   realmInfamy?: Record<string, number>;
 }
 
@@ -82,6 +82,8 @@ class GameStateStore {
   patrolPending = false;
   /** Whose riders are standing over you — kept so a reload offers the same fight, not a local one. */
   patrolFrom: Territory = 'homeland';
+  /** The day each country's hunt goes quiet until, after you put one of its parties down. */
+  huntQuiet: Record<string, number> = {};
   settlements: Record<string, SettlementState> = {};
   garrisons: Record<string, TroopRecord[]> = {};
   fortifyStepsDone = 0;
@@ -118,7 +120,7 @@ class GameStateStore {
     this.gold = UPKEEP.startingGold; this.day = 1; this.infamy = 0; this.weaponTier = 1; this.equippedWeapon = 'sword'; this.horse = 'none';
     this.armor = 'none'; this.shield = 'none';
     this.owned = { leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false, composite: false };
-    this.steppeInfamy = 0; this.realmInfamy = {}; this.campScattered = {}; this.loot = []; this.quests = []; this.huntedUntil = -1;
+    this.steppeInfamy = 0; this.realmInfamy = {}; this.campScattered = {}; this.loot = []; this.quests = []; this.huntQuiet = {}; this.huntedUntil = -1;
     this.troops = []; this.fallen = []; this.deserted = []; this.raidsDone = 0; this.location = 'camp';
     this.patrolPending = false; this.patrolFrom = 'homeland'; this.pos = { x: nodeById('camp').x, y: nodeById('camp').y }; this.hunters = []; this.settlements = {}; this.garrisons = {}; this.fortifyStepsDone = 0; this.fortifyCarry = 0;
     this.unpaidDays = 0; this.seenMapHint = false; this.rumorsHeard = []; this.pendingVictory = null;
@@ -187,6 +189,29 @@ class GameStateStore {
   patrolConfig() { return PATROLS[this.infamyTier]; }
   get siegeUnlocked() { return this.infamyTier >= SIEGE.unlockTier; }
 
+  // ------------------------------------------------------------ legend is command
+  /** The worst any country thinks of you. This is the one number the whole ladder hangs on. */
+  get highestTier() {
+    let t = this.infamyTier;
+    t = Math.max(t, this.tierOf(this.steppeInfamy));
+    for (const v of Object.values(this.realmInfamy)) t = Math.max(t, this.tierOf(v));
+    return t;
+  }
+  get highestTierName() { return INFAMY.tiers[this.highestTier].name; }
+  /** How many men will follow you today. */
+  get troopCap() { return TROOP.capByTier[Math.min(this.highestTier, TROOP.capByTier.length - 1)] ?? TROOP.max; }
+  /** What the next rung is worth, and what it costs to reach — null once you are the worst there is. */
+  nextCommand() {
+    const t = this.highestTier;
+    if (t >= INFAMY.tiers.length - 1) return null;
+    const next = INFAMY.tiers[t + 1];
+    // the score that matters is whichever country is closest to promoting you
+    let best = this.infamy;
+    best = Math.max(best, this.steppeInfamy);
+    for (const v of Object.values(this.realmInfamy)) best = Math.max(best, v);
+    return { name: next.name, at: next.min, have: best, cap: TROOP.capByTier[t + 1] ?? TROOP.max };
+  }
+
   // ------------------------------------------------------------ territories
   get territory(): Territory { return this.location ? territoryOf(this.location) : nearestTerritory(this.pos.x, this.pos.y); }
   /** The country that is yours. For the outlaw that is the nameless Borderland; for everyone else it
@@ -253,9 +278,12 @@ class GameStateStore {
   /** A day (or several) of hunting: every party out looking for you moves. Returns the one that
    *  reaches you, if any — there is no dodging that fight. */
   runHunters(days: number) {
+    const here = this.territory;
     const res = advanceHunters(this.hunters, this.pos, days, {
       tier: this.tierIn(), hunted: this.hunted,
-      territory: this.territory, mounted: !!this.horse, rnd: Math.random,
+      territory: here, mounted: !!this.horse, rnd: Math.random,
+      // a country you have just bled goes quiet for a few days, and one you RULE never sends anyone
+      quiet: this.day < (this.huntQuiet[here] ?? -1) || this.rules(here),
     });
     this.hunters = res.hunters;
     if (res.caught) this.hunters = this.hunters.filter(h => h.id !== res.caught!.id);
@@ -386,7 +414,11 @@ class GameStateStore {
     const power = REALM_POWER[realm] ?? 1;
     const v = visitOf(realm);
     const vs = this.settlement(id);
-    const up = (x: number) => Math.max(1, Math.round(x * power));
+    // The further from its own throne, the thinner the country's grip on it — and a border hamlet is
+    // the thinnest thing there is by definition, whatever the geometry says. This is what makes a
+    // first raid possible for every start, in its own country, without leaving it.
+    const thin = n.fringe ? FRONTIER_THIN.fringe : 1 - frontier(n) * (FRONTIER_THIN[rank] ?? 0);
+    const up = (x: number) => Math.max(1, Math.round(x * power * thin));
     let militia = up(base.militia);
     const archers = up(base.archers), captains = up(base.captains), elites = up(base.elites);
     // A phone has to draw every one of them, so past the cap the rank and file are trimmed and the
@@ -404,7 +436,8 @@ class GameStateStore {
       realm, rank, militia, archers, captains, elites,
       total: militia + archers + captains + elites,
       // come back a second time and they are ready for you, and there is less left to take
-      statMult: base.statMult * power * crowd * (1 + vs.timesRaided * FOREIGN.reraidStat),
+      // frontier men are the same men, just fewer of them and less well kept
+      statMult: base.statMult * power * crowd * (0.6 + thin * 0.4) * (1 + vs.timesRaided * FOREIGN.reraidStat),
       goldMult: base.goldMult * power * (vs.wealth ?? 1) * (1 + vs.timesRaided * FOREIGN.reraidGold),
       timesRaided: vs.timesRaided,
       wealth: vs.wealth ?? 1,
@@ -474,6 +507,11 @@ class GameStateStore {
     return done;
   }
 
+  /** A party you put down is gone for good, and its country stops looking for a few days. */
+  huntQuieted(territory: Territory) { this.huntQuiet[territory] = this.day + HUNT.graceDays; }
+  /** Do you wear this country's crown? (Filled in by rulership; false until then.) */
+  rules(_territory: Territory) { return false; }
+
   /** Add to whichever meter is keeping score in this country. */
   addInfamyIn(territory: Territory, n: number) {
     if (this.isHome(territory)) this.infamy += n;
@@ -519,9 +557,11 @@ class GameStateStore {
     if (battle.kind === 'patrol') {
       this.addInfamy(INFAMY.perPatrol);
       this.settleHunt(this.home);
+      this.huntQuieted(this.patrolFrom);
       this.patrolPending = false;
     } else if (battle.kind === 'steppePatrol') {
       this.steppeInfamy += INFAMY.perPatrol;
+      this.huntQuieted('steppe');
       this.patrolPending = false;
       summary = `Riders routed: +${goldEarned} gold. The steppe remembers.`;
     } else if (battle.kind === 'camp' && battle.campId) {
@@ -533,6 +573,7 @@ class GameStateStore {
     } else if (battle.kind === 'foreignPatrol') {
       if (battle.realm) {
         this.addInfamyIn(battle.realm, INFAMY.perPatrol);
+        this.huntQuieted(battle.realm);
         const paid = this.settleHunt(battle.realm);
         if (paid.length) summary = `${summary}. Word of it is worth ${paid.reduce((n, q) => n + q.reward, 0)} gold to whoever posted it.`;
       }
@@ -632,6 +673,7 @@ class GameStateStore {
     this.formation = d.formation ?? 'line';
     this.loot = (d.loot ?? []).map(l => ({ ...l }));
     this.quests = (d.quests ?? []).map(q => ({ ...q }));
+    this.huntQuiet = { ...(d.huntQuiet ?? {}) };
     this.steppeInfamy = d.steppeInfamy ?? 0; this.realmInfamy = { ...(d.realmInfamy ?? {}) }; this.campScattered = { ...(d.campScattered ?? {}) }; this.huntedUntil = d.huntedUntil ?? -1;
     this.owned.composite = this.owned.composite ?? false;
   }

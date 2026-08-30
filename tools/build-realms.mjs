@@ -5,7 +5,7 @@ import fs from 'node:fs';
 const src = process.argv[2] || 'data/realms/visits.json';
 const realms = JSON.parse(fs.readFileSync(src, 'utf8'));
 const q = (s) => JSON.stringify(String(s));
-const order = ['rus', 'rome', 'greece', 'arabia', 'persia', 'egypt', 'kush', 'india', 'china', 'viking', 'japan', 'aztecs', 'inca'];
+const order = ['rus', 'rome', 'greece', 'arabia', 'persia', 'egypt', 'kush', 'india', 'china', 'viking', 'japan', 'aztecs', 'inca', 'mongolia'];
 realms.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
 
 const body = realms.map(r => `  ${r.id}: {

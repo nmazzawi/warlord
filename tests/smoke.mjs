@@ -237,7 +237,7 @@ async function desktopRun(browser) {
     return { access: S.access(city.id), stars: S.stars(city.id), elite: S.foreignInfo(city.id).elitePlural,
       reach: window.__NODES.filter(n => n.kind === 'foreign' && n.territory === 'japan').length };
   });
-  check(jpHome.access === 'visit' && jpHome.elite === 'Samurai' && jpHome.reach === 9,
+  check(jpHome.access === 'visit' && jpHome.elite === 'Samurai' && jpHome.reach >= 9,
     `a Japanese start has a Japan to stand in (${jpHome.reach} places, garrisoned by ${jpHome.elite})`);
   await page.evaluate(() => window.__GameState.newRun('outlaw'));
   await clickBtn(page, 'Title', 'NEW');
@@ -725,6 +725,20 @@ async function desktopRun(browser) {
   }
 
   // --- raid Ashford and just leave
+  // --- M5.5 A: legend is command
+  const ladder = await page.evaluate(() => {
+    const S = window.__GameState;
+    const T = window.__TROOP_CAPS;
+    const caps = [];
+    const was = S.infamy, wasRealm = { ...S.realmInfamy }, wasSteppe = S.steppeInfamy;
+    S.realmInfamy = {}; S.steppeInfamy = 0;
+    for (const at of [0, 15, 45, 110, 220, 400]) { S.infamy = at; caps.push({ at, tier: S.highestTierName, cap: S.troopCap }); }
+    S.infamy = was; S.realmInfamy = wasRealm; S.steppeInfamy = wasSteppe;
+    return { caps, tiers: T ? T.length : 0 };
+  });
+  check(ladder.caps.map(c => c.cap).join(',') === '6,10,16,24,32,40',
+    `the cap climbs with the name (${ladder.caps.map(c => `${c.tier} ${c.cap}`).join(' · ')})`);
+
   // --- M5.3: armies of the world
   const army = await page.evaluate(() => {
     const C = window.__CIVS; const ids = Object.keys(C);
@@ -737,6 +751,59 @@ async function desktopRun(browser) {
   });
   check(army.kinds >= 7, `the rosters field ${army.kinds} kinds of behaviour (${JSON.stringify(army.abilities)})`);
   check(army.wage !== army.flat, `every man is paid his own wage (${army.wage} a day for ${army.troops}, not a flat ${army.flat})`);
+  // --- M5.5 E: a hunt is weather, not a metronome
+  const hunts = await page.evaluate(() => {
+    const S = window.__GameState;
+    const keep = JSON.parse(JSON.stringify(S.toJSON()));
+    // the run stubs runHunters out so battles are predictable; this is the one check that needs the
+    // real thing, so drop the stub (it is an own property over the prototype) and put it back after
+    const stub = Object.prototype.hasOwnProperty.call(S, 'runHunters') ? S.runHunters : null;
+    if (stub) delete S.runHunters;
+    S.newRun('outlaw'); S.hunters = []; S.huntQuiet = {};
+    S.infamy = 20;                                  // Bandit: nobody bothers yet
+    let spawned = 0;
+    for (let d = 0; d < 40; d++) { S.runHunters(1); spawned = Math.max(spawned, S.hunters.length); }
+    const atBandit = spawned;
+    S.infamy = 60; S.hunters = []; spawned = 0;     // Raider: now they come
+    for (let d = 0; d < 200; d++) { S.runHunters(1); spawned = Math.max(spawned, S.hunters.length); }
+    const atRaider = spawned;
+    const why = { tier: S.tierIn(), territory: S.territory, chance: S.patrolChance, at: { ...S.pos },
+      quiet: S.huntQuiet[S.territory] ?? null, day: S.day, home: S.home };
+    // and putting one down buys quiet
+    S.huntQuieted('homeland');
+    const quietUntil = S.huntQuiet.homeland - S.day;
+    S.hunters = [];
+    let duringGrace = 0;
+    for (let d = 0; d < 4; d++) { S.runHunters(1); duringGrace = Math.max(duringGrace, S.hunters.length); }
+    if (stub) S.runHunters = stub;
+    S.fromJSON(keep);
+    return { atBandit, atRaider, quietUntil, duringGrace, why };
+  });
+  check(hunts.atBandit === 0, `nobody hunts a bandit (${hunts.atBandit} parties in 40 days)`);
+  check(hunts.atRaider >= 1 && hunts.atRaider <= 1, `a raider is hunted, by one party at a time (${hunts.atRaider}; ${JSON.stringify(hunts.why)})`);
+  check(hunts.quietUntil === 5 && hunts.duringGrace === 0,
+    `putting a party down buys ${hunts.quietUntil} days of quiet (${hunts.duringGrace} came in them)`);
+
+  // --- M5.5 F: every start has a plausible first raid at home
+  const firstRaids = await page.evaluate(() => {
+    const S = window.__GameState;
+    const m = window.__warlord.scene.getScene('Map');
+    const out = {};
+    // this walks every start in turn, so put the real run back exactly as it was afterwards
+    const keep = JSON.parse(JSON.stringify(S.toJSON()));
+    for (const civ of Object.keys(window.__CIVS)) {
+      S.newRun(civ);
+      const near = window.__NODES.filter(n => (n.kind === 'foreign' || n.kind === 'village')
+        && Math.hypot(n.x - S.pos.x, n.y - S.pos.y) < 460);
+      let easy = 0;
+      for (const n of near) { const d = m.routeDays(n.id); if (d > 0 && d <= 12 && S.protection(n.id) === 1) easy++; }
+      out[civ] = easy;
+    }
+    S.fromJSON(keep);
+    return out;
+  });
+  const thin = Object.entries(firstRaids).filter(([, n]) => n < 2).map(([c, n]) => `${c}:${n}`);
+  check(thin.length === 0, `every start has two or more one-star places in reach (${thin.join(', ') || 'all fifteen'})`);
   check(await marchTo(page, 'ashford'), 'marched to Ashford');
   let r = await raidHere(page);
   check(r && r.enemies === 11, `Ashford: ${r && r.enemies} defenders`);
