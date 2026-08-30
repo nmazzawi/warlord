@@ -383,6 +383,42 @@ async function desktopRun(browser) {
     'a double click on the MARCH button takes the march back rather than walking');
   await hidePanel(page);
 
+  // --- the world is hot: every foreign settlement can be attacked
+  const war = await page.evaluate(() => {
+    const S = window.__GameState;
+    const foreign = window.__NODES.filter(n => n.kind === 'foreign');
+    const byRank = {};
+    for (const n of foreign) byRank[n.rank] = (byRank[n.rank] ?? 0) + 1;
+    const sample = (id) => { const i = S.foreignInfo(id); return { total: i.total, elites: i.elites, stat: +i.statMult.toFixed(2), elite: i.elitePlural }; };
+    const fringe = foreign.find(n => n.territory === 'rus' && n.rank === 'village');
+    return { count: foreign.length, byRank,
+      village: sample(fringe.id), villageName: fringe.name,
+      romaTown: sample(foreign.find(n => n.territory === 'rome' && n.rank === 'town').id),
+      roma: sample('f_rome_roma'), kush: sample('f_kush_meroe'),
+      max: Math.max(...foreign.map(n => S.foreignInfo(n.id).total)) };
+  });
+  check(war.count >= 78 && war.byRank.village >= 10 && war.byRank.capital === 9,
+    `every place in nine realms can be marched on: ${war.count} (${JSON.stringify(war.byRank)})`);
+  check(war.village.total < war.romaTown.total && war.romaTown.total < war.roma.total,
+    `garrisons climb: a Rus village ${war.village.total}, a Roman town ${war.romaTown.total}, Roma ${war.roma.total}`);
+  check(war.kush.total < war.roma.total && war.kush.stat < war.roma.stat,
+    `a realm's own strength counts: Meroe ${war.kush.total} at x${war.kush.stat}, Roma ${war.roma.total} at x${war.roma.stat}`);
+  check(war.max <= 58, `no battle fields more men than a phone can draw (worst ${war.max})`);
+  check(war.village.elites >= 2 && /\w/.test(war.village.elite), `realms field their own men (${war.village.elites} ${war.village.elite})`);
+  // no panel anywhere may still forbid a war
+  const locks = await page.evaluate(() => {
+    const bad = [];
+    const S = window.__GameState;
+    for (const r of window.__REGIONS) {
+      const v = window.__REALM_VISITS ? window.__REALM_VISITS[r.id] : null;
+      if (!v) continue;
+      const text = [v.enter, v.army.armyNote, v.army.capitalWarning, v.army.villageNote, v.army.eliteNote].join(' ');
+      if (/later age|not yet|you cannot|beyond a|beyond you/i.test(text)) bad.push(r.id);
+    }
+    return bad;
+  });
+  check(locks.length === 0, `no realm still says war comes later (${locks.join(', ') || 'none'})`);
+
   // walk into Rus, the nearest realm, and be a customer in Kiev
   await page.evaluate(() => { const S = window.__GameState; const n = window.__NODES.find(k => k.id === 'f_rus_kiev');
     S.pos = { x: n.x + 60, y: n.y + 60 }; S.location = ''; S.save(); });

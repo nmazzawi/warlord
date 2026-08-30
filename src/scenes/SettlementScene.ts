@@ -8,6 +8,7 @@ import { Sound } from '../systems/Sound';
 import { mulberry32 } from '../utils/rng';
 import { nodeById } from '../world/WorldMap';
 import { visitOf } from '../world/Realms';
+import { FOREIGN } from '../config/balance';
 import { stockFor } from '../world/Stock';
 import { nextRumor } from '../world/Rumors';
 import { CSS, displayStyle, dprOf, drawPanel, makeButton, PAL, uiStyle, uiUnit } from './ui';
@@ -81,14 +82,16 @@ export class SettlementScene extends Phaser.Scene {
     const isCamp = this.id === 'camp';
     const node = isCamp ? null : nodeById(this.id);
     const trade = node?.kind === 'trade';
-    const foreign = node?.kind === 'foreign' ? visitOf(node.territory) : null;
+    // a city you TOOK is not a place you are a foreigner in any more — it is a possession
+    const foreign = node?.kind === 'foreign' && this.visiting ? visitOf(node.territory) : null;
     const kind: 'camp' | 'village' | 'town' = isCamp || trade ? 'camp' : node!.kind === 'town' || node!.kind === 'foreign' ? 'town' : 'village';
     this.add.image(0, 0, this.backdrop(kind, Math.ceil(w), Math.ceil(h))).setOrigin(0);
 
     // title block
     const name = isCamp ? 'BANDIT CAMP' : node!.name.toUpperCase();
     const garrison = (GameState.garrisons[this.id] ?? []).map(t => t.name).join(', ');
-    const tribute = isCamp ? 0 : node!.kind === 'town' ? 15 : 4 + (node!.tier ?? 1);
+    const tribute = isCamp ? 0 : node!.kind === 'foreign' ? FOREIGN.tribute[node!.rank ?? 'town']
+      : node!.kind === 'town' ? 15 : 4 + (node!.tier ?? 1);
     const stock = stockFor(this.id, this.visiting);
     const up = `+${Math.round((stock.markup - 1) * 100)}%`;
     const sub = isCamp ? 'Home. Your forge, barracks and stables.'

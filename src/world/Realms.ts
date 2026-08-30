@@ -8,13 +8,29 @@
 // no ships yet.
 import type { ForgeItem } from './Stock';
 import type { HorseKind } from '../state/GameState';
+import type { EliteStyle } from '../config/balance';
+
+/** The one unit a realm fields that is its own, and the plain facts about what it keeps in its towns.
+ *  Nothing in here forbids a fight — it only says what is standing there. */
+export interface RealmArmy {
+  style: EliteStyle;
+  eliteName: string;
+  elitePlural: string;
+  eliteNote: string;
+  /** For the realm's card: what stands between you and this country. */
+  armyNote: string;
+  /** For the throne city's panel. */
+  capitalWarning: string;
+  /** For a fringe village of this realm. */
+  villageNote: string;
+}
 
 export interface RealmVisit {
   id: string;
   /** Shown the first time you set foot in the realm. */
   enter: string;
-  /** Why you cannot make war here. */
-  warLocked: string;
+  /** Its army, and the one elite of its own it puts in the line. */
+  army: RealmArmy;
   /** Why nobody here will take your coin to fight. */
   barracksLocked: string;
   forge: { items: ForgeItem[]; swordMaxTier: number; note: string };
@@ -23,6 +39,14 @@ export interface RealmVisit {
   /** What a foreigner pays. 1.8 is a trading empire that likes coin; 2.6 is one that resents you. */
   markup: number;
 }
+
+/** What colour a realm's own men are painted, so the line you are looking at is visibly Rome's or
+ *  Persia's and not just "more enemies". Deliberately clear of your own colours — nothing here is
+ *  the green of your troops or the blue of your warlord. */
+export const ELITE_TINT: Record<string, number> = {
+  rome: 0xc9765a, greece: 0xc9b06a, rus: 0x9aa6c4, arabia: 0xd6bb63, persia: 0xb083c4,
+  egypt: 0x66c2b8, kush: 0xd4a06a, india: 0xd6913f, china: 0xcf7676,
+};
 
 /** The name the meter uses when you are standing in a realm. Short enough for a phone's status bar. */
 export const REALM_SHORT: Record<string, string> = {
@@ -36,7 +60,15 @@ export const REALM_VISITS: Record<string, RealmVisit> = {
   rus: {
     id: "rus",
     enter: "The forest road ends at the Dnieper. Timber walls, church bells, furs on every landing, and nobody asks your name.",
-    warLocked: "Every prince keeps a druzhina in mail behind a shield wall, and winter starves whatever stands still in front of it. The Dnieper is not yours until a later age.",
+    army: {
+      style: "axeman",
+      eliteName: "Druzhinnik",
+      elitePlural: "Druzhinniki",
+      eliteNote: "Fights on foot in mail, both hands on a long axe. The blow comes down over your shield rim, not against it.",
+      armyNote: "Spear militia, bowmen off the river forts, the prince's druzhina in mail behind them, and a winter that starves whatever stands still in front of it.",
+      capitalWarning: "Stone gates and a deep ditch. The princes quarrel over that seat until a stranger comes for it, and then every druzhina in Rus is on the wall.",
+      villageNote: "Even a hamlet sits behind a palisade with the trees cut back a bowshot, and the men who felled that timber keep their axes by the door.",
+    },
     barracksLocked: "no prince arms a man who came in off the steppe road",
     forge: { items: ["plate", "round", "kite", "bow"], swordMaxTier: 2, note: "They ring mail shirt by shirt, hang round and tall shields on one rack, and re-hilt blades bought out of the west." },
     stables: { horses: ["courser"], note: "Horses come up off the grass each autumn. The heavy stock is spoken for by the prince's men before the market opens." },
@@ -53,7 +85,15 @@ export const REALM_VISITS: Record<string, RealmVisit> = {
   rome: {
     id: "rome",
     enter: "You come into Rome on a stone road laid straight to the horizon. It was cut and numbered before your grandfather was born.",
-    warLocked: "Roads move a legion faster than your riders, the siege engines arrive already built, and every night they dig a fort. The west answers to a later age.",
+    army: {
+      style: "shieldman",
+      eliteName: "Legionary",
+      elitePlural: "Legionaries",
+      eliteNote: "One javelin at twenty paces ruins the shield it sticks in. Then they close up and the short sword goes in low, under the guard.",
+      armyNote: "Militia and bowmen take the first shock, and the cohorts behind them swap their leading rank mid-fight, so the men who tire you are never the men who finish you.",
+      capitalWarning: "A guard stands on every gate of Roma, and the roads bring a legion in from three provinces. What you take in a morning you hold against all of it.",
+      villageNote: "Veterans take their land grant out here at twenty years' service. The plough did not make them slow, and they still form up on a horn.",
+    },
     barracksLocked: "a legionary swears to the eagle, not to a foreigner's purse",
     forge: { items: ["leather", "plate", "kite"], swordMaxTier: 2, note: "Segmented plate and the tall shield, turned out by the thousand, every piece cut to the same measure." },
     stables: { horses: ["courser"], note: "Rome wins on foot. What horse it has is bought off Numidians and Gauls, and the army keeps the heavy ones." },
@@ -70,7 +110,15 @@ export const REALM_VISITS: Record<string, RealmVisit> = {
   greece: {
     id: "greece",
     enter: "You come down into olive country. A city on every hill, and each one has a quarrel with the one across the valley.",
-    warLocked: "Spears eight deep, and cities that hate each other will close ranks against a foreigner. Your warband dies on the points. That wall breaks in a later age.",
+    army: {
+      style: "spearman",
+      eliteName: "Epilektos",
+      elitePlural: "Epilektoi",
+      eliteNote: "Stands in the first rank, spear held overarm, stabbing down past your shield at the throat and the thigh.",
+      armyNote: "Militia spears, bowmen on the roofs, a captain in bronze, and the Epilektoi at the head of it. Eight ranks of spearpoints before you reach a man.",
+      capitalWarning: "Athenai's walls run down to the sea, so grain unloads while you sit outside, and Laureion silver pays masons faster than you pull stone down.",
+      villageNote: "There is a shield in every house here, and the man who owns it has stood in the line with it. They close the lane, and the lane is narrow.",
+    },
     barracksLocked: "a hoplite stands beside his own neighbours, never beside a stranger",
     forge: { items: ["leather", "plate", "round"], swordMaxTier: 2, note: "Bronze beaten into the round shield and the breastplate. The sword is short and worn behind the spear, an afterthought." },
     stables: { horses: ["courser"], note: "Horses off the Argos plain and the Thessalian grass, light and quick. This stony ground breaks a heavy horse." },
@@ -87,7 +135,15 @@ export const REALM_VISITS: Record<string, RealmVisit> = {
   arabia: {
     id: "arabia",
     enter: "Palms line the road into the Caliph's country. Every well is owned, and the caravan ahead of you is longer than your warband.",
-    warLocked: "The Caliph's treasury hires a new army the week you break the last one, and the sand starves whoever marches on Baghdad. War here comes in a later age.",
+    army: {
+      style: "shieldman",
+      eliteName: "Ghulam",
+      elitePlural: "Ghilman",
+      eliteNote: "Bought as a boy and drilled since. Shoots over the locked shields, and has the bow down and a sword out before the lines touch.",
+      armyNote: "Town levies and bowmen in every province, captains who have put down revolts, and bought Ghilman wherever the coin reaches.",
+      capitalWarning: "Round walls, four gates, and Ghilman standing on all of them. Break that army and the treasury has hired another before your wounds close.",
+      villageNote: "Nothing here is unowned, least of all the well you must drink at. Flat mudbrick roofs, bows on them, and the sand does the rest.",
+    },
     barracksLocked: "the guard was bought as boys and raised to it - there is no hiring in",
     forge: { items: ["leather", "round", "composite"], swordMaxTier: 3, note: "Dimashq folds eastern iron until the blade shows watermarks, and the bowyers glue horn to sinew for a bow a man looses from the saddle." },
     stables: { horses: ["courser"], note: "Desert mares, light and long-winded, bred where the next well is a day off. Nothing here is built to carry armour." },
@@ -104,7 +160,15 @@ export const REALM_VISITS: Record<string, RealmVisit> = {
   persia: {
     id: "persia",
     enter: "You cross into Persia. Gardens behind walls, snow on the mountains, and men on the road who ask which satrap gave you leave.",
-    warLocked: "Ten thousand Immortals close their own gaps by morning, and the Royal Road puts a satrap's army on your camp in days. Persia is for a later age.",
+    army: {
+      style: "spearman",
+      eliteName: "Immortal",
+      elitePlural: "Immortals",
+      eliteNote: "Wicker shield planted, spear worked past it, bows in the ranks behind. The gap closes before the body is dragged clear.",
+      armyNote: "The King's own ten thousand spears, satrap levies feeding them from provinces you have not reached, and Median horse on both flanks.",
+      capitalWarning: "One ramp climbs the terrace, wide enough for a rank of spears. The Immortals hold it, and the treasury guard is drawn up behind them.",
+      villageNote: "The satrap takes his quota of spears out of every village, and the men who served their years came home and taught the rest.",
+    },
     barracksLocked: "the King buys spears from whole nations, never from one man",
     forge: { items: ["plate", "round", "composite"], swordMaxTier: 2, note: "Their smiths armour horse and rider both, and bend horn and sinew into a bow that shoots from the saddle." },
     stables: { horses: ["courser", "destrier"], note: "Nisaean stock off the Median grass, deep-chested and bred to carry armour; light-legged horses from the eastern oases." },
@@ -121,7 +185,15 @@ export const REALM_VISITS: Record<string, RealmVisit> = {
   egypt: {
     id: "egypt",
     enter: "You are in the Kingdom of the Nile now. Green a bowshot wide between two deserts, and every field of it already counted.",
-    warLocked: "Their chariots own every flat mile of the valley, and the river feeds and moves their army all year without a cart. Egypt falls in a later age, not this one.",
+    army: {
+      style: "shieldman",
+      eliteName: "Strong-Arm",
+      elitePlural: "Strong-Arms",
+      eliteNote: "Hide and wood locked into one face, and the curved blade hooks your shield aside and takes the arm behind it.",
+      armyNote: "The river feeds and moves them all year without a cart: temple levies, bowmen counted off a roll, Strong-Arms in the front rank, and chariots to pick the ground.",
+      capitalWarning: "Armed men live inside the pylons at Waset, and chariot teams stand harnessed behind the gate. The black fields around it are level ground, and theirs.",
+      villageNote: "Every man here is written on a temple roll and has served his season. The canals cut a ditch across every field, and they know the crossings.",
+    },
     barracksLocked: "every fighting man here is written on a temple roll, and you are not",
     forge: { items: ["leather", "kite", "bow"], swordMaxTier: 2, note: "Temple workshops cast the curved bronze blade. The best bows go to the chariot crews and are never sold at all." },
     stables: { horses: ["courser"], note: "Light horses bred to the chariot pole. The matched pairs go to the king's teams; you are sold a single animal." },
@@ -138,7 +210,15 @@ export const REALM_VISITS: Record<string, RealmVisit> = {
   kush: {
     id: "kush",
     enter: "You come south past the last cataract into the Land of the Bow. Iron smoke stands over Meroe, and the cliffs have eyes.",
-    warLocked: "Their bowmen kill at a range you cannot answer, and six cataracts break the river above Aswan while they shoot down on you. You settle that in a later age.",
+    army: {
+      style: "shieldman",
+      eliteName: "Kandake's Shieldman",
+      elitePlural: "Kandake's Shieldmen",
+      eliteNote: "The hide shield stands taller than the man behind it. They walk it onto you while their own arrows drop over the top.",
+      armyNote: "They start killing at two hundred paces. The shieldmen come up behind the arrows, and Musawwarat sends elephants when the Kandake asks for them.",
+      capitalWarning: "Bowmen hold the slag ridges over every approach to Meroe, and shieldmen hold the gate. Nothing crosses that open ground unshot.",
+      villageNote: "No wall around the palms and none wanted. The men here hunt with war bows, and the shooting starts long before you see a face.",
+    },
     barracksLocked: "no bowman here bends his bow for a stranger's coin",
     forge: { items: ["leather", "kite", "bow"], swordMaxTier: 1, note: "More iron comes off the Meroe furnaces than the smiths can use, and most of it goes into arrowheads. The shields are hide, and taller than a man." },
     stables: { horses: ["courser"], note: "Kawa breeds the light river horses the northern kings pay gold for. Nothing here is bred to carry a man in armour." },
@@ -155,7 +235,15 @@ export const REALM_VISITS: Record<string, RealmVisit> = {
   india: {
     id: "india",
     enter: "The heat closes on you a mile inside the Kingdoms of India, and the road to Pataliputra is never empty.",
-    warLocked: "Every raja fields elephants, and elephants walk through a shield wall like standing wheat. Your warband would not slow one. Come back in a later age.",
+    army: {
+      style: "spearman",
+      eliteName: "Padaraksha",
+      elitePlural: "Padarakshas",
+      eliteNote: "Long spears held low in a hedge, drilled to guard an elephant's legs. They step over their own dead to close the line.",
+      armyNote: "There is no one army here. Each raja keeps his own - militia, cane bows, captains, Padarakshas round the elephants - and there are more rajas than you have men.",
+      capitalWarning: "A moat you could lose an army in, sixty-four gates behind it, and Padarakshas holding every causeway over. The elephants are stalled inside.",
+      villageNote: "The raja takes spearmen out of here and drills them when the fields are dry. The old men have stood beside elephants and know the work.",
+    },
     barracksLocked: "no raja's spearmen will march under a foreigner's banner",
     forge: { items: ["leather", "plate", "bow"], swordMaxTier: 3, note: "Crucible steel out of the south, sold twice before it reaches the west, and mail and plate beaten for men who fight beside elephants." },
     stables: { horses: [], note: "Every warhorse here was walked down the passes at a price, and the heat kills them off. None leaves the raja's stable." },
@@ -172,7 +260,15 @@ export const REALM_VISITS: Record<string, RealmVisit> = {
   china: {
     id: "china",
     enter: "You cross into the Middle Kingdom. Before the first gate a clerk writes down your name, your men and your horses.",
-    warLocked: "Ten thousand crossbows loose on one drumbeat, and their walls outlast any siege you could sit through. The Middle Kingdom is shut until a later age.",
+    army: {
+      style: "axeman",
+      eliteName: "Horse-Cutter",
+      elitePlural: "Horse-Cutters",
+      eliteNote: "A blade as long as a man, held in both hands. The stroke is slow and comes down through shield, helm and the horse under it.",
+      armyNote: "Registered militia, bowmen and captains, all moving on one drum, with the long blades in reserve and crossbow ranks that shoot by turns and never stop.",
+      capitalWarning: "A hundred walled wards inside the great wall, each shutting behind the last. Win a gate and you have taken one ward, and there are ninety-nine more.",
+      villageNote: "Word runs ahead of you by smoke. The drum has the men in the ditch before you are close, and every household owes the magistrate one bow.",
+    },
     barracksLocked: "a magistrate calls soldiers up by household; nobody sells you any",
     forge: { items: ["leather", "plate", "composite"], swordMaxTier: 2, note: "State arsenals turn out lamellar and the saddle bow by the thousand, each piece the same as the last. The crossbows are counted out and counted back, and never sold." },
     stables: { horses: [], note: "Their warhorses are bought off the steppe and counted by clerks. None is sold on to a man riding back north." },

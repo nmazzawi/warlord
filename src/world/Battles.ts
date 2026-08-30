@@ -3,12 +3,20 @@ import { GameState } from '../state/GameState';
 import { SIEGE, STEPPE } from '../config/balance';
 import { campById } from './Steppe';
 import { LAYOUTS } from './Layouts';
-import { nodeById } from './WorldMap';
+import { nodeById, type MapNode } from './WorldMap';
+import type { PlaceKind } from './AtlasData';
+import type { EnemyKind } from '../entities/Enemy';
 
 export interface DefenderCounts { militia: number; archers: number; captains: number; statMult: number; goldMult: number; }
 
+/** "2 archers", "1 archer" — never "1 archers". */
+export const many = (n: number, one: string, plural: string) => `${n} ${n === 1 ? one : plural}`;
+
+/** The one elite a realm fields, for as long as its own milestone is still ahead of it. */
+export interface EliteSpec { kind: EnemyKind; count: number; name: string; plural: string; tint: number; reforms: number; }
+
 export interface BattleConfig {
-  kind: 'village' | 'patrol' | 'siege' | 'camp' | 'steppePatrol';
+  kind: 'village' | 'patrol' | 'siege' | 'camp' | 'steppePatrol' | 'foreign' | 'foreignPatrol';
   layoutId: string;
   name: string;         // "Ashford" / "Road patrol"
   title: string;        // banner
@@ -20,6 +28,54 @@ export interface BattleConfig {
   tier?: number;
   /** steppe battles: mounted defenders instead of militia/archers/captains */
   steppe?: { horsearchers: number; riders: number; noyans: number };
+  /** foreign battles: the realm's own men, standing with the militia */
+  elite?: EliteSpec;
+  /** foreign battles: whose country this is */
+  realm?: string;
+  rank?: PlaceKind;
+}
+
+/** Which map an empire's settlement is fought on. Generic until each realm's milestone draws its own:
+ *  a fringe village is open ground, everything above it is walled. */
+const FOREIGN_LAYOUTS: Record<PlaceKind, string[]> = {
+  village: ['ashford', 'millbrook'],
+  town: ['thornhill', 'millbrook'],
+  city: ['greywater', 'thornhill'],
+  capital: ['greywater'],
+};
+function foreignLayout(n: MapNode) {
+  const list = FOREIGN_LAYOUTS[n.rank ?? 'town'];
+  let h = 0;
+  for (const ch of n.id) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  return list[Math.abs(h) % list.length];
+}
+
+/** An assault on a foreign settlement. Nothing here checks whether it is wise. */
+export function foreignBattle(nodeId: string): BattleConfig {
+  const node = nodeById(nodeId);
+  const info = GameState.foreignInfo(nodeId);
+  const layout = LAYOUTS[foreignLayout(node)];
+  const walls = info.rank !== 'village';
+  return {
+    kind: 'foreign', layoutId: layout.id, name: node.name,
+    title: `ASSAULT — ${node.name.toUpperCase()}`,
+    hint: `${info.total} defenders: ${info.militia} militia, ${many(info.archers, 'archer', 'archers')}, ${many(info.captains, 'captain', 'captains')}, and ${many(info.elites, info.eliteName, info.elitePlural)}.\n${info.eliteNote}`,
+    defenders: { militia: info.militia, archers: info.archers, captains: info.captains, statMult: info.statMult, goldMult: info.goldMult },
+    palisade: walls, villageId: nodeId, tier: info.tierish, realm: info.realm, rank: info.rank,
+    elite: { kind: info.eliteKind, count: info.elites, name: info.eliteName, plural: info.elitePlural, tint: info.tint, reforms: info.reforms },
+  };
+}
+
+/** A realm's riders, caught up with you inside its borders. */
+export function foreignPatrolBattle(realm: string): BattleConfig {
+  const p = GameState.foreignPatrol(realm);
+  const layout = LAYOUTS.field;
+  return {
+    kind: 'foreignPatrol', layoutId: layout.id, name: p.name, title: p.title, hint: p.hint,
+    defenders: { militia: p.militia, archers: p.archers, captains: p.captains, statMult: p.statMult, goldMult: p.goldMult },
+    palisade: false, realm,
+    elite: { kind: p.eliteKind, count: p.elites, name: p.eliteName, plural: p.elitePlural, tint: p.tint, reforms: 0 },
+  };
 }
 
 export function villageBattle(nodeId: string): BattleConfig {

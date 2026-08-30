@@ -24,10 +24,16 @@ export function stockFor(settlementId: string, visiting = false): StockDef {
   const node = nodeById(settlementId);
   if (node.kind === 'foreign') {
     // a foreign city sells what its own people make, at what it thinks a stranger is worth, and will
-    // not put a spear in your hand at any price
+    // not put a spear in your hand at any price — unless you took the place, in which case its
+    // workshops are yours and its people fight for whoever holds the walls
     const v = visitOf(node.territory);
-    if (v) return { forge: { swordMaxTier: v.forge.swordMaxTier, items: v.forge.items }, barracks: null, stables: v.stables.horses, inn: true, markup: v.markup };
-    return { forge: { swordMaxTier: 1, items: ['leather'] }, barracks: null, stables: [], inn: true, markup: 2.2 };
+    const items = v ? v.forge.items : (['leather'] as ForgeItem[]);
+    const tier = v ? v.forge.swordMaxTier : 1;
+    if (!visiting) {
+      return { forge: { swordMaxTier: Math.max(2, tier), items }, barracks: { kind: node.rank === 'village' ? 'levy' : 'guard' },
+        stables: v && v.stables.horses.length ? v.stables.horses : ['courser'], inn: true, markup: 1 };
+    }
+    return { forge: { swordMaxTier: tier, items }, barracks: null, stables: v ? v.stables.horses : [], inn: true, markup: v ? v.markup : 2.2 };
   }
   if (node.kind === 'trade') {
     // Khoja's camp: neutral, no markup, steppe goods — the composite bow and mounted archers for hire

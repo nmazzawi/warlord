@@ -109,7 +109,47 @@ export const ENEMIES = {
                  minDist: 190, maxDist: 280, arrowSpeed: 300, arrowLife: 1.3 },
   rider:       { hp: 55, speed: 178, damage: 9, cooldown: 0.9, windup: 0.3,  reach: 14, radius: 12, aggro: 300, gold: [8, 12] as const },
   noyan:       { hp: 170, speed: 150, damage: 24, cooldown: 1.4, windup: 0.5, reach: 60, radius: 16, aggro: 320, gold: [55, 70] as const, knockback: 280 },
+  // ---- the empires' elites. One style per realm for now; each realm's own roster comes with its milestone.
+  // shieldman: locks his shield and walks at you. Half of every blow is turned WHILE THE SHIELD IS UP —
+  // he is only properly open in the moment he swings, which is the whole fight against a shield wall.
+  shieldman: { hp: 95,  speed: 116, damage: 13, cooldown: 1.0, windup: 0.40, reach: 14, radius: 13, aggro: 300, gold: [26, 34] as const },
+  // axeman: slow, enormous, two-handed. The wind-up is long and obvious; standing in it is a mistake.
+  axeman:    { hp: 130, speed: 100, damage: 27, cooldown: 1.5, windup: 0.58, reach: 44, radius: 14, aggro: 280, gold: [30, 40] as const, knockback: 320 },
+  // spearman: out-reaches every sword, and the ranks close over his body — kill him and another steps up.
+  spearman:  { hp: 100, speed: 106, damage: 19, cooldown: 1.3, windup: 0.50, reach: 82, radius: 13, aggro: 290, gold: [28, 36] as const, knockback: 230 },
 };
+/** How much of a blow a shieldman turns while his shield is up (he is open only as he strikes). */
+export const SHIELD_TURNS = 0.55;
+/** ---------------------------------------------------------------- foreign realms at war
+ * An empire is not a village with more men in it. Every realm keeps ordinary militia, archers and
+ * captains PLUS one elite of its own, and the further up its ladder you go the more of everything
+ * there is and the harder each one hits. Nothing here forbids the fight: these are just the numbers
+ * standing in the square, and the settlement panel tells you them before you commit.
+ */
+export type EliteStyle = 'shieldman' | 'axeman' | 'spearman';
+/** What an empire keeps in each kind of place, before its own strength is applied. */
+export const FOREIGN_GARRISON = {
+  village: { militia: 14, archers: 4,  captains: 2, elites: 3,  statMult: 1.7, goldMult: 2.2 },
+  town:    { militia: 20, archers: 6,  captains: 3, elites: 5,  statMult: 2.0, goldMult: 3.4 },
+  city:    { militia: 25, archers: 8,  captains: 4, elites: 8,  statMult: 2.3, goldMult: 5.0 },
+  capital: { militia: 30, archers: 10, captains: 5, elites: 11, statMult: 2.8, goldMult: 8.0 },
+};
+/** And how hard the realm itself is. Kush is a kingdom; Rome is Rome. */
+export const REALM_POWER: Record<string, number> = {
+  kush: 0.78, rus: 0.86, greece: 0.94, egypt: 1.0, india: 1.06, arabia: 1.1, persia: 1.16, china: 1.22, rome: 1.28,
+};
+/** No battle may put more bodies on the field than this — a phone has to draw all of them. */
+export const FOREIGN_MAX_DEFENDERS = 58;
+/** Raiding abroad: what it does to that realm's opinion of you, and what its places are worth. */
+export const FOREIGN = {
+  // a village is worth 16 because 15 is where a realm starts hunting: touch ANYTHING of theirs and
+  // their riders are out. That is the whole bargain of this milestone — the lock is consequences.
+  infamy: { village: 16, town: 28, city: 38, capital: 60 },
+  tribute: { village: 8, town: 18, city: 26, capital: 45 },
+  /** How many of a spear elite's dead the ranks will close over, per battle. */
+  reformsPerBattle: { village: 2, town: 3, city: 5, capital: 8 },
+};
+
 /** Roaming steppe camps and the riders who hunt camp-raiders. */
 export const STEPPE = {
   camp: { horsearchers: 5, riders: 4, noyans: 1, statMult: 1.0, goldMult: 1.0 },

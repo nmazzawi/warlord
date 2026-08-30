@@ -1,10 +1,11 @@
 // GameState.ts — the whole run: gold, day, infamy, gear, horse, your named troops, where you are on
 // the map, what state each settlement is in, who garrisons what, and the daily ledger (wages in,
 // tribute out). Saved to browser storage (single slot).
-import { CONQUEST, DEFENSE_SOFTCAP, EQUIPMENT, HERO, HORSES, INFAMY, PATROLS, RERAID, SIEGE, STEPPE, TRIBUTE, TROOP, UPKEEP, VILLAGE_TIERS } from '../config/balance';
+import { CONQUEST, FOREIGN, FOREIGN_GARRISON, FOREIGN_MAX_DEFENDERS, REALM_POWER, DEFENSE_SOFTCAP, EQUIPMENT, HERO, HORSES, INFAMY, PATROLS, RERAID, SIEGE, STEPPE, TRIBUTE, TROOP, UPKEEP, VILLAGE_TIERS } from '../config/balance';
 import { nameAt } from '../utils/names';
 import { NODES, nodeById, territoryOf, type Territory } from '../world/WorldMap';
-import { REALM_SHORT, visitOf } from '../world/Realms';
+import { ELITE_TINT, REALM_SHORT, visitOf } from '../world/Realms';
+import type { PlaceKind } from '../world/AtlasData';
 import type { Hunter } from '../world/Hunters';
 import { advanceHunters, nearestTerritory } from '../world/Hunters';
 
@@ -30,7 +31,8 @@ export interface VillageInfo {
   militia: number; archers: number; captains: number; statMult: number; goldMult: number; total: number;
 }
 
-export interface BattleOutcome { kind: 'village' | 'patrol' | 'siege' | 'camp' | 'steppePatrol'; villageId?: string; campId?: string; tier?: number; name: string; }
+export interface BattleOutcome { kind: 'village' | 'patrol' | 'siege' | 'camp' | 'steppePatrol' | 'foreign' | 'foreignPatrol';
+  villageId?: string; campId?: string; tier?: number; name: string; realm?: string; rank?: PlaceKind; }
 
 const SAVE_VERSION = 3;
 const SAVE_KEY = `warlord.save.v${SAVE_VERSION}`;
@@ -182,7 +184,9 @@ class GameStateStore {
     let t = 0;
     for (const n of NODES) {
       if (!this.settlements[n.id]?.occupied) continue;
-      t += n.kind === 'town' ? TRIBUTE.town : TRIBUTE.villageBase + TRIBUTE.villagePerTier * (n.tier ?? 1);
+      // a foreign city pays what a foreign city is worth; your own villages pay what they always did
+      t += n.kind === 'foreign' ? FOREIGN.tribute[n.rank ?? 'town']
+        : n.kind === 'town' ? TRIBUTE.town : TRIBUTE.villageBase + TRIBUTE.villagePerTier * (n.tier ?? 1);
     }
     return t;
   }
@@ -259,9 +263,16 @@ class GameStateStore {
    */
   access(id: string): Access {
     if (id === 'camp') return 'camp';
-    const kind = nodeById(id).kind;
-    if (kind === 'trade') return 'trade';
-    if (kind === 'foreign') return 'foreign';
+    const node = nodeById(id);
+    if (node.kind === 'trade') return 'trade';
+    if (node.kind === 'foreign') {
+      const s2 = this.settlement(id);
+      if (s2.occupied) return 'occupied';
+      if (s2.sacked) return 'sacked';
+      // a country that has had a warband in it does not sell you a sword the following week
+      if ((this.realmInfamy[node.territory] ?? 0) > 0) return 'closed';
+      return 'foreign';
+    }
     const s = this.settlement(id);
     if (s.occupied) return 'occupied';
     if (s.sacked) return 'sacked';
@@ -271,6 +282,12 @@ class GameStateStore {
   /** Why the gates are shut (for the map panel). */
   closedReason(id: string) {
     const s = this.settlement(id);
+    const node = nodeById(id);
+    if (node.kind === 'foreign') {
+      return s.timesRaided > 0
+        ? 'You put their people to the sword. Every gate in this country is barred to you.'
+        : 'You have made war in this country. Their gates are barred to you, and their riders are looking.';
+    }
     if (s.timesRaided > 0) return 'They know your face here — you raided them. The gates stay shut unless you take the place.';
     return `Word of a ${this.infamyTierName} travels faster than you do. No gate in the land opens to you now.`;
   }
@@ -296,6 +313,68 @@ class GameStateStore {
       goldMult: (base.goldMult + vs.timesRaided * RERAID.goldPerRaid) * vs.wealth,
       total: militia + archers + captains,
     };
+  }
+
+  // ------------------------------------------------------------ the empires' garrisons
+  /**
+   * What is standing in a foreign settlement's square. Nothing about this gates the fight: the panel
+   * prints these numbers so the choice you make is an informed one. A place's rank sets the size of
+   * the garrison and the realm's own strength scales all of it — a Kushite village and the walls of
+   * Roma are the two ends of the same table.
+   */
+  foreignInfo(id: string) {
+    const n = nodeById(id);
+    const realm = n.territory;
+    const rank: PlaceKind = n.rank ?? 'town';
+    const base = FOREIGN_GARRISON[rank];
+    const power = REALM_POWER[realm] ?? 1;
+    const v = visitOf(realm);
+    const up = (x: number) => Math.max(1, Math.round(x * power));
+    let militia = up(base.militia);
+    const archers = up(base.archers), captains = up(base.captains), elites = up(base.elites);
+    // a phone has to draw every one of them: trim the rank and file, never the men who matter
+    const over = militia + archers + captains + elites - FOREIGN_MAX_DEFENDERS;
+    if (over > 0) militia = Math.max(4, militia - over);
+    const style = v?.army.style ?? 'shieldman';
+    return {
+      realm, rank, militia, archers, captains, elites,
+      total: militia + archers + captains + elites,
+      statMult: base.statMult * power,
+      goldMult: base.goldMult * power,
+      /** rank as the old village-tier number, for the loot and conquest maths */
+      tierish: rank === 'capital' ? 4 : rank === 'city' ? 3 : rank === 'town' ? 2 : 1,
+      eliteKind: style,
+      eliteName: v?.army.eliteName ?? 'Guardsman',
+      elitePlural: v?.army.elitePlural ?? 'guardsmen',
+      eliteNote: v?.army.eliteNote ?? '',
+      tint: ELITE_TINT[realm] ?? 0xd0d0d0,
+      reforms: style === 'spearman' ? FOREIGN.reformsPerBattle[rank] : 0,
+    };
+  }
+
+  /** A realm's riders, once its meter says you are worth chasing. */
+  foreignPatrol(realm: string) {
+    const v = visitOf(realm);
+    const tier = this.tierIn(realm);
+    const power = REALM_POWER[realm] ?? 1;
+    const style = v?.army.style ?? 'shieldman';
+    const name = REALM_SHORT[realm] ?? realm.toUpperCase();
+    return {
+      name: `${name} patrol`, title: 'THEIR RIDERS HAVE YOU',
+      hint: 'They have been on your trail since you drew steel in this country.',
+      militia: Math.round((4 + tier * 2) * power), archers: Math.round((1 + tier) * power),
+      captains: tier >= 2 ? 1 : 0, elites: Math.max(1, Math.round(tier * power)),
+      statMult: 1.4 + tier * 0.2, goldMult: 1.4,
+      eliteKind: style, eliteName: v?.army.eliteName ?? 'Guardsman', elitePlural: v?.army.elitePlural ?? 'guardsmen',
+      tint: ELITE_TINT[realm] ?? 0xd0d0d0,
+    };
+  }
+
+  /** Add to whichever meter is keeping score in this country. */
+  addInfamyIn(territory: Territory, n: number) {
+    if (territory === 'steppe') this.steppeInfamy += n;
+    else if (territory === 'homeland') this.infamy += n;
+    else this.realmInfamy[territory] = (this.realmInfamy[territory] ?? 0) + n;
   }
 
   // ------------------------------------------------------------ retry support
@@ -325,10 +404,18 @@ class GameStateStore {
       this.huntedUntil = this.day + STEPPE.huntDays;
       this.steppeInfamy += STEPPE.campInfamy;
       summary = `${battle.name} plundered: +${goldEarned} gold. Its riders scatter — and the other camps ride to hunt you for ${STEPPE.huntDays} days.`;
+    } else if (battle.kind === 'foreignPatrol') {
+      if (battle.realm) this.addInfamyIn(battle.realm, INFAMY.perPatrol);
+      this.patrolPending = false;
+      summary = `Their riders are down: +${goldEarned} gold. The country will send more.`;
     } else if (battle.villageId) {
       const id = battle.villageId;
       const node = nodeById(id);
-      const town = node.kind === 'town';
+      const foreign = node.kind === 'foreign';
+      const realm: Territory = foreign ? node.territory : 'homeland';
+      // a place abroad answers to ITS OWN country's memory, not to your homeland's
+      const spike = foreign ? FOREIGN.infamy[node.rank ?? 'town'] : 0;
+      const town = node.kind === 'town' || (foreign && (node.rank === 'city' || node.rank === 'capital'));
       const vs = this.settlement(id);
       if (battle.kind === 'siege') { this.owned.halberd = true; this.equippedWeapon = 'halberd'; }
       if (choice === 'sack') {
@@ -336,21 +423,28 @@ class GameStateStore {
         this.gold += extra;
         vs.sacked = true; vs.occupied = false;
         delete this.garrisons[id];
-        this.addInfamy(town ? CONQUEST.sackTownInfamy : INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1) + CONQUEST.sackVillageInfamy);
-        summary = `Sacked ${node.name}: +${goldEarned + extra} gold. It burns; nothing will ever come from it again.`;
+        if (foreign) this.addInfamyIn(realm, Math.round(spike * 1.6));
+        else this.addInfamy(town ? CONQUEST.sackTownInfamy : INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1) + CONQUEST.sackVillageInfamy);
+        summary = foreign
+          ? `Sacked ${node.name}: +${goldEarned + extra} gold. ${REALM_SHORT[realm] ?? 'The realm'} will not forget which name did this.`
+          : `Sacked ${node.name}: +${goldEarned + extra} gold. It burns; nothing will ever come from it again.`;
       } else if (choice === 'occupy') {
         vs.occupied = true; vs.sacked = false;
         const garrison = this.troops.slice(0, CONQUEST.garrison);
         this.troops = this.troops.slice(garrison.length);
         this.garrisons[id] = garrison;
-        this.addInfamy(INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1));
+        if (foreign) this.addInfamyIn(realm, Math.round(spike * 1.3));
+        else this.addInfamy(INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1));
         summary = `Occupied ${node.name}: +${goldEarned} gold now, tribute every day. ${garrison.map(g => g.name).join(' and ') || 'Nobody'} stay${garrison.length === 1 ? 's' : ''} as the garrison.`;
       } else {
         vs.timesRaided += 1;
         vs.lastRaidDay = this.day;
         if (!town) vs.wealth = Math.max(RERAID.wealthMin, vs.wealth - RERAID.wealthDrop); // plundered — recovers over ~15 days
-        this.addInfamy(INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1));
-        summary = `Raided ${node.name}: +${goldEarned} gold. It lies ruined for ${RERAID.recoverDays} days, and poorer for longer.`;
+        if (foreign) this.addInfamyIn(realm, spike);
+        else this.addInfamy(INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1));
+        summary = foreign
+          ? `${node.name} is stripped: +${goldEarned} gold. Word of it is already on the road ahead of you.`
+          : `Raided ${node.name}: +${goldEarned} gold. It lies ruined for ${RERAID.recoverDays} days, and poorer for longer.`;
       }
     }
     this.pendingVictory = null;

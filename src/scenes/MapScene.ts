@@ -6,13 +6,13 @@
 // Everything outside your reach is drawn muted: it is the content plan, visible from day one.
 import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
-import { INFAMY, SIEGE, STEPPE } from '../config/balance';
-import { capitalOf, EDGES, FOREIGN, nodeById, NODES, type MapNode, type Territory } from '../world/WorldMap';
+import { FOREIGN, INFAMY, SIEGE, STEPPE } from '../config/balance';
+import { capitalOf, EDGES, FOREIGN as FOREIGN_PLACES, nodeById, NODES, tradesWithForeigners, type MapNode, type Territory } from '../world/WorldMap';
 import { visitOf } from '../world/Realms';
 import { route as findRoute, routeToPlace, terrain, totalLength, type Route } from '../world/Terrain';
 import { CONTACT } from '../world/Hunters';
 import type { Pt } from '../world/geo';
-import { campBattle, patrolBattle, siegeBattle, steppePatrolBattle, villageBattle } from '../world/Battles';
+import { campBattle, foreignBattle, foreignPatrolBattle, many, patrolBattle, siegeBattle, steppePatrolBattle, villageBattle } from '../world/Battles';
 import { LAYOUTS } from '../world/Layouts';
 import { CAMPS, campAt, campById, campLocation } from '../world/Steppe';
 import { bbox, CHART, distToPolyline, REGIONS, SEA_ROUTES, type Region } from '../world/WorldChart';
@@ -20,7 +20,7 @@ import { ChartLayer } from '../world/ChartLayer';
 import type { AtlasPlace } from '../world/AtlasData';
 import { TEX } from '../systems/Textures';
 import { Sound } from '../systems/Sound';
-import type { MapHudScene } from './MapHudScene';
+import type { MapHudScene, PanelButton } from './MapHudScene';
 import { CSS, DISPLAY, FONT, PAL } from './ui';
 
 /** How far the sea is painted beyond the chart's own frame. */
@@ -224,7 +224,7 @@ export class MapScene extends Phaser.Scene {
       this.refresh();
       if (this.pendingToast) { this.hud.toast([this.pendingToast], '#f5c542'); this.pendingToast = null; }
       if (GameState.patrolPending) {
-        this.showPatrolPanel(GameState.territory === 'steppe');
+        this.showPatrolPanel(GameState.territory);
       } else if (GameState.location) {
         const node = nodeById(GameState.location);
         if (node.kind !== 'cross' && node.kind !== 'camp') this.showNodePanel(node);
@@ -743,7 +743,7 @@ export class MapScene extends Phaser.Scene {
             GameState.patrolPending = true;
             Sound.patrol();
             this.cameras.main.shake(250, 0.004);
-            this.showPatrolPanel(caught.kind === 'steppe');
+            this.showPatrolPanel(caught.kind);
             return;
           }
           if (leg < legs) { stepOn(); return; }
@@ -830,12 +830,27 @@ export class MapScene extends Phaser.Scene {
     return null;
   }
 
-  /** What a realm you cannot conquer tells you: why not, and whether you can walk in as a customer. */
+  /** What a foreign realm's card says: what it keeps under arms, and how far its throne is. */
   private foreignLines(r: Region): string[] {
     const v = visitOf(r.id);
     if (!v) return ['Across water, and no ship will carry you — yet.'];
     const cap = capitalOf(r.id);
-    return [v.warLocked, cap ? `Their gates are open to a stranger with coin. ${cap.name} is ${this.routeDays(cap.id)} days' march from where you stand.` : ''].filter(Boolean);
+    const out = [v.army.armyNote];
+    // the smallest place in the realm, so the card names a fight you could actually pick
+    const fringe = FOREIGN_PLACES.filter(n => n.territory === r.id && n.rank === 'village')
+      .sort((a, b) => this.routeDays(a.id) - this.routeDays(b.id))[0];
+    if (fringe) {
+      const f = GameState.foreignInfo(fringe.id);
+      const fd = this.routeDays(fringe.id);
+      out.push(`Their smallest place, ${fringe.name}, keeps ${f.total} defenders — ${fd} day${fd === 1 ? '' : 's'}' march.`);
+    }
+    if (cap) {
+      const c = GameState.foreignInfo(cap.id);
+      out.push(`${cap.name} keeps ${c.total}, and is ${this.routeDays(cap.id)} days away.`);
+    }
+    const infamy = GameState.territoryInfamy(r.id);
+    if (infamy > 0) out.push(`They have a score with you: ${infamy}. Their gates are shut and their riders are out.`);
+    return out;
   }
 
   private zoomInButton(t: Territory) {
@@ -869,15 +884,13 @@ export class MapScene extends Phaser.Scene {
 
   /** One of the world's settlements, seen from very far away. */
   private showPlacePanel(m: Marker) {
-    const open = FOREIGN.find(n => n.territory === m.empire.id && n.name === m.place.name);
+    const open = FOREIGN_PLACES.find(n => n.territory === m.empire.id && n.name === m.place.name);
     if (open) { this.showNodePanel(open); return; }
     const rank = m.place.kind === 'capital' ? `The throne of ${m.empire.name}.` : m.place.kind === 'city' ? `A great city of ${m.empire.name}.`
       : m.place.kind === 'town' ? `A town of ${m.empire.name}.` : `A village of ${m.empire.name}.`;
     this.hud.showPanel({
       title: m.place.name.toUpperCase(),
-      lines: [m.place.note, rank, visitOf(m.empire.id)
-        ? 'A place too small to open its gates to a stranger. Their capital and great cities would.'
-        : 'Across water, and no ship will carry you — yet.'],
+      lines: [m.place.note, rank, 'Across water, and no ship will carry you — yet.'],
       buttons: [{ label: 'Leave', color: 0x555555, onPress: () => this.hud.hidePanel() }],
     });
   }
@@ -891,24 +904,7 @@ export class MapScene extends Phaser.Scene {
     const here = GameState.location === n.id;
     // anywhere you are not standing can be marched to, whatever kind of place it is
     const march = here ? null : { label: `MARCH (${this.routeDays(n.id)}d)`, color: 0x2f6b8a, onPress: () => this.travelTo(n.id) };
-    if (n.kind === 'foreign') {
-      const v = visitOf(n.territory);
-      const realm = REGIONS.find(r => r.id === n.territory);
-      const lines = [n.blurb ?? '', n.capital ? `The throne of ${realm?.name ?? 'a foreign realm'}.` : `A great city of ${realm?.name ?? 'a foreign realm'}.`];
-      if (v) lines.push(v.warLocked);
-      lines.push(here
-        ? 'Their gates are open to you as a customer and nothing else — the forge, the stables, the inn. Their barracks are not, and neither is their war.'
-        : `${this.routeDays(n.id)} days' march from where you stand.`);
-      this.hud.showPanel({
-        title: n.name.toUpperCase(), lines,
-        buttons: [
-          here
-            ? { label: 'ENTER THE CITY', color: 0x2f6b8a, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: n.id, visit: true }); } }
-            : march!,
-          leave],
-      });
-      return;
-    }
+    if (n.kind === 'foreign') { this.showForeignPanel(n, here, march, leave); return; }
     if (n.kind === 'camp') {
       this.hud.showPanel({
         title: 'BANDIT CAMP', lines: ['Your home. Tap the Forge, the Barracks or the Stables to spend your gold. Waiting here still costs wages.'],
@@ -995,8 +991,69 @@ export class MapScene extends Phaser.Scene {
     });
   }
 
-  private showPatrolPanel(steppe: boolean) {
-    if (steppe) {
+  /**
+   * A foreign settlement. Every one of them can be attacked, so the panel's job is to tell you the
+   * truth about what is standing there and then get out of the way. Nothing here says no.
+   */
+  private showForeignPanel(n: MapNode, here: boolean, march: PanelButton | null, leave: PanelButton) {
+    const v = visitOf(n.territory);
+    const realm = REGIONS.find(r => r.id === n.territory);
+    const st = GameState.settlement(n.id);
+    const info = GameState.foreignInfo(n.id);
+    const rankLine = n.rank === 'capital' ? `The throne of ${realm?.name ?? 'a foreign realm'}.`
+      : n.rank === 'city' ? `A great city of ${realm?.name ?? 'a foreign realm'}.`
+      : n.rank === 'town' ? `A town of ${realm?.name ?? 'a foreign realm'}.`
+      : `A village of ${realm?.name ?? 'a foreign realm'}.`;
+    const lines = [n.blurb ?? '', rankLine];
+
+    if (st.sacked) {
+      this.hud.showPanel({ title: n.name.toUpperCase(), lines: [...lines, 'You burned it. Nothing lives here now.'], buttons: [...(march ? [march] : []), leave] });
+      return;
+    }
+    if (st.occupied) {
+      const garrison = (GameState.garrisons[n.id] ?? []).map(t => t.name).join(' and ') || 'nobody';
+      this.hud.showPanel({
+        title: n.name.toUpperCase(),
+        lines: [...lines, `Yours, and a long way from home. ${garrison} hold it. Tribute +${FOREIGN.tribute[n.rank ?? 'town']} gold a day.`],
+        buttons: [here ? { label: 'ENTER', color: 0x3f7a3f, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: n.id }); } } : march!, leave],
+      });
+      return;
+    }
+
+    // the intel: exactly what is in the square, and what their own men are
+    lines.push(`${info.total} defenders: ${info.militia} militia, ${many(info.archers, 'archer', 'archers')}, ${many(info.captains, 'captain', 'captains')}, and ${many(info.elites, info.eliteName, info.elitePlural)}.`);
+    if (v) lines.push(v.army.eliteNote);
+    if (n.rank === 'capital' && v) lines.push(v.army.capitalWarning);
+    else if (n.rank === 'village' && v) lines.push(v.army.villageNote);
+    if (!here) { const d = this.routeDays(n.id); lines.push(`${d} day${d === 1 ? '' : 's'}' march from where you stand.`); }
+
+    const buttons: PanelButton[] = [];
+    if (here) {
+      buttons.push({ label: `ASSAULT (${info.total})`, color: 0xa0341f, onPress: () => { GameState.save(); this.scene.start('Raid', foreignBattle(n.id)); } });
+      if (GameState.access(n.id) === 'foreign' && tradesWithForeigners(n)) {
+        buttons.push({ label: 'ENTER THE CITY', color: 0x2f6b8a, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: n.id, visit: true }); } });
+      } else if (GameState.access(n.id) === 'closed') {
+        lines.push(GameState.closedReason(n.id));
+      }
+    } else if (march) buttons.push(march);
+    buttons.push(leave);
+    this.hud.showPanel({ title: n.name.toUpperCase(), lines, buttons });
+  }
+
+  private showPatrolPanel(where: Territory) {
+    // a realm you have drawn steel in sends its own men after you, in its own colours
+    if (where !== 'homeland' && where !== 'steppe') {
+      const p = GameState.foreignPatrol(where);
+      const n = p.militia + p.archers + p.captains + p.elites;
+      this.hud.showPanel({
+        title: p.title, modal: true,
+        lines: [`${n} of them have run you down inside their own borders — ${p.militia} on foot, ${many(p.archers, 'archer', 'archers')}${p.captains ? `, ${many(p.captains, 'captain', 'captains')}` : ''} and ${many(p.elites, p.eliteName, p.elitePlural)}.`,
+          'You made war in this country. This is the country answering.'],
+        buttons: [{ label: 'FIGHT', color: 0xa0341f, onPress: () => { GameState.save(); this.scene.start('Raid', foreignPatrolBattle(where)); } }],
+      });
+      return;
+    }
+    if (where === 'steppe') {
       const p = STEPPE.patrol;
       this.hud.showPanel({
         title: 'RIDERS', modal: true,

@@ -1,7 +1,8 @@
 // ResultScene.ts — the overlay after a battle. Victory over a village or the town ends in a choice:
 // SACK it, OCCUPY it, or just take the loot and go. Defeat offers retry / retreat.
 import Phaser from 'phaser';
-import { CONQUEST, INFAMY, RERAID, TRIBUTE } from '../config/balance';
+import { FOREIGN, CONQUEST, INFAMY, RERAID, TRIBUTE } from '../config/balance';
+import { REALM_SHORT } from '../world/Realms';
 import { GameState, type Conquest } from '../state/GameState';
 import { nodeById } from '../world/WorldMap';
 import type { BattleConfig } from '../world/Battles';
@@ -31,7 +32,8 @@ export class ResultScene extends Phaser.Scene {
 
   private finish(choice: Conquest) {
     const d = this.result;
-    const summary = GameState.commitVictory(d.goldEarned, d.deadTroopIds, { kind: d.battle.kind, villageId: d.battle.villageId, campId: d.battle.campId, tier: d.battle.tier, name: d.battle.name }, choice);
+    const summary = GameState.commitVictory(d.goldEarned, d.deadTroopIds,
+      { kind: d.battle.kind, villageId: d.battle.villageId, campId: d.battle.campId, tier: d.battle.tier, name: d.battle.name, realm: d.battle.realm, rank: d.battle.rank }, choice);
     this.toMap(summary);
   }
 
@@ -41,7 +43,7 @@ export class ResultScene extends Phaser.Scene {
     const u = uiUnit(w, h, dprOf(this));
     const d = this.result;
     const win = d.outcome === 'victory';
-    const patrol = d.battle.kind === 'patrol' || d.battle.kind === 'steppePatrol';
+    const patrol = d.battle.kind === 'patrol' || d.battle.kind === 'steppePatrol' || d.battle.kind === 'foreignPatrol';
     const camp = d.battle.kind === 'camp';
     const siege = d.battle.kind === 'siege';
     this.add.rectangle(0, 0, w, h, 0x000000, 0.66).setOrigin(0);
@@ -58,7 +60,9 @@ export class ResultScene extends Phaser.Scene {
       return t;
     };
     y = 24 * u;
-    text(win ? (patrol ? (d.battle.kind === 'steppePatrol' ? 'RIDERS ROUTED' : 'PATROL ROUTED') : camp ? 'CAMP PLUNDERED' : siege ? 'KINGSPORT FALLS' : 'VILLAGE TAKEN') : 'YOU FELL', displayStyle(30 * u, win ? CSS.emberDeep : CSS.danger, false), 2);
+    const foreign = d.battle.kind === 'foreign';
+    text(win ? (patrol ? (d.battle.kind === 'steppePatrol' ? 'RIDERS ROUTED' : 'PATROL ROUTED') : camp ? 'CAMP PLUNDERED' : siege ? 'KINGSPORT FALLS'
+      : foreign ? `${d.battle.name.toUpperCase()} HAS FALLEN` : 'VILLAGE TAKEN') : 'YOU FELL', displayStyle(30 * u, win ? CSS.emberDeep : CSS.danger, false), 2);
     text(d.battle.name, uiStyle(13 * u, CSS.inkSoft, { bold: false }), 10);
     if (win) {
       text(`Loot: +${d.goldEarned} gold`, uiStyle(20 * u, CSS.emberDeep), 6);
@@ -66,17 +70,23 @@ export class ResultScene extends Phaser.Scene {
       if (siege) text("The garrison captain's HALBERD is yours — equipped. Switch weapons at any forge.", uiStyle(12 * u, CSS.ink, { bold: false }), 6);
       if (patrol || camp) {
         text(camp ? 'A camp cannot be held — it packs up and scatters. Its neighbours will not forgive this: their riders will hunt you on the grass.'
+          : d.battle.kind === 'foreignPatrol' ? 'They will send more. In this country you are being hunted now.'
           : d.battle.kind === 'steppePatrol' ? 'The steppe remembers who rode against it.' : `Infamy +${INFAMY.perPatrol}. ${GameState.infamyTierDesc}`, uiStyle(11 * u, CSS.inkSoft, { bold: false }), 14);
         const b = makeButton(this, cx, y + 27 * u, { width: Math.min(colW, 320 * u), height: 54 * u, label: camp ? 'TAKE THE LOOT' : 'BACK TO THE MAP', tone: 'success', onPress: () => this.finish('leave') });
         items.push(b); y += 54 * u + 24 * u;
       } else {
         const node = nodeById(d.battle.villageId ?? 'ashford');
-        const town = node.kind === 'town';
+        const abroad = node.kind === 'foreign';
+        const rank = node.rank ?? 'town';
+        const town = node.kind === 'town' || (abroad && (rank === 'city' || rank === 'capital'));
         const tier = d.battle.tier ?? 1;
         const sackGold = GameState.sackBonus(d.goldEarned, town);
-        const raidInf = INFAMY.perRaidBase + INFAMY.perRaidPerTier * tier;
-        const sackInf = town ? CONQUEST.sackTownInfamy : raidInf + CONQUEST.sackVillageInfamy;
-        const tribute = town ? TRIBUTE.town : TRIBUTE.villageBase + TRIBUTE.villagePerTier * tier;
+        // a country keeps its own score: what you did here is written against IT, not against home
+        const raidInf = abroad ? FOREIGN.infamy[rank] : INFAMY.perRaidBase + INFAMY.perRaidPerTier * tier;
+        const sackInf = abroad ? Math.round(FOREIGN.infamy[rank] * 1.6)
+          : town ? CONQUEST.sackTownInfamy : raidInf + CONQUEST.sackVillageInfamy;
+        const tribute = abroad ? FOREIGN.tribute[rank] : town ? TRIBUTE.town : TRIBUTE.villageBase + TRIBUTE.villagePerTier * tier;
+        const whose = abroad ? ` (${REALM_SHORT[node.territory] ?? 'their'} score)` : '';
         const survivors = GameState.survivors(d.deadTroopIds).length;
         const garrison = Math.min(CONQUEST.garrison, survivors);
         text(`What do you do with ${node.name}?`, uiStyle(14 * u, CSS.ink), 10);
@@ -85,11 +95,11 @@ export class ResultScene extends Phaser.Scene {
           items.push(makeButton(this, cx, y + bh / 2, { width: colW, height: bh, label, sub, tone, enabled, fontSize: Math.round(16 * u), onPress }));
           y += bh + 9 * u;
         };
-        opt('SACK', `+${sackGold} gold on top of the loot · burns for good · infamy +${sackInf}`, 'danger', true, () => this.finish('sack'));
+        opt('SACK', `+${sackGold} gold on top of the loot · burns for good · infamy +${sackInf}${whose}`, 'danger', true, () => this.finish('sack'));
         opt('OCCUPY', survivors >= 1
-          ? `+${tribute} gold/day · ${garrison} troop${garrison === 1 ? '' : 's'} stay${garrison === 1 ? 's' : ''} as garrison · its shops open to you · infamy +${raidInf}`
+          ? `+${tribute} gold/day · ${garrison} troop${garrison === 1 ? '' : 's'} stay${garrison === 1 ? 's' : ''} as garrison · its shops open to you · infamy +${raidInf}${whose}`
           : 'no one left to hold it — you need at least one troop', 'primary', survivors >= 1, () => this.finish('occupy'));
-        opt('LEAVE', town ? `take the loot and go · the garrison regroups · infamy +${raidInf}` : `take the loot and go · ruined ${RERAID.recoverDays} days, poorer for ~${RERAID.wealthRecoverDays} · infamy +${raidInf}`, 'ghost', true, () => this.finish('leave'));
+        opt('LEAVE', town ? `take the loot and go · the garrison regroups · infamy +${raidInf}${whose}` : `take the loot and go · ruined ${RERAID.recoverDays} days, poorer for ~${RERAID.wealthRecoverDays} · infamy +${raidInf}${whose}`, 'ghost', true, () => this.finish('leave'));
         y += 8 * u;
       }
     } else {

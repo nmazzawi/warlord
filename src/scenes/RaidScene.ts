@@ -50,6 +50,9 @@ export class RaidScene extends Phaser.Scene {
   private deadTroopIds: number[] = [];
   private over = false;
   private wave2Spawned = false;
+  /** Where a realm's own men stand, and how many of their dead the ranks will still close over. */
+  private elitePosts: Array<{ x: number; y: number }> = [];
+  reformsLeft = 0;
   private formationHeading = 0;
   private tmp = new Phaser.Math.Vector2();
 
@@ -101,7 +104,7 @@ export class RaidScene extends Phaser.Scene {
     const spawn = (kind: EnemyKind, posts: Array<{ x: number; y: number }>, count: number, tweak?: (e: Enemy, i: number) => void) => {
       for (let i = 0; i < count && posts.length; i++) {
         const p = posts[i % posts.length];
-        const jitter = i >= posts.length ? 26 : 0;
+        const jitter = i >= posts.length ? 26 + Math.min(34, Math.floor(i / posts.length) * 12) : 0;
         const spot = clearOf(this.obstacles, p.x + Phaser.Math.Between(-jitter, jitter), p.y + Phaser.Math.Between(-jitter, jitter), ENEMIES[kind].radius);
         const e = new Enemy(this, spot.x, spot.y, kind, mult);
         tweak?.(e, i);
@@ -131,6 +134,14 @@ export class RaidScene extends Phaser.Scene {
       spawn('militia', layout.posts.militia, d.militia);
       spawn('archer', layout.posts.archers, d.archers);
       spawn('captain', layout.posts.captains, d.captains);
+    }
+    // the realm's own men, painted its colour, standing in front of everybody else
+    if (cfg.elite) {
+      // they stand where the captains stand, and spill along the militia line behind them — a walled
+      // capital fields more of them than any layout has posts for
+      this.elitePosts = layout.posts.guards ?? [...layout.posts.captains, ...layout.posts.militia];
+      this.reformsLeft = cfg.elite.reforms;
+      spawn(cfg.elite.kind, this.elitePosts, cfg.elite.count, e => { e.liveryTint = cfg.elite!.tint; e.applyTint(); });
     }
 
     this.arrows = this.physics.add.group({ classType: Arrow, maxSize: 60, runChildUpdate: false });
@@ -224,7 +235,7 @@ export class RaidScene extends Phaser.Scene {
     this.separateTroops();
 
     const hunters: Enemy[] = [];
-    for (const e of this.enemies) if (e.alive && e.aggro && (e.kind === 'militia' || e.kind === 'guard' || e.kind === 'rider') && e.target === hero) hunters.push(e);
+    for (const e of this.enemies) if (e.alive && e.aggro && (e.kind === 'militia' || e.kind === 'guard' || e.kind === 'rider' || e.kind === 'shieldman') && e.target === hero) hunters.push(e);
     this.surround.update(dt, hero, hunters);
     for (const e of this.enemies) if (e.alive) e.update(dt, hero, this.troops);
 
@@ -511,7 +522,32 @@ export class RaidScene extends Phaser.Scene {
         this.juice.hitStop(110);
         this.juice.banner(u.x, u.y - 30, u.kind === 'boss' ? 'THE CAPTAIN FALLS — HIS HALBERD IS YOURS' : 'CAPTAIN SLAIN', '#f5c542', 16);
       }
+      if (u.kind === 'spearman' && this.reformsLeft > 0 && !this.over) this.closeTheRanks(u.x, u.y);
     }
+  }
+
+  /**
+   * A spear line does not thin because you killed a man in it. The one behind steps up into the gap —
+   * a fixed number of times per battle, so it is a wall to grind through and not a fountain.
+   */
+  private closeTheRanks(x: number, y: number) {
+    this.reformsLeft--;
+    const spec = this.cfg.elite!;
+    this.juice.banner(x, y - 26, 'THE RANKS CLOSE', '#e0c27a', 14);
+    this.time.delayedCall(900, () => {
+      if (this.over || !this.scene.isActive()) return;
+      const posts = this.elitePosts.length ? this.elitePosts : [{ x, y }];
+      const p = posts[Phaser.Math.Between(0, posts.length - 1)];
+      const spot = clearOf(this.obstacles, p.x, p.y, ENEMIES[spec.kind].radius);
+      const d = this.cfg.defenders;
+      const e = new Enemy(this, spot.x, spot.y, spec.kind, { hp: d.statMult, dmg: 1 + (d.statMult - 1) * 0.5, gold: d.goldMult });
+      e.liveryTint = spec.tint;
+      e.applyTint();
+      e.wakeQuiet();
+      this.enemies.push(e);
+      this.enemyGroup.add(e);
+      this.juice.burst(spot.x, spot.y, spec.tint, 10);
+    });
   }
 
   private victory() {
@@ -532,7 +568,8 @@ export class RaidScene extends Phaser.Scene {
     }
     Sound.victory();
     const msg = this.cfg.kind === 'patrol' ? 'PATROL ROUTED' : this.cfg.kind === 'siege' ? 'KINGSPORT FALLS'
-      : this.cfg.kind === 'camp' ? 'CAMP PLUNDERED' : this.cfg.kind === 'steppePatrol' ? 'RIDERS ROUTED' : 'VILLAGE CLEARED';
+      : this.cfg.kind === 'camp' ? 'CAMP PLUNDERED' : this.cfg.kind === 'steppePatrol' || this.cfg.kind === 'foreignPatrol' ? 'RIDERS ROUTED'
+      : this.cfg.kind === 'foreign' ? `${this.cfg.name.toUpperCase()} IS TAKEN` : 'VILLAGE CLEARED';
     this.juice.banner(this.hero.x, this.hero.y - 50, msg, '#f5c542', 22);
     this.time.delayedCall(1100, () => this.showResult('victory'));
   }
@@ -544,7 +581,8 @@ export class RaidScene extends Phaser.Scene {
     if (outcome === 'victory') {
       // a won battle survives a reload: the sack/occupy choice is offered again on the map
       GameState.pendingVictory = { goldEarned: this.goldEarned, deadTroopIds: [...this.deadTroopIds], fallen,
-        battle: { kind: this.cfg.kind, villageId: this.cfg.villageId, tier: this.cfg.tier, name: this.cfg.name, campId: this.cfg.campId } };
+        battle: { kind: this.cfg.kind, villageId: this.cfg.villageId, tier: this.cfg.tier, name: this.cfg.name, campId: this.cfg.campId,
+          realm: this.cfg.realm, rank: this.cfg.rank } };
       GameState.save();
     }
     this.scene.launch('Result', data);

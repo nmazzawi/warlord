@@ -11,7 +11,15 @@ realms.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
 const body = realms.map(r => `  ${r.id}: {
     id: ${q(r.id)},
     enter: ${q(r.enter)},
-    warLocked: ${q(r.warLocked)},
+    army: {
+      style: ${q(r.army.style)},
+      eliteName: ${q(r.army.eliteName)},
+      elitePlural: ${q(r.army.elitePlural)},
+      eliteNote: ${q(r.army.eliteNote)},
+      armyNote: ${q(r.army.armyNote)},
+      capitalWarning: ${q(r.army.capitalWarning)},
+      villageNote: ${q(r.army.villageNote)},
+    },
     barracksLocked: ${q(r.barracksLocked)},
     forge: { items: [${r.forge.items.map(q).join(', ')}], swordMaxTier: ${r.forge.swordMaxTier}, note: ${q(r.forge.note)} },
     stables: { horses: [${r.stables.horses.map(q).join(', ')}], note: ${q(r.stables.note)} },

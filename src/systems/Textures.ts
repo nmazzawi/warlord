@@ -10,6 +10,7 @@ export const TEX = {
   px: 'px',
   hero: 'hero', troop: 'troop', militia: 'militia', archer: 'archer', captain: 'captain', guard: 'guard', boss: 'boss',
   horsearcher: 'horsearcher', rider: 'rider', noyan: 'noyan', trooprider: 'trooprider',
+  shieldman: 'shieldman', axeman: 'axeman', spearman: 'spearman',
   arrow: 'arrow', coin: 'coin', ring: 'ring', dot: 'dot', blade: 'blade', horse: 'horse', shield: 'shield', shadow: 'shadow',
   slash: (tier: number) => `slash${tier}`,
   hut: (w: number, h: number) => `hut_${w}x${h}`,
@@ -146,6 +147,11 @@ export function generateTextures(scene: Phaser.Scene) {
   figure(scene, TEX.rider,       { size: 44, radius: 12, tunic: 0x6b5030, helmet: 'cap', helmetColor: 0x3a2a1a, weapon: 'spear', shield: true });
   figure(scene, TEX.noyan,       { size: 56, radius: 16, tunic: 0x9a4a2a, helmet: 'plume', helmetColor: 0x8d95a6, plume: PAL.goldHi, weapon: 'spear', shield: true, cloak: 0x5a2a12 });
   figure(scene, TEX.trooprider,  { size: 40, radius: 11, tunic: 0x7a8a4a, helmet: 'cap', helmetColor: 0x4a3a2a, weapon: 'bow' });
+  // the empires' elites. Drawn once, in white, and TINTED to whichever realm you are fighting — so one
+  // silhouette serves nine armies until each of them gets a milestone of its own.
+  figure(scene, TEX.shieldman, { size: 50, radius: 13, tunic: 0xd8d8d8, helmet: 'crest', helmetColor: 0xc9cdd6, plume: 0xffffff, weapon: 'sword', shield: true });
+  figure(scene, TEX.axeman,    { size: 58, radius: 14, tunic: 0xd8d8d8, helmet: 'steel', helmetColor: 0xc9cdd6, weapon: 'halberd', cloak: 0xbfbfbf });
+  figure(scene, TEX.spearman,  { size: 54, radius: 13, tunic: 0xd8d8d8, helmet: 'plume', helmetColor: 0xc9cdd6, plume: 0xffffff, weapon: 'spear', shield: true });
 
   // arrow: a thin shaft with a bright tip
   gr = g(scene);

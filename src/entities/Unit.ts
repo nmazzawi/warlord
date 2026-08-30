@@ -28,6 +28,9 @@ export class Unit extends Phaser.Physics.Arcade.Sprite {
   lastHurtAt = -1e9;
   /** Tint shown when not flashing (e.g. red during a wind-up). null = natural color. */
   baseTint: number | null = null;
+  /** A colour MULTIPLIED into the sprite rather than replacing it — used for an empire's own men, so
+   *  the drawing (helmet, shield, plume) still shows through the colour of their country. */
+  liveryTint: number | null = null;
   private flashUntil = 0;
   private barBg: Phaser.GameObjects.Image;
   private barFg: Phaser.GameObjects.Image;
@@ -83,7 +86,9 @@ export class Unit extends Phaser.Physics.Arcade.Sprite {
 
   applyTint() {
     // tintFill replaces the colour outright — a plain tint multiplies and is invisible on dark sprites
-    if (this.baseTint === null) this.clearTint(); else this.setTintFill(this.baseTint);
+    if (this.baseTint !== null) { this.setTintFill(this.baseTint); return; }
+    if (this.liveryTint !== null) { this.setTint(this.liveryTint); return; }
+    this.clearTint();
   }
 
   protected die() {

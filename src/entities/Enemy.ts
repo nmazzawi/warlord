@@ -7,13 +7,16 @@ import { Unit } from './Unit';
 import type { Hero } from './Hero';
 import type { Troop } from './Troop';
 import type { RaidScene } from '../scenes/RaidScene';
-import { ENEMIES, SURROUND } from '../config/balance';
+import { ENEMIES, SHIELD_TURNS, SURROUND } from '../config/balance';
 import { TEX } from '../systems/Textures';
 import { dealDamage } from '../systems/Combat';
 import { hasLineOfSight } from '../systems/LineOfSight';
 
-export type EnemyKind = 'militia' | 'archer' | 'captain' | 'guard' | 'boss' | 'horsearcher' | 'rider' | 'noyan';
+export type EnemyKind = 'militia' | 'archer' | 'captain' | 'guard' | 'boss' | 'horsearcher' | 'rider' | 'noyan'
+  | 'shieldman' | 'axeman' | 'spearman';
 const MOUNTED: EnemyKind[] = ['horsearcher', 'rider', 'noyan'];
+/** The empires' elites — ordinary men, drilled. Every realm's is one of these three for now. */
+export const ELITE_KINDS: EnemyKind[] = ['shieldman', 'axeman', 'spearman'];
 
 export interface EnemyMult { hp: number; dmg: number; gold: number; }
 
@@ -38,7 +41,7 @@ export class Enemy extends Unit {
   private attackTimer = 0;
   private retargetTimer = 0;
   private windupTimer = 0;
-  private windingUp = false;
+  windingUp = false;
   private stuckTimer = 0;
   private detourUntil = 0;
   private lastPos: Phaser.Math.Vector2;
@@ -51,11 +54,13 @@ export class Enemy extends Unit {
   constructor(scene: RaidScene, x: number, y: number, kind: EnemyKind, mult: EnemyMult) {
     const s = ENEMIES[kind];
     const tex = kind === 'militia' ? TEX.militia : kind === 'archer' ? TEX.archer : kind === 'captain' ? TEX.captain : kind === 'guard' ? TEX.guard : kind === 'boss' ? TEX.boss
-      : kind === 'horsearcher' ? TEX.horsearcher : kind === 'rider' ? TEX.rider : TEX.noyan;
+      : kind === 'horsearcher' ? TEX.horsearcher : kind === 'rider' ? TEX.rider
+      : kind === 'shieldman' ? TEX.shieldman : kind === 'axeman' ? TEX.axeman : kind === 'spearman' ? TEX.spearman : TEX.noyan;
     const mounted = MOUNTED.includes(kind);
     super(scene, x, y, tex, {
       hp: Math.round(s.hp * mult.hp), speed: s.speed, radius: s.radius, team: 'enemy', barColor: 0xe0453a,
-      barWidth: kind === 'captain' || kind === 'noyan' ? 34 : kind === 'boss' ? 44 : 22, scale: mounted ? 1.1 : 1,
+      barWidth: kind === 'captain' || kind === 'noyan' || kind === 'axeman' ? 34 : kind === 'boss' ? 44 : kind === 'shieldman' || kind === 'spearman' ? 28 : 22,
+      scale: mounted ? 1.1 : 1,
     });
     if (mounted) this.mount = scene.add.image(x, y + 4, TEX.horse).setDepth(19).setScale(1.1).setTint(kind === 'noyan' ? 0xd9c4a0 : 0xffffff);
     this.baseScale = mounted ? 1.1 : 1;
@@ -85,7 +90,20 @@ export class Enemy extends Unit {
     this.flash(70);
   }
 
-  get heavy() { return this.kind === 'captain' || this.kind === 'boss' || this.kind === 'noyan'; }
+  get heavy() { return this.kind === 'captain' || this.kind === 'boss' || this.kind === 'noyan' || this.kind === 'axeman' || this.kind === 'spearman'; }
+  /** An elite of an empire, not a farmhand with a fork. */
+  get elite() { return this.kind === 'shieldman' || this.kind === 'axeman' || this.kind === 'spearman'; }
+
+  /**
+   * A shieldman turns better than half of everything while his shield is up. He is only properly open
+   * in the moment he strikes — which is the entire trick of fighting a shield wall: wait for the swing.
+   */
+  damage(amount: number, srcX: number, srcY: number, knockback: number) {
+    const amt = this.kind === 'shieldman' && !this.windingUp
+      ? Math.max(1, Math.round(amount * (1 - SHIELD_TURNS)))
+      : amount;
+    return super.damage(amt, srcX, srcY, knockback);
+  }
   get mounted() { return this.mount !== null; }
 
   update(dt: number, hero: Hero, troops: Troop[]) {
@@ -112,7 +130,7 @@ export class Enemy extends Unit {
       this.windupTimer -= dt;
       // militia lunge after you mid-swing (so you can't just stroll backwards); captain and archer stay planted;
       // a horse archer keeps riding — the draw is on the move
-      if ((this.kind === 'militia' || this.kind === 'rider') && this.target.alive && this.edgeDistTo(this.target) > 2) {
+      if ((this.kind === 'militia' || this.kind === 'rider' || this.kind === 'shieldman') && this.target.alive && this.edgeDistTo(this.target) > 2) {
         this.moveToward(this.target.x, this.target.y, this.stats.speed * 0.7);
       } else if (this.kind !== 'horsearcher') {
         this.desired.set(0, 0);
@@ -127,9 +145,9 @@ export class Enemy extends Unit {
     }
 
     switch (this.kind) {
-      case 'militia': case 'guard': case 'rider': this.militia(hero); break;
+      case 'militia': case 'guard': case 'rider': case 'shieldman': this.militia(hero); break;
       case 'archer': this.archer(); break;
-      case 'captain': case 'boss': case 'noyan': this.captain(); break;
+      case 'captain': case 'boss': case 'noyan': case 'axeman': case 'spearman': this.captain(); break;
       case 'horsearcher': this.horseArcher(dt); break;
     }
     this.trackStuck(dt);
