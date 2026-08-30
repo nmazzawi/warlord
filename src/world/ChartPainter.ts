@@ -5,8 +5,8 @@
 // world view and two pixels of ink when you are down among the villages — it just follows a finer line.
 import Phaser from 'phaser';
 import { mulberry32 } from '../utils/rng';
-import { COASTS, COVER, EXTRA_CREATURES, RANGES, RIVERS, SEAS, TRADE_LANES } from './AtlasData';
-import { bbox, COMPASS, pointInPoly, REGIONS, SEA_CREATURES, SEA_ROUTES, type Pt, type Region } from './WorldChart';
+import { COASTS, COVER, RANGES, RIVERS, SEAS, TRADE_LANES } from './AtlasData';
+import { bbox, COMPASS, pointInPoly, REGIONS, SEA_ROUTES, type Pt, type Region } from './WorldChart';
 import { CHART, ll, lly } from './geo';
 import { SEA_NAMES } from './SeaNames';
 
@@ -34,6 +34,36 @@ const RHUMB_HUBS: Array<[number, number]> = [[-35, 20], [-28, -26], [72, -8], [1
 export const css = (c: number, a = 1) => `rgba(${(c >> 16) & 255},${(c >> 8) & 255},${c & 255},${a})`;
 
 // ---------------------------------------------------------------- geometry, jittered once and cached
+/**
+ * A closed ring, run through Catmull-Rom so it FLOWS. The atlas is authored as real capes and ports,
+ * and joining them with straight lines makes Italy a wedge and the Peloponnese a spearhead; the same
+ * points read as a coast the moment the line curves through them. Wraps around, so the ring closes
+ * without a corner.
+ */
+const curveCache = new Map<string, Pt[]>();
+function curved(key: string, pts: Pt[], per = 4): Pt[] {
+  const hit = curveCache.get(key);
+  if (hit) return hit;
+  const n = pts.length;
+  const out: Pt[] = [];
+  if (n < 4) { curveCache.set(key, pts); return pts; }
+  const at = (i: number) => pts[((i % n) + n) % n];
+  for (let i = 0; i < n; i++) {
+    const [x0, y0] = at(i - 1), [x1, y1] = at(i), [x2, y2] = at(i + 1), [x3, y3] = at(i + 2);
+    // a long leg gets more of the curve than a short one, so a fjord is not spent on the same budget
+    const steps = Math.max(2, Math.min(per, Math.round(Math.hypot(x2 - x1, y2 - y1) / 12)));
+    for (let k = 0; k < steps; k++) {
+      const t = k / steps, t2 = t * t, t3 = t2 * t;
+      out.push([
+        0.5 * (2 * x1 + (-x0 + x2) * t + (2 * x0 - 5 * x1 + 4 * x2 - x3) * t2 + (-x0 + 3 * x1 - 3 * x2 + x3) * t3),
+        0.5 * (2 * y1 + (-y0 + y2) * t + (2 * y0 - 5 * y1 + 4 * y2 - y3) * t2 + (-y0 + 3 * y1 - 3 * y2 + y3) * t3),
+      ]);
+    }
+  }
+  curveCache.set(key, out);
+  return out;
+}
+
 /** Jitter a ring so it looks inked by hand, keeping every real cape exactly where it belongs. Cached,
  *  so every view draws the SAME coastline — otherwise the detail layer would shimmer against the base. */
 const inkCache = new Map<string, Pt[]>();
@@ -46,18 +76,26 @@ function inked(key: string, pts: Pt[], amp: number, seed: number): Pt[] {
     const [ax, ay] = pts[i], [bx, by] = pts[(i + 1) % pts.length];
     out.push([ax + (rnd() - 0.5) * amp, ay + (rnd() - 0.5) * amp]);
     const len = Math.hypot(bx - ax, by - ay);
-    const steps = Math.min(6, Math.floor(len / 45));
-    for (let s = 1; s < steps; s++) {
-      const t = s / steps;
-      out.push([ax + (bx - ax) * t + (rnd() - 0.5) * amp * 1.8, ay + (by - ay) * t + (rnd() - 0.5) * amp * 1.8]);
+    // A real coast is crinkled at every size. Points are laid down far more finely than the authored
+    // capes, and each one is pushed ALONG THE NORMAL of its segment — sideways wobble reads as a bay
+    // or a headland, where the old square jitter just read as a shaky hand.
+    const steps = Math.min(6, Math.max(1, Math.floor(len / 9)));
+    const nx = -(by - ay) / (len || 1), ny = (bx - ax) / (len || 1);
+    for (let k = 1; k < steps; k++) {
+      const t = k / steps;
+      // two octaves: a slow swell for bays, a fast one for the rocks in them
+      const w = Math.sin(t * Math.PI * 2) * (rnd() - 0.5) + (rnd() - 0.5) * 0.55;
+      const j = w * amp * 2.4;
+      out.push([ax + (bx - ax) * t + nx * j, ay + (by - ay) * t + ny * j]);
     }
   }
   inkCache.set(key, out);
   return out;
 }
-const coastRings = () => COASTS.map(c => inked(`coast:${c.id}`, c.pts, 2.4, 777));
-const regionRing = (r: Region) => inked(`realm:${r.id}`, r.poly, 7, 9);
-const seaRings = () => SEAS.map(s => inked(`sea:${s.id}`, s.pts, 2, 5));
+// curve first so the shape is right, THEN ink it so the line looks drawn rather than plotted
+const coastRings = () => COASTS.map(c => inked(`coast:${c.id}`, curved(`cc:${c.id}`, c.pts, 5), 1.5, 777));
+const regionRing = (r: Region) => inked(`realm:${r.id}`, curved(`rc:${r.id}`, r.poly, 3), 5, 9);
+const seaRings = () => SEAS.map(s => inked(`sea:${s.id}`, curved(`sc:${s.id}`, s.pts, 4), 1.3, 5));
 
 const shoelace = (pts: Pt[]) => {
   let a = 0;
@@ -350,86 +388,56 @@ export function paintChart(ctx: CanvasRenderingContext2D, view: View) {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(((n.tilt ?? 0) * Math.PI) / 180);
-    ctx.fillStyle = css(INK, 0.3);
     ctx.font = `italic ${size}px Cinzel, Georgia, serif`;
-    ctx.fillText(n.name.toUpperCase(), 0, 0);
+    // letter-spaced the way a plate spaces a sea, and set into the water rather than printed on it:
+    // a hair of parchment behind each letter lifts it off the hatching without boxing it in
+    const label = n.name.toUpperCase().split('').join('\u2009\u2009');
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = css(PARCH, 0.34);
+    ctx.lineWidth = px(2.6);
+    ctx.strokeText(label, 0, 0);
+    ctx.fillStyle = css(INK, 0.33);
+    ctx.fillText(label, 0, 0);
     ctx.restore();
   }
-  for (const c of SEA_CREATURES) creature(ctx, c.xy[0], c.xy[1], c.kind, c.scale * 2.2, view);
-  for (const c of EXTRA_CREATURES) creature(ctx, c.xy[0], c.xy[1], c.kind as 'serpent', c.scale * 2.2, view);
+  // The oceans carry NOTHING but water, its names and the rose: no serpents, no krakens, no whales.
+  // A real atlas plate keeps its empty sea empty, and every one of those sketches was a thing the eye
+  // caught instead of the coastline.
   compass(ctx, COMPASS.xy[0], COMPASS.xy[1], COMPASS.r, view, px);
 
-  // 10. and where the fog is widest, the old warning
+  // 10. and where the fog is widest ON LAND, the old warning and the beast that belongs there
   dragons(ctx, view, px);
 
-  // 11. the furniture of an authored chart: a worn double frame with corner marks, a title cartouche
-  //     and a scale bar you can measure a march against
-  ctx.strokeStyle = css(INK, 0.5);
-  ctx.lineWidth = px(7);
-  ctx.strokeRect(px(3.5), px(3.5), CHART.w - px(7), CHART.h - px(7));
-  ctx.lineWidth = px(1.6);
-  ctx.strokeStyle = css(INK, 0.4);
-  ctx.strokeRect(px(15), px(15), CHART.w - px(30), CHART.h - px(30));
-  const tick = px(9);
-  ctx.beginPath();
-  for (let i = 0; i <= 48; i++) {
-    const x = px(15) + ((CHART.w - px(30)) * i) / 48;
-    ctx.moveTo(x, px(15)); ctx.lineTo(x, px(15) + tick);
-    ctx.moveTo(x, CHART.h - px(15)); ctx.lineTo(x, CHART.h - px(15) - tick);
-  }
-  for (let i = 0; i <= 28; i++) {
-    const y = px(15) + ((CHART.h - px(30)) * i) / 28;
-    ctx.moveTo(px(15), y); ctx.lineTo(px(15) + tick, y);
-    ctx.moveTo(CHART.w - px(15), y); ctx.lineTo(CHART.w - px(15) - tick, y);
-  }
-  ctx.stroke();
-  cartouche(ctx, view, px);
-  scaleBar(ctx, view, px, s);
+  // 11. the paper itself. A plate is printed on something with a tooth: a fine, even speckle laid over
+  //     everything at a CONSTANT size on screen, so it stays paper at every zoom instead of becoming
+  //     boulders when you come down. Cheap, and it is what stops the flat fills reading as plastic.
+  grain(ctx, view, px);
 }
 
-/** The title, on a panel of its own in the empty southern ocean. */
-function cartouche(ctx: CanvasRenderingContext2D, view: View, px: (n: number) => number) {
-  const [x, y] = ll(-96, -34);
-  const w = px(210), h = px(96);
-  if (x + w < view.x || x - w > view.x + view.w || y + h < view.y || y - h > view.y + view.h) return;
-  ctx.fillStyle = css(PARCH, 0.82);
-  ctx.strokeStyle = css(INK, 0.6);
-  ctx.lineWidth = px(2.4);
+/** The tooth of the paper: one deterministic speckle field, sampled for whatever you are looking at. */
+const grainCache: Array<[number, number, number]> = [];
+function grain(ctx: CanvasRenderingContext2D, view: View, px: (n: number) => number) {
+  if (!grainCache.length) {
+    const rnd = mulberry32(4242);
+    for (let i = 0; i < 1400; i++) grainCache.push([rnd(), rnd(), rnd()]);
+  }
+  const cell = px(26);                      // one speckle per 26 screen pixels, whatever the zoom
+  const cols = Math.ceil(view.w / cell) + 1, rows = Math.ceil(view.h / cell) + 1;
+  if (cols * rows > 26000) return;          // a whole-world repaint does not need the tooth
+  const x0 = Math.floor(view.x / cell) * cell, y0 = Math.floor(view.y / cell) * cell;
+  ctx.fillStyle = css(0x6b5636, 0.075);
   ctx.beginPath();
-  ctx.rect(x - w / 2, y - h / 2, w, h);
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const g = grainCache[(i * 71 + j * 37) % grainCache.length];
+      if (g[2] < 0.45) continue;
+      const x = x0 + (i + g[0]) * cell, y = y0 + (j + g[1]) * cell;
+      const r = px(0.55 + g[2] * 0.9);
+      ctx.moveTo(x + r, y);
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+    }
+  }
   ctx.fill();
-  ctx.stroke();
-  ctx.lineWidth = px(1);
-  ctx.strokeRect(x - w / 2 + px(6), y - h / 2 + px(6), w - px(12), h - px(12));
-  ctx.textAlign = 'center';
-  ctx.fillStyle = css(INK, 0.82);
-  ctx.font = `bold ${px(23)}px Cinzel, Georgia, serif`;
-  ctx.fillText('THE KNOWN WORLD', x, y + px(2));
-  ctx.font = `italic ${px(11)}px Cinzel, Georgia, serif`;
-  ctx.fillStyle = css(INK, 0.55);
-  ctx.fillText('and the wilds beyond it', x, y + px(24));
-}
-
-/** A scale bar, in days of marching — the unit the player actually thinks in. */
-function scaleBar(ctx: CanvasRenderingContext2D, view: View, px: (n: number) => number, scale: number) {
-  const [x, y] = ll(-96, -44);
-  if (x < view.x - 600 || x > view.x + view.w + 600 || y < view.y - 300 || y > view.y + view.h + 300) return;
-  const days = scale > 1.2 ? 5 : scale > 0.5 ? 20 : 60;
-  const len = days * 22;                                    // plains speed, from Terrain.DAY
-  const h = px(6);
-  ctx.fillStyle = css(INK, 0.75);
-  ctx.strokeStyle = css(INK, 0.75);
-  ctx.lineWidth = px(1.4);
-  for (let i = 0; i < 4; i++) {
-    const sx = x - len / 2 + (len * i) / 4;
-    if (i % 2 === 0) ctx.fillRect(sx, y, len / 4, h);
-    else ctx.strokeRect(sx, y, len / 4, h);
-  }
-  ctx.strokeRect(x - len / 2, y, len, h);
-  ctx.textAlign = 'center';
-  ctx.fillStyle = css(INK, 0.7);
-  ctx.font = `${px(11)}px Cinzel, Georgia, serif`;
-  ctx.fillText(`${days} DAYS' MARCH`, x, y - px(6));
 }
 
 /** A river: broad at the mouth, a hair at its source. */
@@ -447,22 +455,61 @@ function river(ctx: CanvasRenderingContext2D, line: Pt[], size: number, px: (n: 
   }
 }
 
-/** A mountain chain: little peaks marching along the crest, spaced by eye on screen. */
+/**
+ * A mountain chain, drawn the way an atlas plate draws one: every peak is a solid little pyramid with
+ * a lit face and a shadowed face, sitting on its own soft shadow. The light comes from the north-west
+ * across the whole map — one direction for every range on the plate, which is what makes the relief
+ * read as terrain rather than as a row of chevrons.
+ */
 function range(ctx: CanvasRenderingContext2D, r: { size: number; pts: Pt[] }, px: (n: number) => number) {
-  const h = px(3.2 + r.size * 1.8), step = px(6 + r.size * 2);
-  ctx.strokeStyle = css(INK, 0.34);
-  ctx.lineWidth = px(0.7 + r.size * 0.16);
-  ctx.beginPath();
+  const h = px(3.4 + r.size * 2.0), step = px(5 + r.size * 1.7);
+  const peaks: Array<[number, number, number]> = [];
   for (let i = 1; i < r.pts.length; i++) {
     const [ax, ay] = r.pts[i - 1], [bx, by] = r.pts[i];
     const len = Math.hypot(bx - ax, by - ay);
     const ux = (bx - ax) / (len || 1), uy = (by - ay) / (len || 1);
     for (let d = 0; d < len; d += step) {
-      const x = ax + ux * d, y = ay + uy * d;
-      ctx.moveTo(x - h * 0.7, y + h * 0.35);
-      ctx.lineTo(x, y - h * 0.65);
-      ctx.lineTo(x + h * 0.7, y + h * 0.35);
+      // stagger every other peak off the crest so the chain has depth instead of being a single file
+      const off = ((peaks.length % 3) - 1) * h * 0.34;
+      peaks.push([ax + ux * d - uy * off, ay + uy * d + ux * off, 0.75 + ((peaks.length * 7) % 5) * 0.12]);
     }
+  }
+  // the ground shadow each one throws to the south-east
+  ctx.fillStyle = css(INK, 0.10);
+  ctx.beginPath();
+  for (const [x, y, k] of peaks) {
+    // moveTo before EVERY ellipse: without it the path runs a line from one to the next and the fill
+    // joins the whole chain into one long smear across the country
+    ctx.moveTo(x + h * 1.04 * k, y + h * 0.44 * k);
+    ctx.ellipse(x + h * 0.22 * k, y + h * 0.44 * k, h * 0.82 * k, h * 0.3 * k, 0, 0, Math.PI * 2);
+  }
+  ctx.fill();
+  // the shadowed (south-east) face
+  ctx.fillStyle = css(INK, 0.30);
+  ctx.beginPath();
+  for (const [x, y, k] of peaks) {
+    ctx.moveTo(x, y - h * 0.72 * k);
+    ctx.lineTo(x + h * 0.72 * k, y + h * 0.36 * k);
+    ctx.lineTo(x, y + h * 0.36 * k);
+  }
+  ctx.fill();
+  // the lit (north-west) face
+  ctx.fillStyle = css(0xf0e6cd, 0.55);
+  ctx.beginPath();
+  for (const [x, y, k] of peaks) {
+    ctx.moveTo(x, y - h * 0.72 * k);
+    ctx.lineTo(x - h * 0.72 * k, y + h * 0.36 * k);
+    ctx.lineTo(x, y + h * 0.36 * k);
+  }
+  ctx.fill();
+  // and the crest line over both, so the ridge keeps a drawn edge at any zoom
+  ctx.strokeStyle = css(INK, 0.42);
+  ctx.lineWidth = px(0.6 + r.size * 0.14);
+  ctx.beginPath();
+  for (const [x, y, k] of peaks) {
+    ctx.moveTo(x - h * 0.72 * k, y + h * 0.36 * k);
+    ctx.lineTo(x, y - h * 0.72 * k);
+    ctx.lineTo(x + h * 0.72 * k, y + h * 0.36 * k);
   }
   ctx.stroke();
 }
@@ -476,6 +523,36 @@ function groundCover(ctx: CanvasRenderingContext2D, c: { name: string; kind: str
     Math.max(0, Math.min(b.y1, view.y + view.h) - Math.max(b.y0, view.y)) * view.scale * view.scale;
   const share = onScreen / Math.max(1, (b.w * b.h * view.scale * view.scale));
   const want = Phaser.Math.Clamp(Math.round((onScreen / 900) / Math.max(share, 0.001) * share), 20, cloud.length);
+  // Under the marks, a mottle: soft blotches of the biome's own colour, so a forest reads as a mass of
+  // trees and a desert as drifting sand rather than as a flat wash with dots on it.
+  const mott = c.kind === 'forest' ? 0x4e6b3a : c.kind === 'desert' ? 0xc9a86a
+    : c.kind === 'steppe' ? 0x9aa964 : c.kind === 'jungle' ? 0x3f6b3a : 0x6f8a86;
+  const blobs = Math.min(Math.round(want * 0.45), 260);
+  ctx.fillStyle = css(mott, c.kind === 'desert' ? 0.16 : 0.20);
+  ctx.beginPath();
+  for (let i = 0; i < blobs; i++) {
+    const [x, y] = cloud[(i * 3 + 1) % cloud.length];
+    if (x < view.x - 60 || x > view.x + view.w + 60 || y < view.y - 60 || y > view.y + view.h + 60) continue;
+    const rr = px(7 + ((i * 13) % 9));
+    ctx.moveTo(x + rr, y);
+    ctx.ellipse(x, y, rr, rr * 0.62, ((i % 7) - 3) * 0.3, 0, Math.PI * 2);
+  }
+  ctx.fill();
+  // a desert also carries the long grain of its dunes
+  if (c.kind === 'desert') {
+    ctx.strokeStyle = css(0xb08d55, 0.22);
+    ctx.lineWidth = px(1.1);
+    ctx.beginPath();
+    for (let i = 0; i < blobs; i += 2) {
+      const [x, y] = cloud[(i * 5 + 2) % cloud.length];
+      if (x < view.x - 60 || x > view.x + view.w + 60 || y < view.y - 60 || y > view.y + view.h + 60) continue;
+      const w = px(16 + ((i * 11) % 14));
+      ctx.moveTo(x - w, y + px(2));
+      ctx.quadraticCurveTo(x, y - px(3), x + w, y + px(2));
+    }
+    ctx.stroke();
+  }
+
   const m = px(2.6);
   ctx.strokeStyle = css(INK, c.kind === 'forest' ? 0.34 : 0.28);
   ctx.lineWidth = px(0.75);
@@ -655,39 +732,6 @@ function dragon(ctx: CanvasRenderingContext2D, x: number, y: number, k: number, 
   ctx.lineTo(x + k * 1.75, y - k * 0.6);
   ctx.closePath();
   ctx.fill();
-}
-
-function creature(ctx: CanvasRenderingContext2D, x: number, y: number, kind: 'serpent' | 'kraken' | 'whale', s: number, view: View) {
-  if (x < view.x - 400 || x > view.x + view.w + 400 || y < view.y - 300 || y > view.y + view.h + 300) return;
-  const tri = (ax: number, ay: number, bx: number, by: number, cx: number, cy: number) => {
-    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(cx, cy); ctx.closePath(); ctx.fill();
-  };
-  ctx.strokeStyle = css(INK, 0.7);
-  ctx.lineWidth = 2.2 * s;
-  if (kind === 'serpent') {
-    ctx.beginPath();
-    for (let i = 0; i < 3; i++) { ctx.moveTo(x + i * 48 * s - 22 * s, y); ctx.arc(x + i * 48 * s, y, 22 * s, Math.PI, 0, false); }
-    ctx.stroke();
-    ctx.fillStyle = css(INK, 0.7);
-    tri(x - 30 * s, y - 4 * s, x - 22 * s, y - 26 * s, x - 6 * s, y - 8 * s);
-  } else if (kind === 'kraken') {
-    ctx.fillStyle = css(INK, 0.65);
-    ctx.beginPath(); ctx.ellipse(x, y - 10 * s, 20 * s, 17 * s, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath();
-    for (let i = -3; i <= 3; i++) { ctx.moveTo(x + i * 12 * s - 14 * s, y + 18 * s); ctx.arc(x + i * 12 * s, y + 18 * s, 14 * s, Math.PI, i % 2 ? 0 : Math.PI * 1.9, i % 2 === 0); }
-    ctx.stroke();
-    ctx.fillStyle = css(0xe4d3ad);
-    ctx.beginPath(); ctx.arc(x - 8 * s, y - 12 * s, 4 * s, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(x + 8 * s, y - 12 * s, 4 * s, 0, Math.PI * 2); ctx.fill();
-  } else {
-    ctx.fillStyle = css(INK, 0.6);
-    ctx.beginPath(); ctx.ellipse(x, y, 30 * s, 11 * s, 0, 0, Math.PI * 2); ctx.fill();
-    tri(x + 26 * s, y, x + 44 * s, y - 14 * s, x + 44 * s, y + 12 * s);
-    ctx.beginPath();
-    ctx.moveTo(x - 6 * s, y - 12 * s); ctx.lineTo(x - 6 * s, y - 30 * s);
-    ctx.lineTo(x - 16 * s, y - 40 * s); ctx.moveTo(x - 6 * s, y - 30 * s); ctx.lineTo(x + 4 * s, y - 40 * s);
-    ctx.stroke();
-  }
 }
 
 function compass(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, view: View, px: (n: number) => number) {

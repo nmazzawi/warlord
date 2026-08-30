@@ -43,7 +43,7 @@ interface LabelRef { t: Phaser.GameObjects.Text; css: number; }
  *  both held at a constant size on screen whatever the zoom. */
 interface Marker {
   place: AtlasPlace; empire: Region;
-  icon: Phaser.GameObjects.Image; label: Phaser.GameObjects.Text;
+  icon: Phaser.GameObjects.Image; label: Phaser.GameObjects.Text; stars: Phaser.GameObjects.Text;
   rank: number;          // 0 capital, 1 city, 2 town, 3 village
   iconPx: number;        // how tall the marker is drawn, in CSS pixels
   labelPx: number;       // and how big its name is set
@@ -367,7 +367,12 @@ export class MapScene extends Phaser.Scene {
       strokeThickness: LABEL_BASE / 2.6, fontStyle: 'bold', align: 'center',
       resolution: Phaser.Math.Clamp(dpr * 1.2, 2, 3),
     }).setOrigin(0.5, 0).setDepth(3.4);
-    this.markers.push({ place: p, empire, icon, label, rank, iconPx: RANK[rank].icon, labelPx: RANK[rank].label });
+    // the protection rating, written small under the name: what a glance at the plate has to tell you
+    const stars = this.add.text(p.x, p.y, '', {
+      fontFamily: FONT, fontSize: `${LABEL_BASE}px`, color: '#7a3b2a', stroke: '#f2e6c8',
+      strokeThickness: LABEL_BASE / 3.2, align: 'center', resolution: Phaser.Math.Clamp(dpr * 1.2, 2, 3),
+    }).setOrigin(0.5, 0).setDepth(3.35);
+    this.markers.push({ place: p, empire, icon, label, stars, rank, iconPx: RANK[rank].icon, labelPx: RANK[rank].label });
   }
 
   /** Decide, for the zoom we have settled on, which settlements can be shown without anything touching
@@ -406,18 +411,23 @@ export class MapScene extends Phaser.Scene {
       const iw = m.icon.width * scale * 0.85, ih = spec.icon * u;
       const lw = m.label.width * lscale, lh = m.label.height * lscale;
       const gap = 2 * u;
+      // the rating is set at three-fifths of the name and only appears once the name does, so a world
+      // view stays a world view and a close view tells you what you are looking at
+      const sscale = lscale * 0.6;
+      const sh = m.stars.text ? m.stars.height * sscale : 0;
       // a settlement asks for its marker AND its name; if there is no room for both it keeps the marker
       // and gives up the name, and only steps aside entirely when even the marker will not fit
       const both: [number, number, number, number] =
-        [m.place.x, m.place.y + (gap + lh - ih) / 2, Math.max(iw, lw), ih + gap + lh];
+        [m.place.x, m.place.y + (gap + lh + sh - ih) / 2, Math.max(iw, lw, m.stars.width * sscale), ih + gap + lh + sh];
       const alone: [number, number, number, number] = [m.place.x, m.place.y - ih / 2, iw, ih];
-      if (zoom < spec.from) { m.icon.setVisible(false); m.label.setVisible(false); continue; }
+      if (zoom < spec.from) { m.icon.setVisible(false); m.label.setVisible(false); m.stars.setVisible(false); continue; }
       const named = !hit(both, taken);
-      if (!named && hit(alone, solid)) { m.icon.setVisible(false); m.label.setVisible(false); continue; }
+      if (!named && hit(alone, solid)) { m.icon.setVisible(false); m.label.setVisible(false); m.stars.setVisible(false); continue; }
       taken.push(named ? both : alone);
       solid.push(named ? both : alone);   // what is actually drawn, so nothing later lands on a name
       m.icon.setVisible(true).setScale(scale).setAlpha(m.rank === 0 ? 1 : 0.92);
       m.label.setVisible(named).setScale(lscale).setPosition(m.place.x, m.place.y + gap);
+      m.stars.setVisible(named && !!m.stars.text).setScale(sscale).setPosition(m.place.x, m.place.y + gap + lh);
     }
   }
 
@@ -495,6 +505,11 @@ export class MapScene extends Phaser.Scene {
 
   /** Refresh every label from the game state (day passed, village raided, infamy grew, camps moved...). */
   refresh() {
+    // how well each place is held, as it stands today — a city you took reads one star, a ruin none
+    for (const m of this.markers) {
+      const n = FOREIGN_PLACES.find(f => f.territory === m.empire.id && f.name === m.place.name);
+      m.stars.setText(n ? GameState.stars(n.id) : '');
+    }
     for (const n of NODES) {
       const st = this.status.get(n.id);
       if (!st) continue;
@@ -524,7 +539,9 @@ export class MapScene extends Phaser.Scene {
       }
       if (access === 'visit') parts.push('open');
       else if (access === 'closed') parts.push('shut to you');
-      st.setText(parts.join(' · ')).setColor(color);
+      // your own places carry the same rating as everybody else's, so the whole chart reads one way
+      const rating = GameState.stars(n.id);
+      st.setText(rating ? `${rating}  ${parts.join(' · ')}` : parts.join(' · ')).setColor(color);
       this.flags.get(n.id)?.setVisible(s.occupied);
       if (s.occupied || s.sacked) this.badges.get(n.id)?.setVisible(false);
     }
@@ -972,12 +989,12 @@ export class MapScene extends Phaser.Scene {
     }
     if (n.kind === 'town') {
       if (!GameState.siegeUnlocked) {
-        const lines = [n.blurb ?? '', `The garrison is far too strong for a nobody. Become a ${INFAMY.tiers[SIEGE.unlockTier].name} (infamy ${INFAMY.tiers[SIEGE.unlockTier].min}) and they will take you seriously.`,
+        const lines = [n.blurb ?? '', `${GameState.stars(n.id)}   The garrison is far too strong for a nobody. Become a ${INFAMY.tiers[SIEGE.unlockTier].name} (infamy ${INFAMY.tiers[SIEGE.unlockTier].min}) and they will take you seriously.`,
           !here ? `${this.routeDays(n.id)} days' march from where you stand.` : ''].filter(Boolean);
         const visit = this.visitButton(n, lines);
         this.hud.showPanel({ title: n.name.toUpperCase(), lines, buttons: [...(visit ? [visit] : []), leave] });
       } else {
-        const lines = [n.blurb ?? '', `A stone wall with one gate; ${SIEGE.wallArchers} archers on the battlements (only arrows reach them), ${SIEGE.guards} town guards and the garrison captain behind it. Batter the gate, then take the courtyard.`];
+        const lines = [n.blurb ?? '', `${GameState.stars(n.id)}   A stone wall with one gate; ${SIEGE.wallArchers} archers on the battlements (only arrows reach them), ${SIEGE.guards} town guards and the garrison captain behind it. Batter the gate, then take the courtyard.`];
         const visit = this.visitButton(n, lines);
         this.hud.showPanel({
           title: n.name.toUpperCase(), lines,
@@ -994,7 +1011,7 @@ export class MapScene extends Phaser.Scene {
     const lines = [n.blurb ?? ''];
     if (info.ruined) lines.push(`Ruined — nothing left to take. They rebuild in ${info.daysToRecover} day${info.daysToRecover === 1 ? '' : 's'}.`);
     else {
-      lines.push(`Tier ${info.tier} village  ·  about ${info.total} defenders (${info.militia} militia, ${info.archers} archer${info.archers === 1 ? '' : 's'}, ${info.captains} captain${info.captains === 1 ? '' : 's'})`);
+      lines.push(`${GameState.stars(n.id)}   Tier ${info.tier} village  ·  about ${info.total} defenders (${info.militia} militia, ${info.archers} archer${info.archers === 1 ? '' : 's'}, ${info.captains} captain${info.captains === 1 ? '' : 's'})`);
       const gates = LAYOUTS[n.layout ?? 'ashford'].palisade?.gaps.length ?? 0;
       if (info.steps > 0) lines.push(`Fortified: +${info.steps} militia hired since word of you spread${info.palisade ? `, and a palisade with ${gates} gate${gates === 1 ? '' : 's'}` : ''}.`);
       if (info.timesRaided > 0) lines.push(`Raided ${info.timesRaided}× before — they have hired more guards${info.wealth < 0.95 ? `, and their coffers are at ${Math.round(info.wealth * 100)}% (recovering)` : ', and there is more to take'}.`);
@@ -1041,7 +1058,7 @@ export class MapScene extends Phaser.Scene {
     }
 
     // the intel: exactly what is in the square, and what their own men are
-    lines.push(`${info.total} defenders: ${info.militia} militia, ${many(info.archers, 'archer', 'archers')}, ${many(info.captains, 'captain', 'captains')}, and ${many(info.elites, info.eliteName, info.elitePlural)}.`);
+    lines.push(`${GameState.stars(n.id)}   ${info.total} defenders: ${info.militia} militia, ${many(info.archers, 'archer', 'archers')}, ${many(info.captains, 'captain', 'captains')}, and ${many(info.elites, info.eliteName, info.elitePlural)}.`);
     if (v) lines.push(v.army.eliteNote);
     if (info.reforms > 0) lines.push(`Their line closes over its dead: expect ${info.reforms} more of them before it breaks.`);
     if (n.rank === 'capital' && v) lines.push(v.army.capitalWarning);

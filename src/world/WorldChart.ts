@@ -65,15 +65,8 @@ export const SEA_ROUTES: Array<{ id: string; name: string; pts: Pt[] }> = ([
 ] as Array<{ id: string; name: string; pts: Array<[number, number]> }>)
   .map(r => ({ ...r, pts: r.pts.map(([lon, lat]) => ll(lon, lat)) }));
 
-export const SEA_CREATURES: Array<{ xy: Pt; kind: 'serpent' | 'kraken' | 'whale'; scale: number }> = ([
-  { lon: -42, lat: 8, kind: 'serpent', scale: 1.3 },
-  { lon: 78, lat: -22, kind: 'kraken', scale: 1.15 },
-  { lon: -34, lat: 47, kind: 'whale', scale: 1 },
-  { lon: 140, lat: 4, kind: 'whale', scale: 0.85 },
-  { lon: -45, lat: -32, kind: 'serpent', scale: 0.9 },
-] as Array<{ lon: number; lat: number; kind: 'serpent' | 'kraken' | 'whale'; scale: number }>)
-  .map(c => ({ xy: ll(c.lon, c.lat), kind: c.kind, scale: c.scale }));
 
+/** The rose stands in open water and nowhere else — the South Atlantic, clear of every coast. */
 export const COMPASS = { xy: ll(-33, -22), r: 210 };
 
 // ---------------------------------------------------------------- geometry helpers

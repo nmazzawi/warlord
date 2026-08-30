@@ -394,6 +394,27 @@ class GameStateStore {
     else this.realmInfamy[territory] = (this.realmInfamy[territory] ?? 0) + n;
   }
 
+  /**
+   * How well a place is held, in stars, so the map can be read at a glance. It is not a separate
+   * opinion: it is the garrison the panel prints, multiplied by how hard each of those men is — the
+   * one number that makes a Kushite village and the walls of Roma comparable at a glance.
+   */
+  protection(id: string): number {
+    const n = nodeById(id);
+    if (n.kind === 'camp') return 0;
+    let force: number;
+    if (n.kind === 'foreign') { const i = this.foreignInfo(id); force = i.total * i.statMult; }
+    else if (n.kind === 'town') force = (SIEGE.wallArchers + SIEGE.guards + SIEGE.escort) * 1.6 + 14;
+    else if (n.kind === 'village') { const v = this.villageInfo(id); force = v.total * v.statMult; }
+    else return 0;
+    const st = this.settlement(id);
+    if (st.sacked) return 0;
+    if (st.occupied) return 1;
+    return force < 18 ? 1 : force < 42 ? 2 : force < 95 ? 3 : force < 165 ? 4 : 5;
+  }
+  /** The rating as it is written on the chart and in the panels. */
+  stars(id: string) { const n = this.protection(id); return n ? `${'\u2605'.repeat(n)}${'\u2606'.repeat(5 - n)}` : ''; }
+
   // ------------------------------------------------------------ retry support
   takeSnapshot() { this.snapshot = this.toJSON(); }
   restoreSnapshot() { if (this.snapshot) this.fromJSON(this.snapshot); }

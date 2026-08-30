@@ -1,5 +1,5 @@
 // check-chart.mjs — a lint for the world chart. Catches the mistakes that are invisible in code and
-// obvious on screen: a sea road inked across a continent, a sea monster beached on Argentina, a city
+// obvious on screen: a sea road inked across a continent, the compass rose sitting on a country, a city
 // in the water, a foreign city inside your own borderland, a coastline ring wound the wrong way (which
 // punches a hole in the map where two rings overlap).  Run: node tools/check-chart.mjs
 import { readFileSync } from 'node:fs';
@@ -92,9 +92,8 @@ for (const r of ROUTES) {
 }
 
 // 4. monsters and the rose live in open water
-for (const c of CREATURES) if (onLand(c.xy[0], c.xy[1])) fail(`a ${c.kind} is beached at ${c.xy.map(Math.round)}`);
 if (COMPASS && onLand(COMPASS[0], COMPASS[1])) fail('the compass rose sits on land');
-pass(`${CREATURES.length} sea creatures and the rose are at sea`);
+pass('the compass rose stands in open water');
 
 // 5. every settlement is on land, and no foreign city stands inside a realm you can walk into
 const walkable = ['mongolia'];

@@ -259,6 +259,23 @@ async function desktopRun(browser) {
   check(placeSpec.title === 'ROMA' && /throne of The Roman Empire/.test(placeSpec.lines), `tapping a locked city names it (${placeSpec.title})`);
   await hidePanel(page);
   await page.screenshot({ path: `${OUT}/d-empires.png` });
+  // --- M5.1: the chart finished
+  const plate = await page.evaluate(() => {
+    const m = window.__warlord.scene.getScene('Map');
+    const S = window.__GameState;
+    const rated = m.markers.filter(k => k.stars.text.length === 5).length;
+    return {
+      creatures: typeof window.__SEA_CREATURES,
+      rated, markers: m.markers.length,
+      roma: S.stars('f_rome_roma'), ashford: S.stars('ashford'),
+      romaN: S.protection('f_rome_roma'), ashfordN: S.protection('ashford'),
+      kushVillage: S.protection(window.__NODES.find(n => n.territory === 'kush' && n.rank === 'village').id),
+    };
+  });
+  check(plate.creatures === 'undefined', 'the oceans carry no creatures at all');
+  check(plate.rated === plate.markers, `every settlement on the plate has a rating (${plate.rated}/${plate.markers})`);
+  check(plate.romaN === 5 && plate.ashfordN === 1 && plate.kushVillage < plate.romaN,
+    `the stars rank the world honestly (Ashford ${plate.ashford}, Roma ${plate.roma})`);
   // the two views the designer wants to judge without hunting for them
   for (const [name, zoom, at] of [['d-kush', 3, [3210, 1720]], ['d-mediterranean', 2.2, [2820, 1230]],
     ['d-europe', 1.0, [2950, 1150]], ['d-americas', 0.9, [800, 1300]]]) {
