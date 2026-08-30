@@ -24,9 +24,11 @@ export const VISIT_MARKUP = 1.5;
 /** Whose men a place will hire out to you: the roster of whichever culture holds it. The Borderland
  *  has no roster of its own, so it hires the plain levies and raiders it always did. */
 export function rosterOf(territory: string): TroopKind[] {
-  const civ = Object.values(CIVS).find(c => c.home === territory || c.id === territory);
+  // the outlaw is not a culture with towns: his roster is his own camp's, and the Borderland's
+  // villages go on hiring the levies they always did
+  const civ = Object.values(CIVS).find(c => c.id !== 'outlaw' && (c.home === territory || c.id === territory));
   if (civ && civ.troops.length) return civ.troops.map(t => t.id);
-  return territory === 'homeland' ? ['raider', 'levy'] : ['levy'];
+  return ['levy'];
 }
 
 export function stockFor(settlementId: string, visiting = false): StockDef {

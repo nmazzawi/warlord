@@ -207,9 +207,17 @@ async function desktopRun(browser) {
   await page.evaluate(() => { window.__GameState.gold = 300; window.__GameState.save(); });
   await clickBtn(page, 'Settlement', 'BARRACKS');
   await waitScene(page, 'Shop');
-  await clickBtn(page, 'Shop', '35 gold');
+  // your own camp stocks your own people now, so hire whoever your start's line unit is
+  const hire = await page.evaluate(() => {
+    const texts = []; const walk = o => { if (o.type === 'Text') texts.push(o.text); if (o.list) o.list.forEach(walk); };
+    window.__warlord.scene.getScene('Shop').children.list.forEach(walk);
+    const price = texts.find(t => /^\d+ gold$/.test(t));
+    return { price, cost: price ? parseInt(price, 10) : 0, roster: Object.values(window.__CIVS.outlaw.troops).map(t => t.name) };
+  });
+  check(hire.roster.length >= 3, `the camp hires your own people (${hire.roster.join(', ')})`);
+  await clickBtn(page, 'Shop', hire.price);
   let s = await gs(page);
-  check(s.troops === 4 && s.gold === 265, `recruited a raider (${s.troops} troops, ${s.gold} gold)`);
+  check(s.troops === 4 && s.gold === 300 - hire.cost, `recruited one for ${hire.cost} (${s.troops} troops, ${s.gold} gold)`);
   await clickBtn(page, 'Shop', 'LEAVE');
   await clickBtn(page, 'Settlement', 'FORGE');
   await waitScene(page, 'Shop');
@@ -964,7 +972,25 @@ async function phoneRun(browser) {
   await page.goto(URL);
   await sleep(1500);
   await clickBtn(page, 'Title', 'NEW', true);
-  check(await waitScene(page, 'Settlement'), 'phone: new warband → camp screen');
+  check(await waitScene(page, 'CivSelect'), 'phone: new warband → choose your start');
+  await sleep(600);
+  await page.screenshot({ path: `${OUT}/p-civselect.png` });
+  // pick a start that is NOT the outlaw, so the phone run proves a foreign start works end to end
+  const tile = await page.evaluate(() => {
+    const s2 = window.__warlord.scene.getScene('CivSelect');
+    const d = window.__warlord.scale.displayScale.x || 1;
+    // the tiles are the transparent hit rectangles laid over each plate, in civList order
+    const hits = s2.children.list.filter(o => o.type === 'Rectangle');
+    const t = hits[4];
+    return t ? { x: t.x / d, y: t.y / d } : null;
+  });
+  if (tile) { await page.touchscreen.tap(tile.x, tile.y); await sleep(500); }
+  await clickBtn(page, 'CivSelect', 'BEGIN', true);
+  check(await waitScene(page, 'Settlement'), 'phone: choosing a start opens its camp');
+  const started = await page.evaluate(() => { const S = window.__GameState;
+    return { civ: S.civ, home: S.home, troops: S.troops.map(t => t.kind) }; });
+  check(started.troops.every(k => k.startsWith(`${started.civ}_`)),
+    `phone: started as ${started.civ}, with ${started.civ} troops`);
   await sleep(500);
   await page.screenshot({ path: `${OUT}/p-camp.png` });
   await clickBtn(page, 'Settlement', 'STABLES', true);
