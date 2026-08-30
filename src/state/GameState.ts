@@ -335,15 +335,22 @@ class GameStateStore {
     const up = (x: number) => Math.max(1, Math.round(x * power));
     let militia = up(base.militia);
     const archers = up(base.archers), captains = up(base.captains), elites = up(base.elites);
-    // a phone has to draw every one of them: trim the rank and file, never the men who matter
-    const over = militia + archers + captains + elites - FOREIGN_MAX_DEFENDERS;
-    if (over > 0) militia = Math.max(4, militia - over);
+    // A phone has to draw every one of them, so past the cap the rank and file are trimmed and the
+    // men who matter never are. The strength of the ones sent home is not thrown away — it goes into
+    // the ones still standing, so Rome stays harder than China even when both field the same 58.
+    const raw = militia + archers + captains + elites;
+    const over = raw - FOREIGN_MAX_DEFENDERS;
+    let crowd = 1;
+    if (over > 0) {
+      militia = Math.max(4, militia - over);
+      crowd = 1 + ((raw - (militia + archers + captains + elites)) / raw) * 0.6;
+    }
     const style = v?.army.style ?? 'shieldman';
     return {
       realm, rank, militia, archers, captains, elites,
       total: militia + archers + captains + elites,
       // come back a second time and they are ready for you, and there is less left to take
-      statMult: base.statMult * power * (1 + vs.timesRaided * FOREIGN.reraidStat),
+      statMult: base.statMult * power * crowd * (1 + vs.timesRaided * FOREIGN.reraidStat),
       goldMult: base.goldMult * power * (vs.wealth ?? 1) * (1 + vs.timesRaided * FOREIGN.reraidGold),
       timesRaided: vs.timesRaided,
       wealth: vs.wealth ?? 1,
@@ -358,19 +365,23 @@ class GameStateStore {
     };
   }
 
-  /** A realm's riders, once its meter says you are worth chasing. */
+  /**
+   * A realm's riders, once its meter says you are worth chasing. This reads the RAW score rather than
+   * the tier, because the tiers stop at 45 and a country whose throne you burned should not send the
+   * same eight men it sent after a village.
+   */
   foreignPatrol(realm: string) {
     const v = visitOf(realm);
-    const tier = this.tierIn(realm);
     const power = REALM_POWER[realm] ?? 1;
+    const heat = Math.min(4, this.territoryInfamy(realm) / 30);
     const style = v?.army.style ?? 'shieldman';
     const name = REALM_SHORT[realm] ?? realm.toUpperCase();
     return {
       name: `${name} patrol`, title: 'THEIR RIDERS HAVE YOU',
       hint: 'They have been on your trail since you drew steel in this country.',
-      militia: Math.round((4 + tier * 2) * power), archers: Math.round((1 + tier) * power),
-      captains: tier >= 2 ? 1 : 0, elites: Math.max(1, Math.round(tier * power)),
-      statMult: 1.4 + tier * 0.2, goldMult: 1.4,
+      militia: Math.round((4 + heat * 3) * power), archers: Math.round((1 + heat) * power),
+      captains: heat >= 2 ? Math.round(heat / 2) : 0, elites: Math.max(1, Math.round(heat * power)),
+      statMult: 1.4 + heat * 0.25, goldMult: 1.4,
       eliteKind: style, eliteName: v?.army.eliteName ?? 'Guardsman', elitePlural: v?.army.elitePlural ?? 'guardsmen',
       tint: ELITE_TINT[realm] ?? 0xd0d0d0,
     };

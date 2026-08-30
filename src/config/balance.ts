@@ -131,10 +131,13 @@ export const SHIELD_TURNS = 0.55;
 export type EliteStyle = 'shieldman' | 'axeman' | 'spearman';
 /** What an empire keeps in each kind of place, before its own strength is applied. */
 export const FOREIGN_GARRISON = {
-  village: { militia: 14, archers: 4,  captains: 2, elites: 3,  statMult: 1.7, goldMult: 2.2 },
-  town:    { militia: 20, archers: 6,  captains: 3, elites: 5,  statMult: 2.0, goldMult: 3.4 },
-  city:    { militia: 25, archers: 8,  captains: 4, elites: 8,  statMult: 2.3, goldMult: 5.0 },
-  capital: { militia: 30, archers: 10, captains: 5, elites: 11, statMult: 2.8, goldMult: 8.0 },
+  // statMult starts ABOVE the hardest village at home (tier 4 is 1.7), because the softest realm on
+  // the board still multiplies it down. goldMult deliberately climbs slower than the danger does:
+  // a capital must be the richest thing you can take and never the sensible thing to farm.
+  village: { militia: 14, archers: 4,  captains: 2, elites: 3,  statMult: 1.9, goldMult: 2.2 },
+  town:    { militia: 20, archers: 6,  captains: 3, elites: 5,  statMult: 2.2, goldMult: 3.0 },
+  city:    { militia: 25, archers: 8,  captains: 4, elites: 8,  statMult: 2.5, goldMult: 4.0 },
+  capital: { militia: 30, archers: 10, captains: 5, elites: 11, statMult: 3.0, goldMult: 5.5 },
 };
 /** And how hard the realm itself is. Kush is a kingdom; Rome is Rome. */
 export const REALM_POWER: Record<string, number> = {

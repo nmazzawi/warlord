@@ -441,14 +441,15 @@ async function desktopRun(browser) {
     const before = await page.evaluate(() => ({ ...window.__GameState.realmInfamy }));
     const fought = await page.evaluate(async () => {
       const S = window.__GameState;
-      const v = window.__NODES.find(n => n.territory === 'rus' && n.rank === 'village');
+      // a ROMAN village: Legionaries, so the shield rule below is a real assertion and not a tautology
+      const v = window.__NODES.find(n => n.territory === 'rome' && n.rank === 'village');
       S.pos = { x: v.x, y: v.y }; S.location = v.id;
       const cfg = window.__battles.foreignBattle(v.id);
       window.__warlord.scene.stop('Map'); window.__warlord.scene.stop('MapHud');
       window.__warlord.scene.start('Raid', cfg);
       return { id: v.id, name: v.name, total: cfg.defenders.militia + cfg.defenders.archers + cfg.defenders.captains + cfg.elite.count, elite: cfg.elite.kind };
     });
-    check(await waitScene(page, 'Raid'), `assaulted ${fought.name}, a village of Rus`);
+    check(await waitScene(page, 'Raid'), `assaulted ${fought.name}, a village of Rome`);
     const spawned = await page.evaluate(() => { const r = window.__warlord.scene.getScene('Raid');
       const k = {}; for (const e of r.enemies) k[e.kind] = (k[e.kind] ?? 0) + 1;
       return { n: r.enemies.length, k, tinted: r.enemies.filter(e => e.liveryTint !== null).length }; });
@@ -457,15 +458,16 @@ async function desktopRun(browser) {
     // a shieldman turns half of everything until he swings; an axeman does not
     const shield = await page.evaluate(() => {
       const r = window.__warlord.scene.getScene('Raid');
-      const e = r.enemies.find(x => x.kind === 'shieldman') ?? r.enemies.find(x => x.elite);
-      if (!e) return null;
-      const before = e.hp; e.windingUp = false; e.damage(20, 0, 0, 0); const guarded = before - e.hp;
-      const b2 = e.hp; e.windingUp = true; e.damage(20, 0, 0, 0); const open = b2 - e.hp;
+      const e = r.enemies.find(x => x.kind === 'shieldman');
+      const m = r.enemies.find(x => x.kind === 'militia');
+      if (!e || !m) return null;
+      e.windingUp = false; const guarded = e.mitigate(20);
+      e.windingUp = true; const open = e.mitigate(20);
       e.windingUp = false;
-      return { kind: e.kind, guarded, open };
+      return { guarded, open, militia: m.mitigate(20) };
     });
-    check(!!shield && (shield.kind !== 'shieldman' || shield.guarded < shield.open),
-      `the shield rule holds (${shield && shield.kind}: ${shield && shield.guarded} guarded vs ${shield && shield.open} mid-swing)`);
+    check(!!shield && shield.guarded < shield.open && shield.open === 20 && shield.militia === 20,
+      `a shield turns a blow until he swings (${shield && shield.guarded} with it up, ${shield && shield.open} mid-swing)`);
     // win it outright and take the loot
     await page.evaluate(() => { const r = window.__warlord.scene.getScene('Raid'); r.hero.maxHp = 9999; r.hero.hp = 9999; });
     for (let i = 0; i < 120; i++) {
@@ -482,9 +484,11 @@ async function desktopRun(browser) {
     await waitScene(page, 'Map');
     await sleep(900);
     const after = await page.evaluate(() => { const S = window.__GameState;
-      return { rus: S.realmInfamy.rus ?? 0, access: S.access('f_rus_kiev'), tier: S.tierIn('rus'), why: S.closedReason('f_rus_kiev') }; });
-    check(after.rus > (before.rus ?? 0) && after.access === 'closed' && after.tier >= 1,
-      `Rus remembers: score ${after.rus}, gates ${after.access}, hunting at tier ${after.tier}`);
+      return { rome: S.realmInfamy.rome ?? 0, access: S.access('f_rome_roma'), tier: S.tierIn('rome'),
+        why: S.closedReason('f_rome_roma'), rus: S.realmInfamy.rus ?? 0 }; });
+    check(after.rome > (before.rome ?? 0) && after.access === 'closed' && after.tier >= 1,
+      `Rome remembers: score ${after.rome}, gates ${after.access}, hunting at tier ${after.tier}`);
+    check(after.rus === (before.rus ?? 0), 'and the country next door does not care');
     check(/made war in this country/.test(after.why), 'and says why its gates are shut');
     // put the run back where the rest of the suite expects it
     await page.evaluate(() => { const S = window.__GameState; S.realmInfamy = {}; S.hunters = [];

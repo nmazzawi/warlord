@@ -1,8 +1,9 @@
-// Realms.ts — which of the world's realms a warband can reach ON FOOT, and what a foreigner finds
-// when he gets there. The empires are still far too strong to fight, but a capital or a great city
-// will take a stranger's coin: their forge and their stables sell what THEY make, at a price that
-// says plainly what they think of you, and their inn sells what they know. Their barracks will not
-// take you at any price, and neither will their war.
+// Realms.ts — which of the world's realms a warband can reach ON FOOT, and what it finds when it
+// gets there. Both halves of that: a capital or a great city will take a stranger's coin — their
+// forge and stables sell what THEY make, at a price that says plainly what they think of you, and
+// their inn sells what they know — and every settlement in the realm, down to the last village, can
+// be attacked instead. Nothing here forbids that. What each realm keeps under arms is in `army`, and
+// the panels print the numbers before you decide.
 //
 // Everything else — Japan, the Norse jarldoms, the Aztecs, the Inca — is across water, and there are
 // no ships yet.
