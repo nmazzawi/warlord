@@ -229,8 +229,9 @@ async function desktopRun(browser) {
   await page.mouse.click(at.x, at.y);
   await sleep(400);
   const romeSpec = await page.evaluate(() => { const h = window.__warlord.scene.getScene('MapHud'); return { title: h.spec?.title, lines: (h.spec?.lines ?? []).join(' ') }; });
-  check(romeSpec.title === 'THE ROMAN EMPIRE' && /Throne: Roma/.test(romeSpec.lines) && /gates are open to a stranger/.test(romeSpec.lines),
-    `tapping a realm gives its card (${romeSpec.title})`);
+  check(romeSpec.title === 'THE ROMAN EMPIRE' && /Throne: Roma/.test(romeSpec.lines) && /Roma keeps \d+/.test(romeSpec.lines)
+    && /keeps \d+ defenders/.test(romeSpec.lines),
+    `a realm's card names what it keeps under arms (${romeSpec.title})`);
   await hidePanel(page);
   // a sea road, wherever it actually runs
   const seaPt = await page.evaluate(() => { const r = window.__SEA_ROUTES.find(r => r.id === 'west'); const a = r.pts[1], b = r.pts[2]; return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; });
@@ -431,7 +432,67 @@ async function desktopRun(browser) {
   check(inRus.territory === 'rus' && inRus.meter === 0 && /RUS INFAMY 0/.test(inRus.label),
     `a new realm opens its own meter at nothing (${inRus.label.slice(0, 34)})`);
   check(inRus.buttons.includes('ENTER THE CITY'), `Kiev opens its gates (${inRus.buttons.join(', ')})`);
-  check(/later age|comes in a/.test(inRus.lines), 'and says plainly that war there is for a later age');
+  check(/\d+ defenders: \d+ militia/.test(inRus.lines) && !/later age/.test(inRus.lines),
+    'and prints exactly what is standing in the square');
+  check(inRus.buttons.some(b => /^ASSAULT \(\d+\)/.test(b)), `Kiev can be attacked (${inRus.buttons.join(', ')})`);
+
+  // the whole point of the milestone: take a foreign village, and the country remembers
+  {
+    const before = await page.evaluate(() => ({ ...window.__GameState.realmInfamy }));
+    const fought = await page.evaluate(async () => {
+      const S = window.__GameState;
+      const v = window.__NODES.find(n => n.territory === 'rus' && n.rank === 'village');
+      S.pos = { x: v.x, y: v.y }; S.location = v.id;
+      const cfg = window.__battles.foreignBattle(v.id);
+      window.__warlord.scene.stop('Map'); window.__warlord.scene.stop('MapHud');
+      window.__warlord.scene.start('Raid', cfg);
+      return { id: v.id, name: v.name, total: cfg.defenders.militia + cfg.defenders.archers + cfg.defenders.captains + cfg.elite.count, elite: cfg.elite.kind };
+    });
+    check(await waitScene(page, 'Raid'), `assaulted ${fought.name}, a village of Rus`);
+    const spawned = await page.evaluate(() => { const r = window.__warlord.scene.getScene('Raid');
+      const k = {}; for (const e of r.enemies) k[e.kind] = (k[e.kind] ?? 0) + 1;
+      return { n: r.enemies.length, k, tinted: r.enemies.filter(e => e.liveryTint !== null).length }; });
+    check(spawned.n === fought.total && spawned.k[fought.elite] > 0 && spawned.tinted === spawned.k[fought.elite],
+      `their own men stand with the militia: ${JSON.stringify(spawned.k)}`);
+    // a shieldman turns half of everything until he swings; an axeman does not
+    const shield = await page.evaluate(() => {
+      const r = window.__warlord.scene.getScene('Raid');
+      const e = r.enemies.find(x => x.kind === 'shieldman') ?? r.enemies.find(x => x.elite);
+      if (!e) return null;
+      const before = e.hp; e.windingUp = false; e.damage(20, 0, 0, 0); const guarded = before - e.hp;
+      const b2 = e.hp; e.windingUp = true; e.damage(20, 0, 0, 0); const open = b2 - e.hp;
+      e.windingUp = false;
+      return { kind: e.kind, guarded, open };
+    });
+    check(!!shield && (shield.kind !== 'shieldman' || shield.guarded < shield.open),
+      `the shield rule holds (${shield && shield.kind}: ${shield && shield.guarded} guarded vs ${shield && shield.open} mid-swing)`);
+    // win it outright and take the loot
+    await page.evaluate(() => { const r = window.__warlord.scene.getScene('Raid'); r.hero.maxHp = 9999; r.hero.hp = 9999; });
+    for (let i = 0; i < 120; i++) {
+      const done = await page.evaluate(() => { const r = window.__warlord.scene.getScene('Raid');
+        if (!r || !r.scene.isActive()) return true;
+        const alive = r.enemies.filter(e => e.alive);
+        for (const e of alive) e.damage(9999, r.hero.x, r.hero.y, 0);
+        return alive.length === 0; });
+      if (done) break;
+      await sleep(120);
+    }
+    check(await waitScene(page, 'Result', 9000), 'the village falls');
+    await clickBtn(page, 'Result', 'LEAVE');
+    await waitScene(page, 'Map');
+    await sleep(900);
+    const after = await page.evaluate(() => { const S = window.__GameState;
+      return { rus: S.realmInfamy.rus ?? 0, access: S.access('f_rus_kiev'), tier: S.tierIn('rus'), why: S.closedReason('f_rus_kiev') }; });
+    check(after.rus > (before.rus ?? 0) && after.access === 'closed' && after.tier >= 1,
+      `Rus remembers: score ${after.rus}, gates ${after.access}, hunting at tier ${after.tier}`);
+    check(/made war in this country/.test(after.why), 'and says why its gates are shut');
+    // put the run back where the rest of the suite expects it
+    await page.evaluate(() => { const S = window.__GameState; S.realmInfamy = {}; S.hunters = [];
+      const c = window.__NODES.find(n => n.id === 'camp'); S.pos = { x: c.x, y: c.y }; S.location = 'camp'; S.save();
+      const m = window.__warlord.scene.getScene('Map'); m.token.setPosition(S.pos.x, S.pos.y - 12); m.zoomToTerritory(); });
+    await hidePanel(page);
+    await sleep(400);
+  }
   await clickBtn(page, 'MapHud', 'ENTER');
   check(await waitScene(page, 'Settlement'), 'entered Kiev as a foreigner');
   const kiev = await page.evaluate(() => {

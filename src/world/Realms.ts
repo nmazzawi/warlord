@@ -41,11 +41,12 @@ export interface RealmVisit {
 }
 
 /** What colour a realm's own men are painted, so the line you are looking at is visibly Rome's or
- *  Persia's and not just "more enemies". Deliberately clear of your own colours — nothing here is
- *  the green of your troops or the blue of your warlord. */
+ *  Persia's and not just "more enemies". Every one is deliberately LIGHT: on a phone, a crowd of
+ *  brown militia is one brown mass, and the men who matter have to read out of it at a glance. And
+ *  none of them is the green of your troops or the blue of your warlord. */
 export const ELITE_TINT: Record<string, number> = {
-  rome: 0xc9765a, greece: 0xc9b06a, rus: 0x9aa6c4, arabia: 0xd6bb63, persia: 0xb083c4,
-  egypt: 0x66c2b8, kush: 0xd4a06a, india: 0xd6913f, china: 0xcf7676,
+  rome: 0xe8705f, greece: 0xe8cf7a, rus: 0xb9c6e0, arabia: 0xefd98a, persia: 0xd0a6e8,
+  egypt: 0x7fdcd0, kush: 0xf0c48a, india: 0xf0a95c, china: 0xef8f8f,
 };
 
 /** The name the meter uses when you are standing in a realm. Short enough for a phone's status bar. */
