@@ -12,7 +12,8 @@ import { FOREIGN } from '../config/balance';
 import { stockFor } from '../world/Stock';
 import { nextRumor } from '../world/Rumors';
 import { CSS, displayStyle, dprOf, makeButton, uiStyle, uiUnit } from './ui';
-import { archOf, backdrop, building, type ArchSet } from '../systems/Architecture';
+import { archOf, type ArchSet } from '../systems/Architecture';
+import { landmark, townScene } from '../systems/Town';
 import { isCoastal } from '../world/Coast';
 
 export type BuildingId = 'forge' | 'barracks' | 'stables' | 'inn' | 'market' | 'harbor';
@@ -102,24 +103,23 @@ export class SettlementScene extends Phaser.Scene {
       sub: nextRumor(this.id)
         ? (foreign ? `${foreign.inn.name} — buy a rumor of their own land` : 'buy a rumor — news of the world')
         : (foreign ? `${foreign.inn.name} — you have heard it all` : 'you have heard all they know') });
-    // --- the street. Buildings stand on the ground in a row you can walk your eye along, drawn in
-    //     whatever this country builds with, and each one is its own tap target.
+    // --- the town, from the hillside above it. The ground, the water, the paths and every roof too
+    //     small to walk into are one baked picture; the buildings you can enter stand on top of it.
     const set = archOf(isCamp ? GameState.home : node!.territory);
     const rank = isCamp ? 'camp' : node!.rank ?? (node!.kind === 'town' ? 'city' : 'village');
     const grand = rank === 'capital' ? 1 : rank === 'city' ? 0.7 : rank === 'town' ? 0.45 : 0.2;
-    this.add.image(0, 0, backdrop(this, set, `${this.id}_${rank}`, Math.ceil(w), Math.ceil(h), grand)).setOrigin(0).setDepth(-10);
-
+    const coastal = !isCamp && isCoastal(this.id);
     const n = cards.length;
-    const road = h * 0.78;
-    const slotW = Math.min(w / Math.max(n, 1), 260 * u);
-    const plotW = slotW * 0.86;
-    const plotH = Math.min(h * 0.42, plotW * 1.15);
-    const x0 = w / 2 - (slotW * n) / 2 + slotW / 2;
+    const scene = townScene(this, set, `${this.id}_${rank}`, Math.ceil(w), Math.ceil(h), grand, coastal, n);
+    this.add.image(0, 0, scene.key).setOrigin(0).setDepth(-10);
+
+    const plotW = Math.min((w * 1.5) / Math.max(n, 1), 170 * u);
+    const plotH = Math.min(h * 0.26, plotW * 1.0);
     cards.forEach((card, i) => {
-      const x = x0 + i * slotW;
-      // the further along the street, the slightly smaller — enough to feel like a street
-      const k = 1 - Math.abs(i - (n - 1) / 2) * 0.045;
-      this.plot(x, road, plotW * k, plotH * k, card, set, u, i);
+      const q = scene.plots[i] ?? { x: w / 2, y: h * 0.74, scale: 1 };
+      // a building up the slope wears its name ABOVE it; the near rank wears it below. Otherwise a
+      // far building's plate lies across the near building's roof and steals its taps.
+      this.plot(q.x, q.y, plotW * q.scale, plotH * q.scale, card, set, u, i, q.scale < 0.95);
     });
     // bottom row: leave (and at home, wait a day)
     const by = h - 38 * u;
@@ -141,24 +141,31 @@ export class SettlementScene extends Phaser.Scene {
    * One building on the street: the mass, its name over the door, and what it is selling today. A
    * locked door still stands there — you can see the barracks and read why it will not open.
    */
-  private plot(x: number, groundY: number, w: number, h: number, card: Card, set: ArchSet, u: number, seed: number) {
-    const img = this.add.image(x, groundY, building(this, set, card.id, w, h, seed + 1)).setOrigin(0.5, 1);
+  private plot(x: number, groundY: number, w: number, h: number, card: Card, set: ArchSet, u: number, seed: number, above = false) {
+    const img = this.add.image(x, groundY, landmark(this, set, card.id, w, h, seed + 1)).setOrigin(0.5, 1);
+    img.setDepth(Math.round(groundY));   // nearer buildings stand in front of further ones
     if (card.locked) img.setTint(0x8a8a8a).setAlpha(0.85);
     // a dark plate under the name so it reads off grass, sand or snow alike
-    const plate = this.add.graphics();
-    const label = this.add.text(x, groundY + 9 * u, card.label,
+    const plate = this.add.graphics().setDepth(Math.round(groundY) + 1);
+    const label = this.add.text(x, 0, card.label,
       displayStyle(Math.round(Math.min(18, w * 0.12)), card.locked ? CSS.muted : CSS.goldHi)).setOrigin(0.5, 0);
-    const sub = this.add.text(x, label.y + label.height + 1 * u, card.locked ? `locked — ${card.locked}` : card.sub,
-      uiStyle(Math.round(Math.min(11.5, w * 0.08)), card.locked ? CSS.dangerHi : CSS.cream,
-        { bold: false, align: 'center', wrap: w * 1.2 })).setOrigin(0.5, 0);
-    const pw = Math.max(label.width, sub.width) + 14 * u, ph = label.height + sub.height + 10 * u;
-    plate.fillStyle(0x120d08, 0.5).fillRoundedRect(x - pw / 2, label.y - 5 * u, pw, ph, 6 * u);
-    plate.setDepth(-1);
-    if (card.locked) return;
-    // the whole plot is the target, sign and all — a thumb should never have to find the door
+    const sub = this.add.text(x, 0, card.locked ? `locked — ${card.locked}` : card.sub,
+      uiStyle(Math.round(Math.min(10, w * 0.07)), card.locked ? CSS.dangerHi : CSS.cream,
+        { bold: false, align: 'center', wrap: Math.max(96 * u, w * 0.95) })).setOrigin(0.5, 0);
     const top = groundY - h;
-    const hit = this.add.rectangle(x, (top + sub.y + sub.height) / 2, Math.max(w, 96 * u), (sub.y + sub.height) - top, 0xffffff, 0.001)
+    const plateTop = above ? top - (label.height + sub.height + 12 * u) : groundY + 9 * u;
+    label.setY(plateTop);
+    sub.setY(plateTop + label.height + 1 * u);
+    const pw = Math.max(label.width, sub.width) + 14 * u, ph = label.height + sub.height + 10 * u;
+    plate.fillStyle(0x120d08, 0.62).fillRoundedRect(x - pw / 2, plateTop - 5 * u, pw, ph, 6 * u);
+    label.setDepth(Math.round(groundY) + 2);
+    sub.setDepth(Math.round(groundY) + 2);
+    if (card.locked) return;
+    // the whole plot is the target, name and all — a thumb should never have to find the door
+    const y0 = Math.min(top, plateTop - 5 * u), y1 = Math.max(groundY, plateTop + ph);
+    const hit = this.add.rectangle(x, (y0 + y1) / 2, Math.max(w, 96 * u), y1 - y0, 0xffffff, 0.001)
       .setInteractive({ useHandCursor: true });
+    hit.setDepth(Math.round(groundY) + 3);
     let armed = -1;
     hit.on('pointerdown', (p: Phaser.Input.Pointer) => { armed = p.id; img.setScale(0.97); });
     hit.on('pointerup', (p: Phaser.Input.Pointer) => { img.setScale(1); if (armed === p.id) { armed = -1; this.open(card.id); } });

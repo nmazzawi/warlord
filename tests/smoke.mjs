@@ -266,9 +266,24 @@ async function desktopRun(browser) {
     return { images: imgs.length, hasMarket: texts.includes('MARKET'), hasForge: texts.includes('FORGE'),
       keys: [...new Set(imgs.map(i => i.texture.key.split('_')[0]))] };
   });
-  check(street.images >= 5 && street.keys.includes('bld') && street.keys.includes('town'),
-    `the camp is drawn as a street (${street.images} pieces: ${street.keys.join(', ')})`);
-  check(street.hasMarket && street.hasForge, 'with a market on it as well as a forge');
+  check(street.images >= 5 && street.keys.includes('lm') && street.keys.includes('town2'),
+    `the camp is a town seen from above it (${street.images} pieces: ${street.keys.join(', ')})`);
+  check(street.hasMarket && street.hasForge, 'with a market in it as well as a forge');
+  // and every landmark keeps its own ground, so no two name plates sit on each other
+  const plates = await page.evaluate(() => {
+    const s2 = window.__warlord.scene.getScene('Settlement');
+    const out = []; const walk = o => { if (o.type === 'Text' && o.text === o.text.toUpperCase() && o.text.length > 2 && o.text.length < 12) {
+      const b = o.getBounds(); out.push([o.text, b.centerX, b.centerY, b.width, b.height]); } if (o.list) o.list.forEach(walk); };
+    s2.children.list.forEach(walk);
+    let hits = 0;
+    for (let i = 0; i < out.length; i++) for (let j = i + 1; j < out.length; j++) {
+      if (Math.abs(out[i][1] - out[j][1]) < (out[i][3] + out[j][3]) / 2 && Math.abs(out[i][2] - out[j][2]) < (out[i][4] + out[j][4]) / 2) hits++;
+    }
+    return { n: out.length, hits, w: window.__warlord.scale.width,
+      offscreen: out.filter(o => o[1] - o[3] / 2 < 0 || o[1] + o[3] / 2 > window.__warlord.scale.width).map(o => o[0]) };
+  });
+  check(plates.hits === 0 && plates.offscreen.length === 0,
+    `${plates.n} name plates, none on top of another and none off the edge (${plates.offscreen.join(',') || 'all in'})`);
   // every culture builds differently
   const arch = await page.evaluate(() => {
     const seen = {};
