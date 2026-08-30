@@ -53,6 +53,8 @@ export class RaidScene extends Phaser.Scene {
   /** Where a realm's own men stand, and how many of their dead the ranks will still close over. */
   private elitePosts: Array<{ x: number; y: number }> = [];
   reformsLeft = 0;
+  /** Replacements promised and not yet on the field. */
+  private pendingReforms = 0;
   private formationHeading = 0;
   private tmp = new Phaser.Math.Vector2();
 
@@ -71,6 +73,7 @@ export class RaidScene extends Phaser.Scene {
     this.deadTroopIds = [];
     this.over = false;
     this.wave2Spawned = false;
+    this.pendingReforms = 0;
     this.formationHeading = 0;
     this.surround = new SurroundManager();
     this.tweens.timeScale = 1;
@@ -246,7 +249,9 @@ export class RaidScene extends Phaser.Scene {
     this.cleanupDead();
     this.syncHud();
 
-    if (!this.over && this.enemies.length === 0) {
+    // a spear line whose ranks are still closing is not beaten yet: the field only falls quiet once
+    // the last replacement has actually stepped up
+    if (!this.over && this.enemies.length === 0 && this.pendingReforms === 0) {
       if (this.cfg.kind === 'siege' && !this.wave2Spawned) this.spawnWave2();
       else this.victory();
     }
@@ -522,7 +527,11 @@ export class RaidScene extends Phaser.Scene {
         this.juice.hitStop(110);
         this.juice.banner(u.x, u.y - 30, u.kind === 'boss' ? 'THE CAPTAIN FALLS — HIS HALBERD IS YOURS' : 'CAPTAIN SLAIN', '#f5c542', 16);
       }
-      if (u.kind === 'spearman' && this.reformsLeft > 0 && !this.over) this.closeTheRanks(u.x, u.y);
+      if (u.kind === 'spearman' && this.reformsLeft > 0 && !this.over) {
+        // if he was the LAST man standing the fight would be over before a delayed replacement could
+        // arrive — so the ranks close on the spot, and the battle does not end on a lie
+        this.closeTheRanks(u.x, u.y, !this.enemies.some(e => e.alive && e !== u));
+      }
     }
   }
 
@@ -530,14 +539,20 @@ export class RaidScene extends Phaser.Scene {
    * A spear line does not thin because you killed a man in it. The one behind steps up into the gap —
    * a fixed number of times per battle, so it is a wall to grind through and not a fountain.
    */
-  private closeTheRanks(x: number, y: number) {
+  private closeTheRanks(x: number, y: number, now = false) {
     this.reformsLeft--;
     const spec = this.cfg.elite!;
     this.juice.banner(x, y - 26, 'THE RANKS CLOSE', '#e0c27a', 14);
-    this.time.delayedCall(900, () => {
+    const step = () => {
+      this.pendingReforms = Math.max(0, this.pendingReforms - 1);
       if (this.over || !this.scene.isActive()) return;
+      // never in your lap: the man who steps up comes from the back of the line, not out of thin air
+      // beside you
       const posts = this.elitePosts.length ? this.elitePosts : [{ x, y }];
-      const p = posts[Phaser.Math.Between(0, posts.length - 1)];
+      const far = posts.filter(q => Phaser.Math.Distance.Between(q.x, q.y, this.hero.x, this.hero.y) > 150);
+      const pool = far.length ? far : [...posts].sort((a, b) =>
+        Phaser.Math.Distance.Between(b.x, b.y, this.hero.x, this.hero.y) - Phaser.Math.Distance.Between(a.x, a.y, this.hero.x, this.hero.y)).slice(0, 2);
+      const p = pool[Phaser.Math.Between(0, pool.length - 1)];
       const spot = clearOf(this.obstacles, p.x, p.y, ENEMIES[spec.kind].radius);
       const d = this.cfg.defenders;
       const e = new Enemy(this, spot.x, spot.y, spec.kind, { hp: d.statMult, dmg: 1 + (d.statMult - 1) * 0.5, gold: d.goldMult });
@@ -547,7 +562,9 @@ export class RaidScene extends Phaser.Scene {
       this.enemies.push(e);
       this.enemyGroup.add(e);
       this.juice.burst(spot.x, spot.y, spec.tint, 10);
-    });
+    };
+    this.pendingReforms++;
+    if (now) step(); else this.time.delayedCall(900, step);
   }
 
   private victory() {

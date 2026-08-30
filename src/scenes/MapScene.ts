@@ -184,7 +184,7 @@ export class MapScene extends Phaser.Scene {
     const pv = GameState.pendingVictory;
     if (pv) {
       this.time.delayedCall(60, () => this.scene.launch('Result', { outcome: 'victory', goldEarned: pv.goldEarned, fallen: pv.fallen, deadTroopIds: pv.deadTroopIds,
-        battle: { kind: pv.battle.kind, layoutId: 'ashford', name: pv.battle.name, title: '', hint: '', defenders: { militia: 0, archers: 0, captains: 0, statMult: 1, goldMult: 1 }, palisade: false, villageId: pv.battle.villageId, campId: pv.battle.campId, tier: pv.battle.tier } }));
+        battle: { kind: pv.battle.kind, layoutId: 'ashford', name: pv.battle.name, title: '', hint: '', defenders: { militia: 0, archers: 0, captains: 0, statMult: 1, goldMult: 1 }, palisade: false, villageId: pv.battle.villageId, campId: pv.battle.campId, tier: pv.battle.tier, realm: pv.battle.realm, rank: pv.battle.rank } }));
     }
 
     this.input.on('pointerdown', this.onDown, this);
@@ -224,7 +224,7 @@ export class MapScene extends Phaser.Scene {
       this.refresh();
       if (this.pendingToast) { this.hud.toast([this.pendingToast], '#f5c542'); this.pendingToast = null; }
       if (GameState.patrolPending) {
-        this.showPatrolPanel(GameState.territory);
+        this.showPatrolPanel(GameState.patrolFrom);
       } else if (GameState.location) {
         const node = nodeById(GameState.location);
         if (node.kind !== 'cross' && node.kind !== 'camp') this.showNodePanel(node);
@@ -741,6 +741,7 @@ export class MapScene extends Phaser.Scene {
             this.clearPlan();
             this.traveling = false;
             GameState.patrolPending = true;
+            GameState.patrolFrom = caught.kind;
             Sound.patrol();
             this.cameras.main.shake(250, 0.004);
             this.showPatrolPanel(caught.kind);

@@ -19,7 +19,7 @@ export function dealDamage(raid: RaidScene, target: Unit, amount: number, srcX: 
   const isPlayer = target.team === 'player';
   const isHero = target instanceof Hero;
   // armor, shield and a warhorse soak part of every blow the hero takes
-  const amt = Math.max(1, Math.round(isHero ? GameState.applyDefense(Math.round(amount)) : amount));
+  const amt = Math.max(1, target.mitigate(Math.round(isHero ? GameState.applyDefense(Math.round(amount)) : amount)));
   const killed = target.damage(amt, srcX, srcY, knockback);
 
   const color = isHero ? COLORS.hurt : isPlayer ? COLORS.troopHurt : 0xffffff;

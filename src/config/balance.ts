@@ -116,7 +116,9 @@ export const ENEMIES = {
   // axeman: slow, enormous, two-handed. The wind-up is long and obvious; standing in it is a mistake.
   axeman:    { hp: 130, speed: 100, damage: 27, cooldown: 1.5, windup: 0.58, reach: 44, radius: 14, aggro: 280, gold: [30, 40] as const, knockback: 320 },
   // spearman: out-reaches every sword, and the ranks close over his body — kill him and another steps up.
-  spearman:  { hp: 100, speed: 106, damage: 19, cooldown: 1.3, windup: 0.50, reach: 82, radius: 13, aggro: 290, gold: [28, 36] as const, knockback: 230 },
+  // reach 96 clears every sword in the game (54 / 68 / 86) and the captain's own spear — stepping out
+  // of it is the only defence, which is what "out-reaches a sword" has to MEAN in play
+  spearman:  { hp: 100, speed: 106, damage: 19, cooldown: 1.3, windup: 0.50, reach: 96, radius: 13, aggro: 290, gold: [28, 36] as const, knockback: 230 },
 };
 /** How much of a blow a shieldman turns while his shield is up (he is open only as he strikes). */
 export const SHIELD_TURNS = 0.55;
@@ -146,6 +148,10 @@ export const FOREIGN = {
   // their riders are out. That is the whole bargain of this milestone — the lock is consequences.
   infamy: { village: 16, town: 28, city: 38, capital: 60 },
   tribute: { village: 8, town: 18, city: 26, capital: 45 },
+  /** Burning it, or sitting in it, angers a country more than robbing it and walking away. */
+  sackMult: 1.6, occupyMult: 1.3,
+  /** A place you already stripped is poorer and angrier the next time you come back. */
+  reraidStat: 0.12, reraidGold: 0.08,
   /** How many of a spear elite's dead the ranks will close over, per battle. */
   reformsPerBattle: { village: 2, town: 3, city: 5, capital: 8 },
 };

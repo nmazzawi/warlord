@@ -79,6 +79,10 @@ export class Unit extends Phaser.Physics.Arcade.Sprite {
     return false;
   }
 
+  /** What a blow of this size actually does to me. Armour, shields and tricks live here so that the
+   *  number the player SEES is the number that landed — a mitigation nobody can see teaches nothing. */
+  mitigate(amount: number) { return amount; }
+
   flash(ms: number) {
     this.flashUntil = this.raid.time.now + ms;
     this.setTintFill(0xffffff);

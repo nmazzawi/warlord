@@ -41,7 +41,7 @@ interface SaveData {
   version: number; gold: number; day: number; infamy: number; weaponTier: number; equippedWeapon: WeaponKind; horse: HorseKind;
   armor: ArmorKind; shield: ShieldKind; owned: Owned; troops: TroopRecord[]; fallen: FallenRecord[]; deserted: string[];
   nextId: number; nameCursor: number; raidsDone: number;
-  location: string; patrolPending: boolean;
+  location: string; patrolPending: boolean; patrolFrom?: Territory;
   pos?: { x: number; y: number }; hunters?: Hunter[];
   settlements: Record<string, SettlementState>; garrisons: Record<string, TroopRecord[]>;
   fortifyStepsDone: number; fortifyCarry: number; unpaidDays: number; seenMapHint: boolean;
@@ -70,6 +70,8 @@ class GameStateStore {
   /** Hunter parties on the map: they know your face and they are looking for you. */
   hunters: Hunter[] = [];
   patrolPending = false;
+  /** Whose riders are standing over you — kept so a reload offers the same fight, not a local one. */
+  patrolFrom: Territory = 'homeland';
   settlements: Record<string, SettlementState> = {};
   garrisons: Record<string, TroopRecord[]> = {};
   fortifyStepsDone = 0;
@@ -100,7 +102,7 @@ class GameStateStore {
     this.owned = { leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false, composite: false };
     this.steppeInfamy = 0; this.realmInfamy = {}; this.campScattered = {}; this.huntedUntil = -1;
     this.troops = []; this.fallen = []; this.deserted = []; this.raidsDone = 0; this.location = 'camp';
-    this.patrolPending = false; this.pos = { x: nodeById('camp').x, y: nodeById('camp').y }; this.hunters = []; this.settlements = {}; this.garrisons = {}; this.fortifyStepsDone = 0; this.fortifyCarry = 0;
+    this.patrolPending = false; this.patrolFrom = 'homeland'; this.pos = { x: nodeById('camp').x, y: nodeById('camp').y }; this.hunters = []; this.settlements = {}; this.garrisons = {}; this.fortifyStepsDone = 0; this.fortifyCarry = 0;
     this.unpaidDays = 0; this.seenMapHint = false; this.rumorsHeard = []; this.pendingVictory = null;
     this.nextId = 1; this.nameCursor = 0; this.snapshot = null;
     for (let i = 0; i < TROOP.starting; i++) this.recruit('raider');
@@ -329,6 +331,7 @@ class GameStateStore {
     const base = FOREIGN_GARRISON[rank];
     const power = REALM_POWER[realm] ?? 1;
     const v = visitOf(realm);
+    const vs = this.settlement(id);
     const up = (x: number) => Math.max(1, Math.round(x * power));
     let militia = up(base.militia);
     const archers = up(base.archers), captains = up(base.captains), elites = up(base.elites);
@@ -339,8 +342,11 @@ class GameStateStore {
     return {
       realm, rank, militia, archers, captains, elites,
       total: militia + archers + captains + elites,
-      statMult: base.statMult * power,
-      goldMult: base.goldMult * power,
+      // come back a second time and they are ready for you, and there is less left to take
+      statMult: base.statMult * power * (1 + vs.timesRaided * FOREIGN.reraidStat),
+      goldMult: base.goldMult * power * (vs.wealth ?? 1) * (1 + vs.timesRaided * FOREIGN.reraidGold),
+      timesRaided: vs.timesRaided,
+      wealth: vs.wealth ?? 1,
       /** rank as the old village-tier number, for the loot and conquest maths */
       tierish: rank === 'capital' ? 4 : rank === 'city' ? 3 : rank === 'town' ? 2 : 1,
       eliteKind: style,
@@ -423,7 +429,7 @@ class GameStateStore {
         this.gold += extra;
         vs.sacked = true; vs.occupied = false;
         delete this.garrisons[id];
-        if (foreign) this.addInfamyIn(realm, Math.round(spike * 1.6));
+        if (foreign) this.addInfamyIn(realm, Math.round(spike * FOREIGN.sackMult));
         else this.addInfamy(town ? CONQUEST.sackTownInfamy : INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1) + CONQUEST.sackVillageInfamy);
         summary = foreign
           ? `Sacked ${node.name}: +${goldEarned + extra} gold. ${REALM_SHORT[realm] ?? 'The realm'} will not forget which name did this.`
@@ -433,7 +439,7 @@ class GameStateStore {
         const garrison = this.troops.slice(0, CONQUEST.garrison);
         this.troops = this.troops.slice(garrison.length);
         this.garrisons[id] = garrison;
-        if (foreign) this.addInfamyIn(realm, Math.round(spike * 1.3));
+        if (foreign) this.addInfamyIn(realm, Math.round(spike * FOREIGN.occupyMult));
         else this.addInfamy(INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1));
         summary = `Occupied ${node.name}: +${goldEarned} gold now, tribute every day. ${garrison.map(g => g.name).join(' and ') || 'Nobody'} stay${garrison.length === 1 ? 's' : ''} as the garrison.`;
       } else {
@@ -470,7 +476,7 @@ class GameStateStore {
       troops: this.troops.map(t => ({ ...t })), fallen: this.fallen.map(f => ({ ...f })), deserted: [...this.deserted],
       nextId: this.nextId, nameCursor: this.nameCursor, raidsDone: this.raidsDone,
       location: this.location,
-      patrolPending: this.patrolPending, pos: { ...this.pos }, hunters: this.hunters.map(h => ({ ...h })),
+      patrolPending: this.patrolPending, patrolFrom: this.patrolFrom, pos: { ...this.pos }, hunters: this.hunters.map(h => ({ ...h })),
       settlements: JSON.parse(JSON.stringify(this.settlements)), garrisons: JSON.parse(JSON.stringify(this.garrisons)),
       fortifyStepsDone: this.fortifyStepsDone, fortifyCarry: this.fortifyCarry,
       unpaidDays: this.unpaidDays, seenMapHint: this.seenMapHint,
@@ -490,6 +496,7 @@ class GameStateStore {
     this.pos = d.pos ? { ...d.pos } : { x: at.x, y: at.y };
     this.hunters = (d.hunters ?? []).map(h => ({ ...h }));
     this.patrolPending = d.patrolPending ?? false;
+    this.patrolFrom = d.patrolFrom ?? (this.location ? territoryOf(this.location) : 'homeland');
     this.settlements = JSON.parse(JSON.stringify(d.settlements ?? {})); this.garrisons = JSON.parse(JSON.stringify(d.garrisons ?? {}));
     this.fortifyStepsDone = d.fortifyStepsDone ?? 0; this.fortifyCarry = d.fortifyCarry ?? 0;
     this.unpaidDays = d.unpaidDays ?? 0; this.seenMapHint = d.seenMapHint ?? false;

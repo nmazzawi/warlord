@@ -82,8 +82,11 @@ export class ResultScene extends Phaser.Scene {
         const tier = d.battle.tier ?? 1;
         const sackGold = GameState.sackBonus(d.goldEarned, town);
         // a country keeps its own score: what you did here is written against IT, not against home
+        // these three MUST be the numbers commitVictory actually applies — they come from the same
+        // constants it does, so the screen can never promise one price and charge another
         const raidInf = abroad ? FOREIGN.infamy[rank] : INFAMY.perRaidBase + INFAMY.perRaidPerTier * tier;
-        const sackInf = abroad ? Math.round(FOREIGN.infamy[rank] * 1.6)
+        const occupyInf = abroad ? Math.round(FOREIGN.infamy[rank] * FOREIGN.occupyMult) : raidInf;
+        const sackInf = abroad ? Math.round(FOREIGN.infamy[rank] * FOREIGN.sackMult)
           : town ? CONQUEST.sackTownInfamy : raidInf + CONQUEST.sackVillageInfamy;
         const tribute = abroad ? FOREIGN.tribute[rank] : town ? TRIBUTE.town : TRIBUTE.villageBase + TRIBUTE.villagePerTier * tier;
         const whose = abroad ? ` (${REALM_SHORT[node.territory] ?? 'their'} score)` : '';
@@ -97,7 +100,7 @@ export class ResultScene extends Phaser.Scene {
         };
         opt('SACK', `+${sackGold} gold on top of the loot · burns for good · infamy +${sackInf}${whose}`, 'danger', true, () => this.finish('sack'));
         opt('OCCUPY', survivors >= 1
-          ? `+${tribute} gold/day · ${garrison} troop${garrison === 1 ? '' : 's'} stay${garrison === 1 ? 's' : ''} as garrison · its shops open to you · infamy +${raidInf}${whose}`
+          ? `+${tribute} gold/day · ${garrison} troop${garrison === 1 ? '' : 's'} stay${garrison === 1 ? 's' : ''} as garrison · its shops open to you · infamy +${occupyInf}${whose}`
           : 'no one left to hold it — you need at least one troop', 'primary', survivors >= 1, () => this.finish('occupy'));
         opt('LEAVE', town ? `take the loot and go · the garrison regroups · infamy +${raidInf}${whose}` : `take the loot and go · ruined ${RERAID.recoverDays} days, poorer for ~${RERAID.wealthRecoverDays} · infamy +${raidInf}${whose}`, 'ghost', true, () => this.finish('leave'));
         y += 8 * u;

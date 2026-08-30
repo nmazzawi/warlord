@@ -33,7 +33,7 @@ export class Enemy extends Unit {
   target: Unit | null = null;
   /** Assigned by SurroundManager when this militia is hunting the hero. */
   slotAngle: number | null = null;
-  private stats: { speed: number; cooldown: number; windup: number; reach: number; aggro: number };
+  private stats: { speed: number; cooldown: number; windup: number; reach: number; aggro: number; knockback: number };
   private post: Phaser.Math.Vector2;
   private wanderTarget: Phaser.Math.Vector2;
   private wanderTimer = 0;
@@ -64,7 +64,8 @@ export class Enemy extends Unit {
     if (mounted) this.mount = scene.add.image(x, y + 4, TEX.horse).setDepth(19).setScale(1.1).setTint(kind === 'noyan' ? 0xd9c4a0 : 0xffffff);
     this.baseScale = mounted ? 1.1 : 1;
     this.kind = kind;
-    this.stats = { speed: s.speed, cooldown: s.cooldown, windup: s.windup, reach: s.reach, aggro: s.aggro };
+    this.stats = { speed: s.speed, cooldown: s.cooldown, windup: s.windup, reach: s.reach, aggro: s.aggro,
+      knockback: (s as { knockback?: number }).knockback ?? 90 };
     this.damageAmount = s.damage * mult.dmg;
     this.goldValue = Math.round(Phaser.Math.Between(s.gold[0], s.gold[1]) * mult.gold);
     this.post = new Phaser.Math.Vector2(x, y);
@@ -96,12 +97,12 @@ export class Enemy extends Unit {
   /**
    * A shieldman turns better than half of everything while his shield is up. He is only properly open
    * in the moment he strikes — which is the entire trick of fighting a shield wall: wait for the swing.
+   * This runs BEFORE the damage number is drawn, so the small number you see is the lesson.
    */
-  damage(amount: number, srcX: number, srcY: number, knockback: number) {
-    const amt = this.kind === 'shieldman' && !this.windingUp
+  mitigate(amount: number) {
+    return this.kind === 'shieldman' && !this.windingUp
       ? Math.max(1, Math.round(amount * (1 - SHIELD_TURNS)))
       : amount;
-    return super.damage(amt, srcX, srcY, knockback);
   }
   get mounted() { return this.mount !== null; }
 
@@ -332,7 +333,7 @@ export class Enemy extends Unit {
     // a little forgiveness on reach, but stepping back makes it whiff — and it must be LESS than a
     // militia's width (22px) so the second row of a crowd can't hit you through the first.
     if (this.edgeDistTo(t) <= this.stats.reach + 6) {
-      const kb = this.kind === 'captain' ? ENEMIES.captain.knockback : this.kind === 'boss' ? ENEMIES.boss.knockback : this.kind === 'noyan' ? ENEMIES.noyan.knockback : 90;
+      const kb = this.stats.knockback;
       dealDamage(this.raid, t, this.damageAmount, this.x, this.y, kb, 'enemy');
     } else {
       this.raid.juice.damageNumber(this.x, this.y - this.radius - 10, 'miss', 0xbbbbbb, 11);
