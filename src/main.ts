@@ -7,6 +7,7 @@ import '@fontsource/nunito-sans/400.css';
 import '@fontsource/nunito-sans/700.css';
 import { BootScene } from './scenes/BootScene';
 import { TitleScene } from './scenes/TitleScene';
+import { CivSelectScene } from './scenes/CivSelectScene';
 import { MapScene } from './scenes/MapScene';
 import { MapHudScene } from './scenes/MapHudScene';
 import { SettlementScene } from './scenes/SettlementScene';
@@ -19,6 +20,7 @@ import { GameState } from './state/GameState';
 import { NODES } from './world/WorldMap';
 import { campBattle, foreignBattle, foreignPatrolBattle, patrolBattle, siegeBattle, steppePatrolBattle, villageBattle } from './world/Battles';
 import { REALM_VISITS } from './world/Realms';
+import { CIVS } from './world/Civs';
 import { CAMPS, campLocation } from './world/Steppe';
 import { REGIONS, SEA_ROUTES } from './world/WorldChart';
 import { ll } from './world/geo';
@@ -44,7 +46,7 @@ const game = new Phaser.Game({
   input: { activePointers: 3 }, // thumb on the joystick + a finger on a button at the same time
   disableContextMenu: true,
   render: { antialias: true, pixelArt: false, powerPreference: 'high-performance' },
-  scene: [BootScene, TitleScene, MapScene, MapHudScene, SettlementScene, ShopScene, RaidScene, HudScene, ResultScene],
+  scene: [BootScene, TitleScene, CivSelectScene, MapScene, MapHudScene, SettlementScene, ShopScene, RaidScene, HudScene, ResultScene],
 });
 
 // Keep the canvas matched to the window (Phaser's own resize handling is off in NONE mode).
@@ -64,6 +66,7 @@ window.visualViewport?.addEventListener('resize', fitSoon);
 (window as unknown as { __NODES: typeof NODES }).__NODES = NODES;
 (window as unknown as { __battles: object }).__battles = { villageBattle, siegeBattle, patrolBattle, campBattle, steppePatrolBattle, foreignBattle, foreignPatrolBattle };
 (window as unknown as { __REALM_VISITS: typeof REALM_VISITS }).__REALM_VISITS = REALM_VISITS;
+(window as unknown as { __CIVS: typeof CIVS }).__CIVS = CIVS;
 (window as unknown as { __CAMPS: typeof CAMPS; __campLocation: typeof campLocation; __REGIONS: typeof REGIONS }).__CAMPS = CAMPS;
 (window as unknown as { __campLocation: typeof campLocation }).__campLocation = campLocation;
 (window as unknown as { __REGIONS: typeof REGIONS }).__REGIONS = REGIONS;

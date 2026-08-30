@@ -3,7 +3,8 @@
 // settlement and on whether you own the place or are merely visiting.
 import Phaser from 'phaser';
 import { GameState, type ArmorKind, type HorseKind, type ShieldKind, type WeaponKind } from '../state/GameState';
-import { COMPOSITE_BOW, EQUIPMENT, HORSES, TROOP, TROOP_KINDS, WEAPONS } from '../config/balance';
+import { COMPOSITE_BOW, EQUIPMENT, HORSES, TROOP, WEAPONS } from '../config/balance';
+import { unitDef } from '../world/Units';
 import { Sound } from '../systems/Sound';
 import { stockFor } from '../world/Stock';
 import { nextRumor } from '../world/Rumors';
@@ -108,14 +109,23 @@ export class ShopScene extends Phaser.Scene {
       return { title: 'THE FORGE', blurb: `${foreign ? `${foreign.forge.note}\n` : ''}Defense ${g.defense}  ·  weapon: ${weaponName}${markup}`, rows };
     }
     if (this.building === 'barracks') {
-      const kindKey = stock.barracks?.kind ?? 'raider';
-      const k = TROOP_KINDS[kindKey];
+      // a barracks hires out the roster of whoever holds the place — the whole of it, so you can see
+      // what this country actually fields and what each of them costs you every day thereafter
+      const kinds = stock.barracks?.kinds ?? ['raider'];
       const full = g.troops.length >= TROOP.max;
-      const rows: Row[] = [{
-        name: full ? 'Warband is full' : `Recruit a ${k.label.toLowerCase()}`, desc: `${g.troops.length}/${TROOP.max} troops  ·  ${k.hp} HP, ${k.damage} damage  ·  ${k.desc}  ·  wages 2/day`,
-        button: full ? { label: 'FULL', enabled: false, onPress: () => {} } : { label: `${k.cost} gold`, enabled: g.gold >= k.cost, onPress: () => this.buy(k.cost, () => { g.recruit(kindKey); }) },
-      }];
-      rows.push({ name: 'Your warband', desc: g.troops.map(t => `${t.name} (${TROOP_KINDS[t.kind ?? 'raider'].label})`).join(', ') || 'nobody — recruit before you raid', button: null });
+      const rows: Row[] = kinds.map(key => {
+        const k = unitDef(key);
+        return {
+          name: k.label,
+          desc: `${k.hp} HP · ${k.damage} damage · ${k.wage} gold a day${k.signature ? ` · ${k.signature}` : ''}`,
+          button: full ? { label: 'FULL', enabled: false, onPress: () => {} }
+            : { label: `${Math.ceil(k.cost * stock.markup)} gold`, enabled: g.gold >= Math.ceil(k.cost * stock.markup),
+                onPress: () => this.buy(Math.ceil(k.cost * stock.markup), () => { g.recruit(key); }) },
+        };
+      });
+      rows.unshift({ name: full ? 'Warband is full' : `${g.troops.length}/${TROOP.max} in the warband`,
+        desc: full ? 'Nobody else will follow you until someone falls.' : 'Every man eats every day, whether you march or not.', button: null });
+      rows.push({ name: 'Your warband', desc: g.troops.map(t => `${t.name} (${unitDef(t.kind ?? 'raider').label})`).join(', ') || 'nobody — recruit before you raid', button: null });
       const garrisoned = Object.entries(g.garrisons).filter(([, list]) => list.length).map(([id, list]) => `${list.map(t => t.name).join(', ')} at ${nodeById(id).name}`);
       if (garrisoned.length) rows.push({ name: 'Garrisons', desc: garrisoned.join('; '), button: null });
       if (g.fallen.length || g.deserted.length) rows.push({ name: 'Gone', desc: [...g.fallen.slice(-6).map(f => `${f.name} fell at ${f.where}`), ...g.deserted.slice(-4).map(n => `${n} deserted`)].join(', '), button: null });

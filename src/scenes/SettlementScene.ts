@@ -8,6 +8,7 @@ import { Sound } from '../systems/Sound';
 import { mulberry32 } from '../utils/rng';
 import { nodeById } from '../world/WorldMap';
 import { visitOf } from '../world/Realms';
+import { unitDef } from '../world/Units';
 import { FOREIGN } from '../config/balance';
 import { stockFor } from '../world/Stock';
 import { nextRumor } from '../world/Rumors';
@@ -109,7 +110,8 @@ export class SettlementScene extends Phaser.Scene {
     const cards: Card[] = [
       { id: 'forge', label: 'FORGE', tex: TEX.forge, sub: `${stock.forge.swordMaxTier > 1 ? `swords to tier ${stock.forge.swordMaxTier}` : 'no swords'}${stock.forge.items.includes('plate') ? ', plate' : stock.forge.items.includes('leather') ? ', armor' : ''}${stock.forge.items.includes('bow') ? ', bow' : ''}${stock.forge.items.includes('composite') ? ', composite bow' : ''}${this.visiting ? ` · ${up}` : ''}` },
     ];
-    if (stock.barracks) cards.push({ id: 'barracks', label: 'BARRACKS', tex: TEX.barracks, sub: stock.barracks.kind === 'guard' ? 'recruit town guards' : stock.barracks.kind === 'levy' ? 'recruit levies' : stock.barracks.kind === 'rider' ? 'hire steppe riders' : 'recruit raiders' });
+    if (stock.barracks) cards.push({ id: 'barracks', label: 'BARRACKS', tex: TEX.barracks,
+      sub: stock.barracks.kinds.length > 1 ? `${stock.barracks.kinds.length} kinds for hire` : `hire ${unitDef(stock.barracks.kinds[0]).label.toLowerCase()}s` });
     else if (!isCamp) cards.push({ id: 'barracks', label: 'BARRACKS', tex: TEX.barracks, sub: '', locked: foreign ? foreign.barracksLocked : "the locals won't fight for you" });
     if (stock.stables.length) cards.push({ id: 'stables', label: 'STABLES', tex: TEX.stables, sub: stock.stables.join(', ') + (this.visiting ? ` · ${up}` : '') });
     // the card's name stays one short word — a foreign inn's real name is long, and belongs on the

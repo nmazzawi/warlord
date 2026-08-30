@@ -135,8 +135,66 @@ async function desktopRun(browser) {
   // the title screen must never write a save
   await page.evaluate(() => { window.__GameState.save(); });
   check(!(await page.evaluate(() => window.__GameState.hasSave())), 'title screen cannot create a save by accident');
+  // --- M5.2: the fourteen thrones, plus the outlaw
+  const civs = await page.evaluate(() => {
+    const C = window.__CIVS;
+    const ids = Object.keys(C);
+    const bad = [];
+    for (const id of ids) {
+      const c = C[id];
+      const roles = c.troops.map(t => t.role);
+      if (!c.heroName || !c.backstory || c.backstory.length < 120) bad.push(`${id}: thin backstory`);
+      if (roles.filter(r => r === 'line').length !== 1) bad.push(`${id}: not one line unit`);
+      if (roles.filter(r => r === 'elite').length !== 1) bad.push(`${id}: not one elite`);
+      if (c.troops.length < 3) bad.push(`${id}: too few units`);
+      if (c.troops.some(t => t.wage < 1 || t.cost < 10)) bad.push(`${id}: a free man`);
+    }
+    const sigs = ids.flatMap(id => C[id].troops.map(t => t.signature));
+    return { n: ids.length, bad, unique: new Set(sigs).size, sigs: sigs.length,
+      weapons: [...new Set(ids.map(i => C[i].weapon))].sort(), leans: [...new Set(ids.map(i => C[i].lean))].sort() };
+  });
+  check(civs.n === 15 && civs.bad.length === 0, `fifteen starts, each a whole roster (${civs.bad.join('; ') || 'all sound'})`);
+  check(civs.unique === civs.sigs, `every unit's signature is its own (${civs.unique}/${civs.sigs})`);
+  check(civs.weapons.length >= 2 && civs.leans.length === 3, `the starts differ in kit and lean (${civs.weapons.join('/')}, ${civs.leans.join('/')})`);
+  // choosing one puts your camp in your own country and your own people at your back
+  const jp = await page.evaluate(() => {
+    const S = window.__GameState;
+    S.newRun('japan');
+    const camp = window.__NODES.find(n => n.id === 'camp');
+    return { home: S.home, campT: camp.territory, campName: camp.name,
+      troops: S.troops.map(t => t.kind), meter: S.territoryName(), abroad: S.territoryName('rome'),
+      atHome: S.access(window.__NODES.find(n => n.territory === 'japan' && n.kind === 'foreign')?.id ?? 'camp') };
+  });
+  check(jp.home === 'japan' && jp.campT === 'japan' && jp.troops.every(t => t.startsWith('japan_')),
+    `a Japanese start camps in Japan with Japanese troops (${jp.campName})`);
+  check(jp.meter === '' && jp.abroad !== '', 'your own country needs no naming on the meter, and everyone else does');
+  // and a save written before there was a choice is the Borderland Outlaw
+  const preChoice = await page.evaluate(() => {
+    const S = window.__GameState;
+    S.newRun('rome');
+    const save = JSON.parse(JSON.stringify(S.toJSON()));
+    delete save.civ;
+    S.fromJSON(save);
+    const camp = window.__NODES.find(n => n.id === 'camp');
+    return { civ: S.civ, home: S.home, camp: { x: camp.x, y: camp.y } };
+  });
+  check(preChoice.civ === 'outlaw' && preChoice.home === 'homeland' && preChoice.camp.x === 3590 && preChoice.camp.y === 1005,
+    `an old save is the Borderland Outlaw, camped where it always was (${preChoice.camp.x},${preChoice.camp.y})`);
+  await page.evaluate(() => window.__GameState.newRun('outlaw'));
   await clickBtn(page, 'Title', 'NEW');
-  check(await waitScene(page, 'Settlement'), 'new warband opens the camp screen');
+  check(await waitScene(page, 'CivSelect'), 'new warband asks which of the fifteen you are');
+  await page.screenshot({ path: `${OUT}/d-civselect.png` });
+  const shown = await page.evaluate(() => {
+    const s2 = window.__warlord.scene.getScene('CivSelect');
+    const texts = []; const walk = o => { if (o.type === 'Text') texts.push(o.text); if (o.list) o.list.forEach(walk); };
+    s2.children.list.forEach(walk);
+    return texts;
+  });
+  check(shown.some(t => /CHOOSE YOUR START/.test(t)) && shown.some(t => /THE BORDERLAND/.test(t)) && shown.some(t => /ROME/.test(t)),
+    'the wall of starts is drawn, the outlaw first');
+  await clickBtn(page, 'CivSelect', 'BEGIN');
+  check(await waitScene(page, 'Settlement'), 'choosing a start opens its camp');
+  check((await gs(page)).location === 'camp', 'and you are standing in it');
   await sleep(500);
   await page.screenshot({ path: `${OUT}/d-camp.png` });
 

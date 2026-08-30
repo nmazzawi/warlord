@@ -1,0 +1,530 @@
+[
+ {
+  "id": "rome",
+  "heroName": "Gaius Fulvius Rufus",
+  "heroTitle": "First spear of the Twelfth, cashiered",
+  "backstory": "He held the north gate of the marching camp above Aquincum one night, rank relieving rank on the horn, and the Twelfth lost its eagle in the dark anyway. Rome tried its centurions and left the legate his command. They broke Rufus's vine staff over his knee in front of the standards, and he walked out past men he had drilled for nineteen years, and none of them spoke. He still carries the century's burial money, copper paid in by men whose bones are in that ditch, owed to widows in three provinces. He drills the warband the way he drilled them: two lines, one horn, and the front rank steps back before it tires.",
+  "playstyle": "Advance in order, hold what you take, and let them break on the shields.",
+  "weapon": "sword",
+  "dress": "Iron helmet with cheek plates and a transverse crest, segmented plate over a red tunic, short red cloak, tall rectangular shield.",
+  "lean": "defense",
+  "troops": [
+   {
+    "name": "Auxiliary",
+    "role": "line",
+    "signature": "The tired front rank steps back through the fresh one and comes on again.",
+    "desc": "Provincial spears out of the frontier forts, drilled to Roman time. Not citizens. They stand where they are put."
+   },
+   {
+    "name": "Legionary",
+    "role": "elite",
+    "signature": "Locks the tall shields overhead into a roof, and arrows rattle off it.",
+    "desc": "Twenty years in segmented plate. The shield takes the blow and the short sword goes in low, under the guard."
+   },
+   {
+    "name": "Velite",
+    "role": "specialist",
+    "signature": "Throws a javelin that bends where it sticks, and the shield is thrown away.",
+    "desc": "Young, cheap, a wolfskin over the helmet. Out ahead, hands empty, and back behind the line before the charge lands."
+   },
+   {
+    "name": "Centurion",
+    "role": "specialist",
+    "signature": "The men either side of him close up and hit harder while he is standing.",
+    "desc": "Vine staff, crest worn across the helmet. He is paid to be the last man on his feet in his own line."
+   }
+  ]
+ },
+ {
+  "id": "greece",
+  "heroName": "Kleodemos of Acharnai",
+  "heroTitle": "Taxiarch of Acharnai, ostracised",
+  "backstory": "Kleodemos led the Acharnian file at Delion and brought two hundred of three hundred home, which the city judged too few. That winter the assembly held the vote with potsherds, and enough men scratched his name on them to send him out for ten years. His own brother-in-law wrote one. He sold the farm under Parnes to a neighbour who would not meet his eye, bought spears with the silver, and took the north road with nobody to see him off. He still puts his best men on the right and worries about the left, because he has watched a line come apart from the open end.",
+  "playstyle": "A hedge of points at the front. Guard the open side and nothing gets through.",
+  "weapon": "sword",
+  "dress": "Bronze helmet, horsehair crest pushed back off the face, bronze breastplate over a red tunic, greaves, round shield, no cloak.",
+  "lean": "defense",
+  "troops": [
+   {
+    "name": "Hoplite",
+    "role": "line",
+    "signature": "His shield covers the man on his left; take that man and he folds.",
+    "desc": "A farmer with his own shield and his father's spear. There are always more of them in the next village."
+   },
+   {
+    "name": "Epilektos",
+    "role": "elite",
+    "signature": "Spear held overarm, striking down past the shield rim at throat and thigh.",
+    "desc": "Picked men kept under arms all year at the city's cost, and priced accordingly. They stand in the first rank."
+   },
+   {
+    "name": "Sphendonetes",
+    "role": "specialist",
+    "signature": "Lead shot puts a man on his back with his shield still up in front of him.",
+    "desc": "Rhodian boys who have thrown at goats since they could stand. The shot is moulded with a curse cut into it."
+   }
+  ]
+ },
+ {
+  "id": "japan",
+  "heroName": "Miura Sadatsune",
+  "heroTitle": "Masterless man of Sagami",
+  "backstory": "He was second sword to the lord of Sagami and held the west end of the bridge at Uji while the planks came up behind him. His lord crossed. The arrow that killed the lord came an hour later out of the dark, from a man nobody saw climb the bank. Sadatsune carried the head home, buried it, and was told by the heir that one house does not keep two lords' worth of men. He has one trade left that pays inside a season: a few men trained from childhood, a name shouted at whoever holds the gate, and a wall gone over at night.",
+  "playstyle": "Few men, chosen ground. Take the man who commands and the rest gives way.",
+  "weapon": "sword",
+  "dress": "Black lacquered plates laced with red cord, iron-horned helmet, white silk sleeves, indigo leggings, no cloak, one long sword at the hip.",
+  "lean": "attack",
+  "troops": [
+   {
+    "name": "Ashigaru",
+    "role": "line",
+    "signature": "The whole rank beats its spears down on one shout, and guards drop under it.",
+    "desc": "Farmers off the rice fields, handed a spear longer than three men and a month to learn one motion with it."
+   },
+   {
+    "name": "Samurai",
+    "role": "elite",
+    "signature": "Singles out whoever leads the enemy and fights him alone until one falls.",
+    "desc": "Trained from childhood, and dear for that reason. One of them is worth the four men you did not hire."
+   },
+   {
+    "name": "Ninja",
+    "role": "specialist",
+    "signature": "Is behind a man before he turns, and the blow from behind is the one that kills.",
+    "desc": "No house owns him and he takes silver, not rice. Over the wall and behind the line before the shout goes up."
+   },
+   {
+    "name": "Sohei",
+    "role": "specialist",
+    "signature": "One sweep of the naginata takes the man beside the one it was aimed at.",
+    "desc": "Temple men out of Nara who answer to no lord. They came down the mountain armed and never went back up."
+   }
+  ]
+ },
+ {
+  "id": "china",
+  "heroName": "Pei Zhao",
+  "heroTitle": "Crossbow captain off the register",
+  "backstory": "Pei Zhao held the north road above Taiyuan for two years with three hundred crossbows and one drum, and never gave up a mile of it. Then the arsenal counted his bolts and found the tally nine hundred short, which is a hanging matter for a clerk and a ruin for a captain. He carried his rolls to the prefecture in a box and was heard for as long as it takes to drink tea. A brush went through his name, and the three hundred were written over to another man before he was out of the courtyard. Forty came off the register with him and walk behind him still, rank behind rank, stepping when he beats.",
+  "playstyle": "Everything moves on the drum, and nothing closes while the bolts are still coming.",
+  "weapon": "composite",
+  "dress": "Dark iron lamellar coat, crimson sash, black lacquered helmet with a low crest, no cloak, a saddle bow across his back.",
+  "lean": "defense",
+  "troops": [
+   {
+    "name": "Fubing",
+    "role": "line",
+    "signature": "Steps and halts on the drum, and holds the mark it halted him on.",
+    "desc": "Called up off the household register and drilled between harvests. Cheap, plentiful, and they know the drum before they know you."
+   },
+   {
+    "name": "Nushou",
+    "role": "specialist",
+    "signature": "Shoots by turns, rank after rank, so the bolts never stop while they span.",
+    "desc": "State bows, counted out and counted back. Spanned with the foot, loosed on the count, through shield and mail together."
+   },
+   {
+    "name": "Gushou",
+    "role": "specialist",
+    "signature": "Beats until your scattered men walk back into rank and step as one.",
+    "desc": "A drum on his back and a magistrate's warrant in his sleeve. Men who will not hear you will hear him."
+   },
+   {
+    "name": "Horse-Cutter",
+    "role": "elite",
+    "signature": "Takes the horse first, so a charge that reaches you arrives on foot.",
+    "desc": "A blade as long as a man, held in both hands. Slow to swing, and nothing it lands on gets up again."
+   }
+  ]
+ },
+ {
+  "id": "mongolia",
+  "heroName": "Nergui",
+  "heroTitle": "Day-guard rider of the Kherlen",
+  "backstory": "Nergui rode in the Khan's day-guard from the year she could first string a bow off the saddle, and her ten held the left at the Kherlen while the wings swung wide. When the Khan died in his tent the guard was divided among his sons the way a herd is divided, and she was counted into the share of a man whose brother she had watched leave a field. She would not go to him. She rode out on a night with no moon and nine of her ten came after her without being asked. Karakorum set her price at a hundred horses, and she has not once looked back at the road behind her.",
+  "playstyle": "Ride, shoot, ride away. Come back when they are strung out and finish them.",
+  "weapon": "composite",
+  "dress": "Fur-brimmed iron helm with a horsehair tassel, brown quilted deel over lamellar, sky-blue sash, no cloak, bowcase and quiver on one belt.",
+  "lean": "speed",
+  "troops": [
+   {
+    "name": "Steppe Rider",
+    "role": "line",
+    "signature": "Looses at a full gallop and never once slows to do it.",
+    "desc": "Boys off the grass who shot marmots before they shot men. Buy them by the dozen and never let them stand still."
+   },
+   {
+    "name": "Lancer",
+    "role": "specialist",
+    "signature": "Hooks a man out of the line with the lance and leaves the hole behind him.",
+    "desc": "Rides in once the arrows have loosened a line, and takes the shield-bearers out of it one at a time."
+   },
+   {
+    "name": "Kharuul",
+    "role": "specialist",
+    "signature": "Breaks and runs on purpose, then wheels and shoots whoever came after.",
+    "desc": "Outriders. They will look beaten while the enemy is still deciding whether to chase them."
+   },
+   {
+    "name": "Khan's Guard",
+    "role": "elite",
+    "signature": "Puts himself between your warlord and whatever is coming at him.",
+    "desc": "The Khan's own, day-guard and night-guard, in lacquered lamellar. Dear as a horse herd and worth it."
+   }
+  ]
+ },
+ {
+  "id": "rus",
+  "heroName": "Ratibor Gorislavich",
+  "heroTitle": "Landless druzhinnik of Chernigov",
+  "backstory": "Ratibor swore to Prince Rostislav at Chernigov the year he could first hold a shield, and rode behind that banner for eleven more. At the Stugna the ford was in flood with the steppe on the far bank, and he went into the water in mail and came out of it carrying the prince's helmet and not the prince. Kiev gave the seat to a brother who had been three days' ride away, and gave Ratibor's village to a man who had stayed dry. Nobody ever accused him of anything. He hires now to whoever keeps a fire lit, and he still gets down off his horse to fight.",
+  "playstyle": "Let the road and the winter thin them, then take the rest with two hands on an axe.",
+  "weapon": "sword",
+  "dress": "Conical nasal helm with mail aventail, riveted mail shirt, red cloak at one shoulder, green and white kite shield, wolf fur at the collar.",
+  "lean": "defense",
+  "troops": [
+   {
+    "name": "Voi",
+    "role": "line",
+    "signature": "When the spear goes, he takes the axe off his belt and keeps coming.",
+    "desc": "The town levy, called out by the church bell. Spear, round shield, and an axe every one of them owns already."
+   },
+   {
+    "name": "Luchniki",
+    "role": "specialist",
+    "signature": "Shoots over its own front rank, so the men in front never open a gap.",
+    "desc": "Bowmen off the river forts. They shoot past the backs of their own all day and never ask the line to open."
+   },
+   {
+    "name": "Druzhinnik",
+    "role": "elite",
+    "signature": "Two hands on a long axe, and the blow comes down through helm and shoulder.",
+    "desc": "The prince's own, in mail to the knee. They get off their horses to fight and they are paid like it."
+   }
+  ]
+ },
+ {
+  "id": "arabia",
+  "heroName": "Bakjur ibn Abdallah",
+  "heroTitle": "Ghulam of the Samarra guard",
+  "backstory": "Bought at eight from a Khazar slaver and raised in the Samarra barracks, he was given a bow before a sword and a dead man's name to answer to. Twenty years he stood in the guard's front rank, shooting over the locked shields, and never owned the horse he rode there. When the pay-chest came eleven months short the guard went into the palace, and he held the door for the man who had bought him; they hanged his brother off the Dijla bridge inside the week. He left Samarra with those eleven months still owed him and no way to collect. He hires to whoever has silver, having been weighed against it all his life.",
+  "playstyle": "Pay for better men than theirs, and put them straight through the middle.",
+  "weapon": "composite",
+  "dress": "Conical helm wound with black turban cloth, mail to the shoulders, sand-coloured coat, saffron sash, cased bow at the hip, no cloak.",
+  "lean": "attack",
+  "troops": [
+   {
+    "name": "Jundi",
+    "role": "line",
+    "signature": "Still fresh at the end of a long day, when the men opposite are blown.",
+    "desc": "Provincial levy off the district roll, spear and round shield, paid in silver every month whether he fights or not."
+   },
+   {
+    "name": "Ghulam",
+    "role": "elite",
+    "signature": "Shoots over the locked shields, then drops the bow and comes on sword first.",
+    "desc": "Bought as a boy and drilled since, sworn to whoever holds the pay-chest. The costliest man on any roll."
+   },
+   {
+    "name": "Hajjana",
+    "role": "specialist",
+    "signature": "Horses smell them, shy off the line, and carry their own riders out of it.",
+    "desc": "Camel riders out of the deep desert. Put them in front of horse and the horse decides the matter for you."
+   },
+   {
+    "name": "Saqqa",
+    "role": "specialist",
+    "signature": "Goes down the line with the water skin, and men who were down get up.",
+    "desc": "Carries a whole well on his back and a knife for everything else. Keep him behind the shields."
+   }
+  ]
+ },
+ {
+  "id": "viking",
+  "heroName": "Sigvard Hrafnsson",
+  "heroTitle": "Steersman of the lost Sea-Adder",
+  "backstory": "Sigvard steered the Sea-Adder nine summers and lost her on the Seine at night, on a chain the Franks had strung under the town where no one could see it. Forty men went into the water and twelve came out. The hull was not his. The man at Kaupang who owned her has three sons, a long memory, and a price in silver that Sigvard has never held in his hands at one time. He went to the nine days at Uppsala and found no jarl there wanting a steersman with no ship, so the twelve came away with him instead, and every one of them has stood in a wall on a strange beach before.",
+  "playstyle": "Come off the water and break them before they are formed. A beach at a time.",
+  "weapon": "sword",
+  "dress": "Iron helm with a nose bar, riveted mail over grey wool, madder-red sleeves, blue and white shield boards, no cloak, salt-stiff beard.",
+  "lean": "attack",
+  "troops": [
+   {
+    "name": "Raider",
+    "role": "line",
+    "signature": "Never stays with the man he has dropped; the axe is on the next one at once.",
+    "desc": "Second sons off the farms who go out every summer for silver. Cheap to take on, and never fewer than a crowd."
+   },
+   {
+    "name": "Huscarl",
+    "role": "elite",
+    "signature": "Catches the blade in his shield board, twists it down, and kills the man.",
+    "desc": "A jarl's sworn hand, fed at his table all winter and armoured out of his hall. He costs what that is worth."
+   },
+   {
+    "name": "Berserker",
+    "role": "specialist",
+    "signature": "Never routs, and swings harder the more of his own blood is on him.",
+    "desc": "He goes in without a shield. Put him where the line is about to give, and do not look for him after."
+   },
+   {
+    "name": "Skjaldmaer",
+    "role": "specialist",
+    "signature": "Steps inside the spear points, where long weapons swing past and the seax works.",
+    "desc": "Raised in the crush of a boat's deck. She wants a knife's length of room and nothing more."
+   }
+  ]
+ },
+ {
+  "id": "persia",
+  "heroName": "Vidarna",
+  "heroTitle": "Dead man of the ten thousand",
+  "backstory": "Vidarna stood in the front rank at the Choaspes with his wicker planted and the bows working over his shoulder, and a Saka axe took him under the helmet before the sun was high. The ranks closed over him, as they must, and the file behind stepped into his place before he had finished bleeding. He woke in a cart a week up the Royal Road. At the next muster a boy out of Gabae was answering to his name, because the roll holds ten thousand and never one more, and no clerk in the empire is paid to unwrite a man. He kept the bow, since the spear belonged to the King, and rides now with men nobody has counted.",
+  "playstyle": "Spears in front, bows behind them, and the line fills faster than they can empty it.",
+  "weapon": "composite",
+  "dress": "Soft felt tiara wound across the mouth, saffron sleeves over scale, violet cloak, gilded quiver at the hip.",
+  "lean": "defense",
+  "troops": [
+   {
+    "name": "Sparabara",
+    "role": "line",
+    "signature": "Plants the wicker and stops there. Arrows stick in it and go no further.",
+    "desc": "The wall the rest of the line is built behind. Cheap, patient, and he has no interest at all in moving."
+   },
+   {
+    "name": "Immortal",
+    "role": "elite",
+    "signature": "Kill one and another has his place and his name before the body is clear.",
+    "desc": "The King's own, scale under the robe. Costly, and the line they make never shows you a gap."
+   },
+   {
+    "name": "Median Horse",
+    "role": "specialist",
+    "signature": "Comes on at a walk and does not change its pace for anything in the way.",
+    "desc": "Horse and rider both in armour, off the Median grass. Expensive to feed, and nothing turns it aside."
+   },
+   {
+    "name": "Scythed Chariot",
+    "role": "specialist",
+    "signature": "One run, straight through the front rank, and the rank is open behind it.",
+    "desc": "Blades on the axles and one crew. They make the hole and your spears go in after it."
+   }
+  ]
+ },
+ {
+  "id": "india",
+  "heroName": "Nandaka of Kaushambi",
+  "heroTitle": "Elephant-guard captain of Kaushambi",
+  "backstory": "Nandaka was drilled from sixteen to fight at knee height under the belly of the raja's best elephant, and he was good enough at it to be given the left of the line below Kaushambi. Somebody across the water knew what fire does to a beast that size. The elephant turned inside its own lines and came back through his men, and he walked out of the mud with forty of two hundred behind him. The raja took the animal's price out of his house, and the fields at Kaushambi answer to a cousin now. He hires his spears where the work is, and every road he takes bends back toward Pataliputra.",
+  "playstyle": "Pin them on the spears, then walk in with the best steel in the world.",
+  "weapon": "sword",
+  "dress": "Turban wound over a steel cap, bare arms, saffron and indigo cotton, a gold armring, a curved southern blade watered grey, no cloak.",
+  "lean": "attack",
+  "troops": [
+   {
+    "name": "Bhata",
+    "role": "line",
+    "signature": "The back rank's spears come past the front, so two men strike from one pace.",
+    "desc": "Village spearmen the raja drills when the fields are dry. Cheap, patient, and there are always more."
+   },
+   {
+    "name": "Padaraksha",
+    "role": "elite",
+    "signature": "Works at knee height and cuts the legs out of whatever is standing over him.",
+    "desc": "Long spears held low, drilled to guard an elephant's legs. A lifetime down there, and nothing big frightens them."
+   },
+   {
+    "name": "Dhanurdhara",
+    "role": "specialist",
+    "signature": "The shaft pins a man's shield to his arm and he fights on with neither.",
+    "desc": "Bamboo bows as tall as the man, drawn against the foot. Slow to loose, and nothing on the arm stops it."
+   },
+   {
+    "name": "Ulmuka",
+    "role": "specialist",
+    "signature": "Turns an elephant with fire, and it goes back through the men who brought it.",
+    "desc": "Pot-carriers who walk ahead of the spears with oil and flame. Few things alive will stand in front of them."
+   }
+  ]
+ },
+ {
+  "id": "egypt",
+  "heroName": "Nebamun",
+  "heroTitle": "Chariot captain without a team",
+  "backstory": "Nebamun shot from the car of a Waset team for nine seasons, and his name stood on the temple roll one line under his father's. At Abu his captain took the chariots off the black fields onto scree, because the Kushites would not come down to level ground. The wheels went to pieces, the bowmen on the cliffs shot the horses and then the crews, and Nebamun walked home down the river. The priests sold what was left of his team against the dead ones and gave his place to a boy with an uncle in the granary. He hires off the quays now, where nobody is written down, and he will not fight on ground he has not walked first.",
+  "playstyle": "Take the level ground, run them down on it, and never fight where wheels break.",
+  "weapon": "bow",
+  "dress": "Blue-green faience war-cap, white linen kilt, bronze scale over the chest, red sash, hide-and-wood shield slung at his back, no cloak.",
+  "lean": "speed",
+  "troops": [
+   {
+    "name": "Menfyt",
+    "role": "line",
+    "signature": "Grounds the spear butt when horses come, and the charge breaks on the point.",
+    "desc": "Temple levy, called up by season and written on the roll under his father's name. There is always another name."
+   },
+   {
+    "name": "Strong-Arm",
+    "role": "elite",
+    "signature": "The curved blade hooks your shield aside and the next cut lands on the arm.",
+    "desc": "Hide and wood locked into one face, bronze on the chest. The line holds where he is standing."
+   },
+   {
+    "name": "Seneny",
+    "role": "specialist",
+    "signature": "Runs a man down on the flat. It is the ground that stops it, never the men.",
+    "desc": "A pair of light horses, a driver, and the best bow in the kingdom behind him. Wheels do not like rock."
+   },
+   {
+    "name": "Medjay",
+    "role": "specialist",
+    "signature": "Runs down whoever breaks and kills him before he reaches his own line.",
+    "desc": "Desert men in Egyptian pay, raised on the wadi roads. Nobody who turns his back on them gets far."
+   }
+  ]
+ },
+ {
+  "id": "kush",
+  "heroName": "Abratoye",
+  "heroTitle": "Bow-captain of the Buhen wall",
+  "backstory": "Abratoye held the wall at Buhen, where the river turns to rock and the shooting starts long before a face can be seen. The column came up the desert road behind him instead, and by the second night his men had four hundred iron shafts and nobody left to loose them. He opened the river gate and let the town out past him, which was not what Meroe had told him to do with it. The Kandake's scribes wrote the iron and the gate against his name in the same line, and the sentence was the road north. He looses first now, at whatever the road brings him, and he has stopped waiting to be told.",
+  "playstyle": "Kill them a long way off, and meet what is left behind a wall of hide.",
+  "weapon": "bow",
+  "dress": "No helmet: shaved head, gold ram-head earring, leopard hide across one shoulder, ochre linen, indigo sash, stone ring on the thumb.",
+  "lean": "attack",
+  "troops": [
+   {
+    "name": "Ta-Seti Bowman",
+    "role": "line",
+    "signature": "Starts killing at a range nothing you have can answer, and does not stop.",
+    "desc": "Picked for the eye and handed an acacia bow taller than he is. There are more of them than of anything else."
+   },
+   {
+    "name": "Kandake's Shieldman",
+    "role": "elite",
+    "signature": "Walks a hide shield taller than a man onto you, and it does not stop coming.",
+    "desc": "The Kandake's own, priced like it. Your arrows are still standing in that hide when he reaches you."
+   },
+   {
+    "name": "Musawwarat Elephant",
+    "role": "specialist",
+    "signature": "Takes a man up in the trunk and throws him into the rank behind him.",
+    "desc": "Broken to war on the ramps at Musawwarat and walked north for you. Keep it fed and keep it calm."
+   },
+   {
+    "name": "Butana Hunter",
+    "role": "specialist",
+    "signature": "Looses from the grass, shifts, and looses again before you find the first place.",
+    "desc": "Out of the grass country past Naqa, where men hunt with war bows and go home hungry if they miss."
+   }
+  ]
+ },
+ {
+  "id": "aztecs",
+  "heroName": "Tlacahuepan",
+  "heroTitle": "Stripped jaguar of Tenochtitlan",
+  "backstory": "Tlacahuepan took four men alive at Atlixco in one morning and had the jaguar pelt before the year turned. The next season he took a fifth, a captain out of Tlaxcallan, and cut his cords on the road home because the man's son was walking behind them and had seen it all. Tlaxcallan still tells that story in its market. Tenochtitlan took the pelt back, and his brother, who had stood surety for him, went up the temple steps in his place at the next feast. He keeps a warband now and goes where the fighting is, and every man carried off a field alive counts against a debt of exactly one.",
+  "playstyle": "Break them, then take them alive. Every man carried off is one who never comes back.",
+  "weapon": "sword",
+  "dress": "Jaguar pelt hood with his face in the open jaws, quilted cotton war-shirt, turquoise ear-plug, ochre red, black glass, green feathers.",
+  "lean": "speed",
+  "troops": [
+   {
+    "name": "Yaoquizqui",
+    "role": "line",
+    "signature": "The black glass snaps off in the cut and the wound goes on opening after.",
+    "desc": "Farmers and canal men called up by their ward. Reed shield, a club toothed with obsidian, and more of them than you brought."
+   },
+   {
+    "name": "Ocelotl",
+    "role": "elite",
+    "signature": "Puts a man down and drags him off the field alive, and he does not come back.",
+    "desc": "Jaguar pelt over the head, his face in the open jaws. He counts his standing in men taken, not men killed."
+   },
+   {
+    "name": "Cuauhtli",
+    "role": "specialist",
+    "signature": "First across the open ground, and in among their bowmen before the lines meet.",
+    "desc": "Feathered head, a beak over the brow. Chosen for how fast he crosses what stops everyone else."
+   },
+   {
+    "name": "Cuachic",
+    "role": "specialist",
+    "signature": "Fights bare to the waist at the worst of it, and the men in front give ground.",
+    "desc": "One lock left on a shaved skull. He swore in front of his ward to take four men alive or be carried home."
+   }
+  ]
+ },
+ {
+  "id": "inca",
+  "heroName": "Chuqui Waman",
+  "heroTitle": "Bridge-keeper on the Apurimac",
+  "backstory": "His family had kept the rope bridge over the Apurimac for four generations, braiding new cable every dry season and letting the old one fall. When Waskar and Atawallpa turned their armies on one another he was ordered to cut it, and he cut it with the northern column halfway across. The villages on both banks walk two days round now, and the men who came every summer to help him braid stay home. No lord in Cusco has taken the weight of it off him, and he has stopped asking one to. He walks the high roads with men who owe him nothing, and he still takes the ridge above a town long before he looks at its gate.",
+  "playstyle": "Take the high ground first. They are already broken when you come down the road.",
+  "weapon": "sword",
+  "dress": "Quilted tunic in black-and-white checks with a red yoke, wooden helm wound in cord, gold discs in the ears, sling coiled at the wrist.",
+  "lean": "speed",
+  "troops": [
+   {
+    "name": "Mit'ayuq",
+    "role": "line",
+    "signature": "Quilted cotton to the knee: clubs and stones come off it, only an edge tells.",
+    "desc": "Men serving their turn of labour for the Inca, with a wooden club and a sling tucked in the belt."
+   },
+   {
+    "name": "Awqa Kamayuq",
+    "role": "elite",
+    "signature": "A bronze star-mace in both hands: the man stands a moment, then goes down.",
+    "desc": "A war-officer out of the Cusco houses, gold discs in his ears and a plumed cane helm. He has put down two revolts."
+   },
+   {
+    "name": "Waraka",
+    "role": "specialist",
+    "signature": "Puts the stone up in a high arc and drops it on the rank behind the fighting.",
+    "desc": "Herdsmen off the high grass who have killed with a stone since they could walk. Braided sling, river shot."
+   },
+   {
+    "name": "Ayllu",
+    "role": "specialist",
+    "signature": "Cords wrap a man's legs in mid-stride and he goes down where he was running.",
+    "desc": "Three stones on braided cords, whirled overhead and thrown low. What drops a guanaco drops a man."
+   }
+  ]
+ },
+ {
+  "id": "outlaw",
+  "heroName": "Ilya Bezrodny",
+  "heroTitle": "Runaway levy with a price on his head",
+  "backstory": "He was born in a hamlet that Rus taxed and the steppe raided, and neither one ever came while it was burning. A prince's man walked him east to stand in a stockade nobody intended to hold, and when it went the prince's men took the horses and left the levy in the ditch. He came back nine days later to ash, and to a debt written in his own name for a horse he had never once sat on. He hanged the clerk who wrote it, in the clerk's own doorway, with the ledger open on the step. Everything he owns he took off a dead man, and every man in his camp belonged to somebody else first.",
+  "playstyle": "Nothing is given. Hit first, hit hard, and take the rest off the dead.",
+  "weapon": "sword",
+  "dress": "Bare head, hair hacked short, Rus mail over sheepskin with rust through one shoulder, grey wool, mud-brown leather, a taken red sash.",
+  "lean": "attack",
+  "troops": [
+   {
+    "name": "Brigand",
+    "role": "line",
+    "signature": "Piles onto whoever is already bleeding, three knives on the one man.",
+    "desc": "Runaways and boys off burned farms, a knife apiece and no oath to anyone. Cheap, and there are always more."
+   },
+   {
+    "name": "Poacher",
+    "role": "specialist",
+    "signature": "Puts his first arrow into the horse, never into the man on it.",
+    "desc": "He shot deer in another man's wood until they took his brother for it, and he has not wasted an arrow since."
+   },
+   {
+    "name": "Horse-thief",
+    "role": "specialist",
+    "signature": "Pulls a rider down and comes back through the fight on that man's horse.",
+    "desc": "He has stolen horses off both sides of this border and rides better than the men he took them from."
+   },
+   {
+    "name": "Broken Druzhinnik",
+    "role": "elite",
+    "signature": "Takes the shield off the first man he kills and fights the rest behind it.",
+    "desc": "He wore a prince's mail on the Dnieper and still does. Nobody here asks how he came to keep it."
+   }
+  ]
+ }
+]

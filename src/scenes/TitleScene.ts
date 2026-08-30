@@ -39,7 +39,7 @@ export class TitleScene extends Phaser.Scene {
     makeButton(this, cx, y + 27 * u, {
       width: bw, height: 54 * u, label: 'NEW WARBAND', sub: hasSave ? 'erases the current save' : 'start from nothing', tone: hasSave ? 'neutral' : 'primary',
       fontSize: Math.round(19 * u),
-      onPress: () => { GameState.newRun(); this.scene.start('Settlement', { id: 'camp' }); },
+      onPress: () => this.scene.start('CivSelect'),
     });
     this.add.text(cx, py + ph + 18 * u, 'In battle: drag anywhere / WASD to move  ·  Q War Horn  ·  E Charge\nYou attack automatically. Fight in the alleys, not in the open.',
       uiStyle(11 * u, CSS.muted, { bold: false, wrap: w * 0.9 })).setOrigin(0.5, 0);

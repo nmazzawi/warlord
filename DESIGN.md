@@ -319,3 +319,22 @@ This absorbs the old Milestone 7 (culture starts). Governance and coalition mile
 2. **M5.2 — the fourteen thrones**: the roster DATA for all fifteen starts, then B (heroes, backstories, portraits, home camps, save migration).
 3. **M5.3 — armies of the world**: C in full — signature abilities, wages, culture-stocked barracks, and the formation pick.
 4. **M5.4 — living settlements**: D — procedural scenes, architecture sets, the marketplace and notice board, the harbour, and the loot economy.
+
+## Milestone 5.1 — The chart finished (built 2026-08-30)
+
+**Working assumptions made by the build — overrule by feel:**
+- **The empty sea stays empty.** Every serpent, kraken and whale is gone, data included; the ocean carries water, its names and the rose. Each of those sketches was a thing the eye caught instead of the coastline.
+- **Coastlines flow now.** The atlas is authored as real capes and ports, and joining them with straight lines made Italy a wedge; the same points are run through a curve before they are inked, and the ink jitter rides the curve's normal so a wobble reads as a bay rather than a shaky hand.
+- **One light source for the whole plate.** Every peak is a solid pyramid with a lit north-west face, a shadowed south-east face and its own ground shadow, staggered off the crest so a chain has depth.
+- **The paper has a tooth** — a fine speckle at constant SCREEN size, so it stays paper at every zoom instead of becoming boulders when you come down.
+- **A star is not a separate opinion.** The 1–5 rating is the garrison the panel prints multiplied by how hard each of those men is, which is the one number that makes a Kushite village and the walls of Roma comparable at a glance. A place you hold reads one star; a ruin reads none.
+
+## Milestone 5.2 — The fourteen thrones (built 2026-08-30)
+
+**Working assumptions made by the build — overrule by feel:**
+- **A start decides four things**: which country is yours, where your camp stands, what your warlord is holding, and who rides out with you. Everything else is the same game.
+- **"Yours" is one rule, applied everywhere.** Your home realm's gates are open, its prices are its own, its barracks hires to you, and its opinion of you is the unnamed meter in your status bar — exactly what the Borderland has always been. Raiding at home still spikes it, and every other country now keeps its own score against you including the Borderland, if you were not born there.
+- **The Borderland Outlaw is the game as it was**, down to the camp's own coordinates, and it stands first on the wall. Existing saves are it.
+- **Fifteen heroes, fifteen shapes of ruin.** A cashiered first spear carrying his century's burial money; a taxiarch ostracised by his own brother-in-law; a day-guard rider counted into a dead man's share of the herd. None of them "lost everything and rode east".
+- **Portraits are silhouettes.** A crest, a kabuto, a fur cap, a nemes, a horned helm and a feather headdress are all readable at thumbnail size, which is how they are actually seen.
+- **Rosters are one table.** The words come from each culture; the numbers come from the unit's role and from what its own signature says it does, so all fifteen rosters are balanced against each other rather than fifteen times over. A barracks stocks the roster of whoever holds the place — which is how a late warband ends up cross-cultural.

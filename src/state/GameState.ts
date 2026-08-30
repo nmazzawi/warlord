@@ -5,11 +5,13 @@ import { CONQUEST, FOREIGN, FOREIGN_GARRISON, FOREIGN_MAX_DEFENDERS, REALM_POWER
 import { nameAt } from '../utils/names';
 import { NODES, nodeById, territoryOf, type Territory } from '../world/WorldMap';
 import { ELITE_TINT, REALM_SHORT, visitOf } from '../world/Realms';
+import { campPoint, civOf } from '../world/Civs';
 import type { PlaceKind } from '../world/AtlasData';
 import type { Hunter } from '../world/Hunters';
 import { advanceHunters, nearestTerritory } from '../world/Hunters';
 
-export type TroopKind = 'raider' | 'levy' | 'guard' | 'rider';
+/** Any unit id: the four the game began with, or any culture's own. */
+export type TroopKind = string;
 export interface TroopRecord { id: number; name: string; kind: TroopKind; }
 export interface FallenRecord { name: string; raid: number; where: string; }
 export type WeaponKind = 'sword' | 'bow' | 'halberd' | 'composite';
@@ -46,7 +48,7 @@ interface SaveData {
   settlements: Record<string, SettlementState>; garrisons: Record<string, TroopRecord[]>;
   fortifyStepsDone: number; fortifyCarry: number; unpaidDays: number; seenMapHint: boolean;
   rumorsHeard: string[]; pendingVictory: PendingVictory | null;
-  steppeInfamy: number; campScattered: Record<string, number>; huntedUntil: number;
+  steppeInfamy: number; campScattered: Record<string, number>; huntedUntil: number; civ?: string;
   realmInfamy?: Record<string, number>;
 }
 
@@ -82,6 +84,8 @@ class GameStateStore {
   pendingVictory: PendingVictory | null = null;
   /** the steppe keeps its own opinion of you; homeland infamy and bounty are untouched by it */
   steppeInfamy = 0;
+  /** Which of the fifteen starts this run is. Everything else about "home" follows from it. */
+  civ = 'outlaw';
   /** What each foreign realm you have walked into thinks of you. A realm you have never entered is
    *  not in here at all; the day you cross its border it starts at nothing, like everywhere else did. */
   realmInfamy: Record<string, number> = {};
@@ -105,12 +109,24 @@ class GameStateStore {
     this.patrolPending = false; this.patrolFrom = 'homeland'; this.pos = { x: nodeById('camp').x, y: nodeById('camp').y }; this.hunters = []; this.settlements = {}; this.garrisons = {}; this.fortifyStepsDone = 0; this.fortifyCarry = 0;
     this.unpaidDays = 0; this.seenMapHint = false; this.rumorsHeard = []; this.pendingVictory = null;
     this.nextId = 1; this.nameCursor = 0; this.snapshot = null;
+    // a bare reset is the game as it always was; newRun() sets the real start straight after
+    this.setCiv('outlaw');
     for (let i = 0; i < TROOP.starting; i++) this.recruit('raider');
   }
 
-  /** Start a brand-new warband on purpose (erases the old save). */
-  newRun() {
+  /** Start a brand-new warband on purpose (erases the old save), as one of the fifteen. */
+  newRun(civ = 'outlaw') {
     this.reset();
+    this.setCiv(civ);
+    // your camp stands on your own ground, and the three who ride out are your own people
+    this.pos = { x: nodeById('camp').x, y: nodeById('camp').y };
+    const def = civOf(this.civ);
+    this.equippedWeapon = def.weapon === 'sword' ? 'sword' : def.weapon;
+    if (def.weapon === 'bow') this.owned.bow = true;
+    if (def.weapon === 'composite') this.owned.composite = true;
+    this.troops = [];
+    this.nextId = 1; this.nameCursor = 0;
+    for (let i = 0; i < TROOP.starting; i++) this.recruit(def.troops[Math.min(i, def.troops.length - 1)].id);
     this.wipe();
     this.persistable = true;
     this.save();
@@ -159,15 +175,36 @@ class GameStateStore {
 
   // ------------------------------------------------------------ territories
   get territory(): Territory { return this.location ? territoryOf(this.location) : nearestTerritory(this.pos.x, this.pos.y); }
+  /** The country that is yours. For the outlaw that is the nameless Borderland; for everyone else it
+   *  is the realm they were born in, and it behaves exactly as the Borderland always has. */
+  get home(): Territory { return civOf(this.civ).home; }
+  /** The steppe is a territory of its own on the chart but the Mongols' country all the same. */
+  isHome(t: Territory) {
+    const h = this.home;
+    if (t === h) return true;
+    return (h === 'steppe' && t === 'mongolia') || (h === 'mongolia' && t === 'steppe');
+  }
+  /** Choose a start: this moves your camp onto your own ground and hands you your own country. */
+  setCiv(id: string) {
+    this.civ = civOf(id).id;
+    const camp = nodeById('camp');
+    const [cx, cy] = campPoint(this.civ);
+    camp.x = Math.round(cx); camp.y = Math.round(cy);
+    camp.territory = this.home;
+    camp.name = civOf(this.civ).campName || 'Bandit Camp';
+  }
   /** Infamy as the territory you are standing in sees it. Your homeland and the steppe keep the two
    *  old meters; every foreign realm keeps its own, and starts you at nothing. */
   territoryInfamy(t: Territory = this.territory): number {
+    if (this.isHome(t)) return this.infamy;
     if (t === 'steppe') return this.steppeInfamy;
-    if (t === 'homeland') return this.infamy;
     return this.realmInfamy[t] ?? 0;
   }
-  /** The realm's name for the meter ('' for your own borderland, which needs no naming). */
-  territoryName(t: Territory = this.territory) { return REALM_SHORT[t] ?? t.toUpperCase(); }
+  /** The realm's name for the meter — blank at home, because your own country needs no naming. */
+  territoryName(t: Territory = this.territory) {
+    if (this.isHome(t)) return '';
+    return REALM_SHORT[t] || (t === 'homeland' ? 'THE BORDERLAND' : t.toUpperCase());
+  }
   /** Have we set foot in this realm before? Opening its meter is what marks the crossing. */
   noteRealm(t: Territory = this.territory): string | null {
     if (t === 'homeland' || t === 'steppe' || this.realmInfamy[t] !== undefined) return null;
@@ -271,6 +308,8 @@ class GameStateStore {
       const s2 = this.settlement(id);
       if (s2.occupied) return 'occupied';
       if (s2.sacked) return 'sacked';
+      // your own country is not a country you visit: its gates are open and its prices are its prices
+      if (this.isHome(node.territory)) return s2.timesRaided > 0 ? 'closed' : 'visit';
       // a country that has had a warband in it does not sell you a sword the following week
       if ((this.realmInfamy[node.territory] ?? 0) > 0) return 'closed';
       return 'foreign';
@@ -389,8 +428,8 @@ class GameStateStore {
 
   /** Add to whichever meter is keeping score in this country. */
   addInfamyIn(territory: Territory, n: number) {
-    if (territory === 'steppe') this.steppeInfamy += n;
-    else if (territory === 'homeland') this.infamy += n;
+    if (this.isHome(territory)) this.infamy += n;
+    else if (territory === 'steppe') this.steppeInfamy += n;
     else this.realmInfamy[territory] = (this.realmInfamy[territory] ?? 0) + n;
   }
 
@@ -462,7 +501,7 @@ class GameStateStore {
         vs.sacked = true; vs.occupied = false;
         delete this.garrisons[id];
         if (foreign) this.addInfamyIn(realm, Math.round(spike * FOREIGN.sackMult));
-        else this.addInfamy(town ? CONQUEST.sackTownInfamy : INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1) + CONQUEST.sackVillageInfamy);
+        else this.addInfamyIn('homeland', town ? CONQUEST.sackTownInfamy : INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1) + CONQUEST.sackVillageInfamy);
         summary = foreign
           ? `Sacked ${node.name}: +${goldEarned + extra} gold. ${REALM_SHORT[realm] ?? 'The realm'} will not forget which name did this.`
           : `Sacked ${node.name}: +${goldEarned + extra} gold. It burns; nothing will ever come from it again.`;
@@ -472,7 +511,7 @@ class GameStateStore {
         this.troops = this.troops.slice(garrison.length);
         this.garrisons[id] = garrison;
         if (foreign) this.addInfamyIn(realm, Math.round(spike * FOREIGN.occupyMult));
-        else this.addInfamy(INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1));
+        else this.addInfamyIn('homeland', INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1));
         summary = `Occupied ${node.name}: +${goldEarned} gold now, tribute every day. ${garrison.map(g => g.name).join(' and ') || 'Nobody'} stay${garrison.length === 1 ? 's' : ''} as the garrison.`;
       } else {
         vs.timesRaided += 1;
@@ -481,7 +520,7 @@ class GameStateStore {
         // strip has to be poorer next time, or the richest places on the board are a free income.
         if (!town || foreign) vs.wealth = Math.max(RERAID.wealthMin, vs.wealth - RERAID.wealthDrop);
         if (foreign) this.addInfamyIn(realm, spike);
-        else this.addInfamy(INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1));
+        else this.addInfamyIn('homeland', INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1));
         summary = foreign
           ? `${node.name} is stripped: +${goldEarned} gold. Word of it is already on the road ahead of you.`
           : `Raided ${node.name}: +${goldEarned} gold. It lies ruined for ${RERAID.recoverDays} days, and poorer for longer.`;
@@ -515,7 +554,7 @@ class GameStateStore {
       fortifyStepsDone: this.fortifyStepsDone, fortifyCarry: this.fortifyCarry,
       unpaidDays: this.unpaidDays, seenMapHint: this.seenMapHint,
       rumorsHeard: [...this.rumorsHeard], pendingVictory: this.pendingVictory ? JSON.parse(JSON.stringify(this.pendingVictory)) : null,
-      steppeInfamy: this.steppeInfamy, realmInfamy: { ...this.realmInfamy }, campScattered: { ...this.campScattered }, huntedUntil: this.huntedUntil,
+      civ: this.civ, steppeInfamy: this.steppeInfamy, realmInfamy: { ...this.realmInfamy }, campScattered: { ...this.campScattered }, huntedUntil: this.huntedUntil,
     };
   }
   fromJSON(d: SaveData) {
@@ -535,6 +574,8 @@ class GameStateStore {
     this.fortifyStepsDone = d.fortifyStepsDone ?? 0; this.fortifyCarry = d.fortifyCarry ?? 0;
     this.unpaidDays = d.unpaidDays ?? 0; this.seenMapHint = d.seenMapHint ?? false;
     this.rumorsHeard = [...(d.rumorsHeard ?? [])]; this.pendingVictory = d.pendingVictory ? JSON.parse(JSON.stringify(d.pendingVictory)) : null;
+    // a save written before there was a choice is the Borderland Outlaw, which is what it was playing
+    this.setCiv(d.civ ?? 'outlaw');
     this.steppeInfamy = d.steppeInfamy ?? 0; this.realmInfamy = { ...(d.realmInfamy ?? {}) }; this.campScattered = { ...(d.campScattered ?? {}) }; this.huntedUntil = d.huntedUntil ?? -1;
     this.owned.composite = this.owned.composite ?? false;
   }

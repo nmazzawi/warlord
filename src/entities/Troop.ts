@@ -6,7 +6,8 @@ import type { Enemy } from './Enemy';
 import type { Hero } from './Hero';
 import type { RaidScene } from '../scenes/RaidScene';
 import type { TroopRecord } from '../state/GameState';
-import { ABILITIES, RIDER, TROOP, TROOP_KINDS } from '../config/balance';
+import { ABILITIES, RIDER, TROOP } from '../config/balance';
+import { unitDef } from '../world/Units';
 import { TEX } from '../systems/Textures';
 import { formationSlot } from '../systems/Formation';
 import { dealDamage } from '../systems/Combat';
@@ -34,7 +35,7 @@ export class Troop extends Unit {
   private mount: Phaser.GameObjects.Image | null = null;
 
   constructor(scene: RaidScene, x: number, y: number, record: TroopRecord, slot: number) {
-    const k = TROOP_KINDS[record.kind ?? 'raider'];
+    const k = unitDef(record.kind ?? 'raider');
     const ranged = record.kind === 'rider';
     super(scene, x, y, ranged ? TEX.trooprider : TEX.troop, { hp: k.hp, speed: ranged ? RIDER.speed : TROOP.speed, radius: TROOP.radius, team: 'player', barColor: 0x5ec26a, scale: ranged ? RIDER.scale : 1 });
     this.ranged = ranged;
