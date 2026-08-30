@@ -199,7 +199,7 @@ async function desktopRun(browser) {
       m.setZoom(z);
       const boxes = [];
       for (const k of m.markers) {
-        for (const o of [k.icon, k.label]) {
+        for (const o of [k.icon, k.label, k.stars]) {
           if (!o.visible) continue;
           const b = o.getBounds();
           boxes.push([b.centerX, b.centerY, b.width * 0.92, b.height * 0.92, k.place.name]);
@@ -263,17 +263,22 @@ async function desktopRun(browser) {
   const plate = await page.evaluate(() => {
     const m = window.__warlord.scene.getScene('Map');
     const S = window.__GameState;
+    // only a place you can actually march on carries a rating; the realms across the water do not
+    const reachable = new Set(window.__NODES.filter(n => n.kind === 'foreign').map(n => n.name));
     const rated = m.markers.filter(k => k.stars.text.length === 5).length;
+    const missing = m.markers.filter(k => reachable.has(k.place.name) && k.stars.text.length !== 5).map(k => k.place.name);
+    const spurious = m.markers.filter(k => !reachable.has(k.place.name) && k.stars.text).map(k => k.place.name);
     return {
       creatures: typeof window.__SEA_CREATURES,
-      rated, markers: m.markers.length,
+      rated, markers: m.markers.length, want: reachable.size, missing, spurious,
       roma: S.stars('f_rome_roma'), ashford: S.stars('ashford'),
       romaN: S.protection('f_rome_roma'), ashfordN: S.protection('ashford'),
       kushVillage: S.protection(window.__NODES.find(n => n.territory === 'kush' && n.rank === 'village').id),
     };
   });
   check(plate.creatures === 'undefined', 'the oceans carry no creatures at all');
-  check(plate.rated === plate.markers, `every settlement on the plate has a rating (${plate.rated}/${plate.markers})`);
+  check(plate.missing.length === 0 && plate.spurious.length === 0,
+    `every settlement you can march on carries a rating, and only those (${plate.rated}/${plate.want} of ${plate.markers} plates)`);
   check(plate.romaN === 5 && plate.ashfordN === 1 && plate.kushVillage < plate.romaN,
     `the stars rank the world honestly (Ashford ${plate.ashford}, Roma ${plate.roma})`);
   // the two views the designer wants to judge without hunting for them

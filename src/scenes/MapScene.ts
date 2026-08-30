@@ -408,7 +408,9 @@ export class MapScene extends Phaser.Scene {
       const spec = RANK[m.rank];
       const scale = (spec.icon * u) / m.icon.height;        // a constant height on screen
       const lscale = (spec.label * u) / LABEL_BASE;
-      const iw = m.icon.width * scale * 0.85, ih = spec.icon * u;
+      // the claim must be as wide as the thing actually drawn: at 0.85 two crowns could sit 15% inside
+      // each other and still both believe they had room (Athenai and Sparta, three units apart)
+      const iw = m.icon.width * scale * 0.95, ih = spec.icon * u;
       const lw = m.label.width * lscale, lh = m.label.height * lscale;
       const gap = 2 * u;
       // the rating is set at three-fifths of the name and only appears once the name does, so a world
