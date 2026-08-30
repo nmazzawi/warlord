@@ -436,6 +436,32 @@ async function desktopRun(browser) {
     'and prints exactly what is standing in the square');
   check(inRus.buttons.some(b => /^ASSAULT \(\d+\)/.test(b)), `Kiev can be attacked (${inRus.buttons.join(', ')})`);
 
+  await clickBtn(page, 'MapHud', 'ENTER');
+  check(await waitScene(page, 'Settlement'), 'entered Kiev as a foreigner');
+  const kiev = await page.evaluate(() => {
+    // the building cards keep their text inside containers, so walk the tree
+    const texts = [];
+    const walk = (o) => { if (o.type === 'Text') texts.push(o.text); if (o.list) o.list.forEach(walk); };
+    window.__warlord.scene.getScene('Settlement').children.list.forEach(walk);
+    return { texts, sub: texts.find(t => /foreigner here/i.test(t)) ?? '' };
+  });
+  check(/stranger's prices/.test(kiev.sub), `a foreigner pays a foreigner's price (${kiev.sub.slice(0, 48)})`);
+  check(kiev.texts.some(t => /^locked — /.test(t)), 'the barracks stays shut to a foreigner');
+  check(kiev.texts.some(t => /FORGE/.test(t)) && kiev.texts.some(t => /rumor/.test(t)), 'the forge and the inn are open to a foreigner');
+  // and the inn abroad talks about the country you are standing in, not about home
+  await page.evaluate(() => window.__warlord.scene.getScene('Settlement').open('inn'));
+  await sleep(900);
+  const innAbroad = await page.evaluate(() => {
+    const texts = [];
+    const walk = (o) => { if (o.type === 'Text') texts.push(o.text); if (o.list) o.list.forEach(walk); };
+    window.__warlord.scene.getScene('Shop').children.list.forEach(walk);
+    return texts.join(' ~ ');
+  });
+  check(/KORCHMA/.test(innAbroad) && /his own country/.test(innAbroad) && /stranger's prices/.test(innAbroad),
+    'the foreign inn is named, and sells its own realm');
+  await page.evaluate(() => { const s = window.__warlord.scene.getScene('Settlement'); s.scene.stop('Shop'); s.scene.resume(); });
+  await sleep(300);
+
   // the whole point of the milestone: take a foreign village, and the country remembers
   {
     const before = await page.evaluate(() => ({ ...window.__GameState.realmInfamy }));
@@ -445,7 +471,7 @@ async function desktopRun(browser) {
       const v = window.__NODES.find(n => n.territory === 'rome' && n.rank === 'village');
       S.pos = { x: v.x, y: v.y }; S.location = v.id;
       const cfg = window.__battles.foreignBattle(v.id);
-      window.__warlord.scene.stop('Map'); window.__warlord.scene.stop('MapHud');
+      for (const k of ['Settlement', 'Shop', 'Map', 'MapHud']) window.__warlord.scene.stop(k);
       window.__warlord.scene.start('Raid', cfg);
       return { id: v.id, name: v.name, total: cfg.defenders.militia + cfg.defenders.archers + cfg.defenders.captains + cfg.elite.count, elite: cfg.elite.kind };
     });
@@ -497,39 +523,6 @@ async function desktopRun(browser) {
     await hidePanel(page);
     await sleep(400);
   }
-  await clickBtn(page, 'MapHud', 'ENTER');
-  check(await waitScene(page, 'Settlement'), 'entered Kiev as a foreigner');
-  const kiev = await page.evaluate(() => {
-    // the building cards keep their text inside containers, so walk the tree
-    const texts = [];
-    const walk = (o) => { if (o.type === 'Text') texts.push(o.text); if (o.list) o.list.forEach(walk); };
-    window.__warlord.scene.getScene('Settlement').children.list.forEach(walk);
-    return { texts, sub: texts.find(t => /foreigner here/i.test(t)) ?? '' };
-  });
-  check(/stranger's prices/.test(kiev.sub), `a foreigner pays a foreigner's price (${kiev.sub.slice(0, 48)})`);
-  check(kiev.texts.some(t => /^locked — /.test(t)), 'the barracks stays shut to a foreigner');
-  check(kiev.texts.some(t => /FORGE/.test(t)) && kiev.texts.some(t => /rumor/.test(t)), 'the forge and the inn are open to a foreigner');
-  // and the inn abroad talks about the country you are standing in, not about home
-  await page.evaluate(() => window.__warlord.scene.getScene('Settlement').open('inn'));
-  await sleep(900);
-  const innAbroad = await page.evaluate(() => {
-    const texts = [];
-    const walk = (o) => { if (o.type === 'Text') texts.push(o.text); if (o.list) o.list.forEach(walk); };
-    window.__warlord.scene.getScene('Shop').children.list.forEach(walk);
-    return texts.join(' ~ ');
-  });
-  check(/KORCHMA/.test(innAbroad) && /his own country/.test(innAbroad) && /stranger's prices/.test(innAbroad),
-    'the foreign inn is named, and sells its own realm');
-  await page.evaluate(() => { const s = window.__warlord.scene.getScene('Settlement'); s.scene.stop('Shop'); s.scene.resume(); });
-  await sleep(300);
-  await page.evaluate(() => { const s = window.__warlord.scene.getScene('Settlement'); s.scene.start('Map'); });
-  await sleep(1200);
-  // put the warband back where the rest of the run expects it
-  await page.evaluate(() => { const S = window.__GameState; const n = window.__NODES.find(k => k.id === 'camp');
-    S.pos = { x: n.x, y: n.y }; S.location = 'camp'; S.hunters = []; S.save(); });
-  await page.evaluate(() => { const m = window.__warlord.scene.getScene('Map'); m.token.setPosition(window.__GameState.pos.x, window.__GameState.pos.y - 12); m.zoomToTerritory(); });
-  await hidePanel(page);      // the map reopens on Kiev's card, and a leftover card eats the next tap
-  await sleep(400);
 
   // --- raid Ashford and just leave
   check(await marchTo(page, 'ashford'), 'marched to Ashford');
