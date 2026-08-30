@@ -5,16 +5,17 @@ import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
 import { TEX } from '../systems/Textures';
 import { Sound } from '../systems/Sound';
-import { mulberry32 } from '../utils/rng';
 import { nodeById } from '../world/WorldMap';
 import { visitOf } from '../world/Realms';
 import { unitDef } from '../world/Units';
 import { FOREIGN } from '../config/balance';
 import { stockFor } from '../world/Stock';
 import { nextRumor } from '../world/Rumors';
-import { CSS, displayStyle, dprOf, drawPanel, makeButton, PAL, uiStyle, uiUnit } from './ui';
+import { CSS, displayStyle, dprOf, makeButton, uiStyle, uiUnit } from './ui';
+import { archOf, backdrop, building, type ArchSet } from '../systems/Architecture';
+import { isCoastal } from '../world/Coast';
 
-export type BuildingId = 'forge' | 'barracks' | 'stables' | 'inn';
+export type BuildingId = 'forge' | 'barracks' | 'stables' | 'inn' | 'market' | 'harbor';
 interface Card { id: BuildingId; label: string; tex: string; sub: string; locked?: string; }
 
 export class SettlementScene extends Phaser.Scene {
@@ -49,32 +50,6 @@ export class SettlementScene extends Phaser.Scene {
     this.scene.pause();
   }
 
-  /** Bakes a backdrop per settlement kind: camp, village, or town. */
-  private backdrop(kind: 'camp' | 'village' | 'town', w: number, h: number) {
-    const key = `settlement_bg_${kind}_${w}x${h}`;
-    if (this.textures.exists(key)) return key;
-    const rnd = mulberry32(kind === 'camp' ? 7 : kind === 'village' ? 8 : 9);
-    const g = this.make.graphics({ x: 0, y: 0 }, false);
-    const base = kind === 'town' ? 0x45464c : PAL.earth;
-    g.fillStyle(base, 1).fillRect(0, 0, w, h);
-    for (let i = 0; i < 90; i++) {
-      const x = rnd() * w, y = rnd() * h, r = 12 + rnd() * 60;
-      g.fillStyle(kind === 'town' ? (rnd() > 0.5 ? 0x3c3d43 : 0x53545c) : (rnd() > 0.5 ? PAL.earthDeep : PAL.earthHi), 0.45).fillCircle(x, y, r);
-    }
-    if (kind === 'town') {
-      g.fillStyle(PAL.steel, 1).fillRect(0, h * 0.24, w, 22);
-      g.fillStyle(0x9a9ca6, 1);
-      for (let x = 0; x < w; x += 40) g.fillRect(x, h * 0.24 - 10, 20, 12);
-    } else {
-      g.fillStyle(PAL.dirt, 1).fillEllipse(w / 2, h * 0.64, w * 0.9, h * 0.5);
-      g.fillStyle(PAL.dirtDeep, 0.5);
-      for (let i = 0; i < 40; i++) g.fillCircle(w / 2 + (rnd() - 0.5) * w * 0.8, h * 0.64 + (rnd() - 0.5) * h * 0.4, 1.5 + rnd() * 2);
-    }
-    g.fillStyle(0x000000, 0.35).fillRect(0, 0, w, h * 0.16);
-    g.generateTexture(key, w, h);
-    g.destroy();
-    return key;
-  }
 
   private build() {
     for (const c of this.children.list.slice()) c.destroy();
@@ -85,8 +60,6 @@ export class SettlementScene extends Phaser.Scene {
     const trade = node?.kind === 'trade';
     // a city you TOOK is not a place you are a foreigner in any more — it is a possession
     const foreign = node?.kind === 'foreign' && this.visiting ? visitOf(node.territory) : null;
-    const kind: 'camp' | 'village' | 'town' = isCamp || trade ? 'camp' : node!.kind === 'town' || node!.kind === 'foreign' ? 'town' : 'village';
-    this.add.image(0, 0, this.backdrop(kind, Math.ceil(w), Math.ceil(h))).setOrigin(0);
 
     // title block
     const name = isCamp ? 'BANDIT CAMP' : node!.name.toUpperCase();
@@ -104,7 +77,7 @@ export class SettlementScene extends Phaser.Scene {
     // the foreigner's line is long and wraps on a phone, so everything under it is placed from its
     // real height rather than from a number that assumed one line
     const subT = this.add.text(w / 2, 48 * u, sub, uiStyle(12 * u, CSS.cream, { bold: false, stroke: true, wrap: w * 0.9 })).setOrigin(0.5, 0);
-    const dateT = this.add.text(w / 2, subT.y + subT.height + 4 * u, `${GameState.dateLabel}   ·   ⬤ ${GameState.gold} gold   ·   troops ${GameState.troops.length}`, uiStyle(12 * u, CSS.gold, { stroke: true })).setOrigin(0.5, 0);
+    this.add.text(w / 2, subT.y + subT.height + 4 * u, `${GameState.dateLabel}   ·   ⬤ ${GameState.gold} gold   ·   troops ${GameState.troops.length}`, uiStyle(12 * u, CSS.gold, { stroke: true })).setOrigin(0.5, 0);
 
     // the buildings: big tap targets, a row (landscape) or a column (portrait)
     const cards: Card[] = [
@@ -116,21 +89,38 @@ export class SettlementScene extends Phaser.Scene {
     if (stock.stables.length) cards.push({ id: 'stables', label: 'STABLES', tex: TEX.stables, sub: stock.stables.join(', ') + (this.visiting ? ` · ${up}` : '') });
     // the card's name stays one short word — a foreign inn's real name is long, and belongs on the
     // line underneath where there is room for it
+    // a market stands in every settlement that trades at all: it buys what you stripped off the dead,
+    // and its notice board has work on it
+    if (stock.inn || isCamp) {
+      const jobs = GameState.quests.length;
+      cards.push({ id: 'market', label: 'MARKET', tex: TEX.inn,
+        sub: GameState.loot.length ? `sell ${GameState.loot.length} piece${GameState.loot.length === 1 ? '' : 's'} · notice board${jobs ? ` (${jobs} taken)` : ''}`
+          : `nothing to sell yet · notice board${jobs ? ` (${jobs} taken)` : ''}` });
+    }
+    if (isCoastal(this.id)) cards.push({ id: 'harbor', label: 'HARBOR', tex: TEX.inn, sub: 'boats, and nobody sailing them for you' });
     if (stock.inn) cards.push({ id: 'inn', label: 'INN', tex: TEX.inn,
       sub: nextRumor(this.id)
         ? (foreign ? `${foreign.inn.name} — buy a rumor of their own land` : 'buy a rumor — news of the world')
         : (foreign ? `${foreign.inn.name} — you have heard it all` : 'you have heard all they know') });
-    const portrait = h > w * 1.1;
-    const n = cards.length;
-    const cw = Math.min(portrait ? w * 0.88 : (w - 40 * u) / n - 14 * u, 300 * u);
-    const ch = portrait ? Math.min(140 * u, (h - 200 * u - 90 * u) / n - 10 * u) : Math.min(230 * u, h - 200 * u);
-    const top = Math.max(100 * u, dateT.y + dateT.height + 10 * u);
-    cards.forEach((card, i) => {
-      const x = portrait ? w / 2 : w / 2 + (i - (n - 1) / 2) * (cw + 14 * u);
-      const y = portrait ? top + i * (ch + 10 * u) + ch / 2 : top + ch / 2;
-      this.card(x, y, cw, ch, card, u, portrait);
-    });
+    // --- the street. Buildings stand on the ground in a row you can walk your eye along, drawn in
+    //     whatever this country builds with, and each one is its own tap target.
+    const set = archOf(isCamp ? GameState.home : node!.territory);
+    const rank = isCamp ? 'camp' : node!.rank ?? (node!.kind === 'town' ? 'city' : 'village');
+    const grand = rank === 'capital' ? 1 : rank === 'city' ? 0.7 : rank === 'town' ? 0.45 : 0.2;
+    this.add.image(0, 0, backdrop(this, set, `${this.id}_${rank}`, Math.ceil(w), Math.ceil(h), grand)).setOrigin(0).setDepth(-10);
 
+    const n = cards.length;
+    const road = h * 0.78;
+    const slotW = Math.min(w / Math.max(n, 1), 260 * u);
+    const plotW = slotW * 0.86;
+    const plotH = Math.min(h * 0.42, plotW * 1.15);
+    const x0 = w / 2 - (slotW * n) / 2 + slotW / 2;
+    cards.forEach((card, i) => {
+      const x = x0 + i * slotW;
+      // the further along the street, the slightly smaller — enough to feel like a street
+      const k = 1 - Math.abs(i - (n - 1) / 2) * 0.045;
+      this.plot(x, road, plotW * k, plotH * k, card, set, u, i);
+    });
     // bottom row: leave (and at home, wait a day)
     const by = h - 38 * u;
     const bw = Math.min(w * 0.42, 220 * u);
@@ -147,6 +137,34 @@ export class SettlementScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * One building on the street: the mass, its name over the door, and what it is selling today. A
+   * locked door still stands there — you can see the barracks and read why it will not open.
+   */
+  private plot(x: number, groundY: number, w: number, h: number, card: Card, set: ArchSet, u: number, seed: number) {
+    const img = this.add.image(x, groundY, building(this, set, card.id, w, h, seed + 1)).setOrigin(0.5, 1);
+    if (card.locked) img.setTint(0x8a8a8a).setAlpha(0.85);
+    // a dark plate under the name so it reads off grass, sand or snow alike
+    const plate = this.add.graphics();
+    const label = this.add.text(x, groundY + 9 * u, card.label,
+      displayStyle(Math.round(Math.min(18, w * 0.12)), card.locked ? CSS.muted : CSS.goldHi)).setOrigin(0.5, 0);
+    const sub = this.add.text(x, label.y + label.height + 1 * u, card.locked ? `locked — ${card.locked}` : card.sub,
+      uiStyle(Math.round(Math.min(11.5, w * 0.08)), card.locked ? CSS.dangerHi : CSS.cream,
+        { bold: false, align: 'center', wrap: w * 1.2 })).setOrigin(0.5, 0);
+    const pw = Math.max(label.width, sub.width) + 14 * u, ph = label.height + sub.height + 10 * u;
+    plate.fillStyle(0x120d08, 0.5).fillRoundedRect(x - pw / 2, label.y - 5 * u, pw, ph, 6 * u);
+    plate.setDepth(-1);
+    if (card.locked) return;
+    // the whole plot is the target, sign and all — a thumb should never have to find the door
+    const top = groundY - h;
+    const hit = this.add.rectangle(x, (top + sub.y + sub.height) / 2, Math.max(w, 96 * u), (sub.y + sub.height) - top, 0xffffff, 0.001)
+      .setInteractive({ useHandCursor: true });
+    let armed = -1;
+    hit.on('pointerdown', (p: Phaser.Input.Pointer) => { armed = p.id; img.setScale(0.97); });
+    hit.on('pointerup', (p: Phaser.Input.Pointer) => { img.setScale(1); if (armed === p.id) { armed = -1; this.open(card.id); } });
+    hit.on('pointerout', () => { img.setScale(1); armed = -1; });
+  }
+
   private toast(lines: string[]) {
     const { width: w, height: h } = this.scale;
     const u = uiUnit(w, h, dprOf(this));
@@ -154,38 +172,4 @@ export class SettlementScene extends Phaser.Scene {
     this.tweens.add({ targets: t, alpha: 0, delay: 3200, duration: 600, onComplete: () => t.destroy() });
   }
 
-  /** One tappable building card — a parchment plate with a vignette. */
-  private card(x: number, y: number, cw: number, ch: number, card: Card, u: number, portrait: boolean) {
-    const c = this.add.container(x, y);
-    const bg = this.add.graphics();
-    drawPanel(bg, -cw / 2, -ch / 2, cw, ch, { radius: 12 });
-    const img = this.add.image(portrait ? -cw / 2 + 24 * u + 56 * u : 0, portrait ? 0 : -ch * 0.14, card.tex);
-    const fit = Math.min((portrait ? 112 * u : cw - 36 * u) / img.width, (portrait ? ch - 28 * u : ch * 0.48) / img.height);
-    img.setScale(fit);
-    if (card.locked) img.setTint(0x777777);
-    const lx = portrait ? -cw / 2 + 150 * u : 0, ly = portrait ? -12 * u : ch * 0.2;
-    const label = this.add.text(lx, ly, card.label, displayStyle(18 * u, card.locked ? CSS.inkSoft : CSS.ink, false)).setOrigin(portrait ? 0 : 0.5, 0.5);
-    const subText = card.locked ? `locked — ${card.locked}` : card.sub;
-    const sub = this.add.text(lx, ly + 20 * u, subText, uiStyle(10.5 * u, card.locked ? CSS.danger : CSS.inkSoft, { bold: false, wrap: portrait ? cw - 165 * u : cw - 24 * u, align: portrait ? 'left' : 'center' })).setOrigin(portrait ? 0 : 0.5, 0);
-    c.add([bg, img, label, sub]);
-    // vignette life: smoke over the forge, a flicker in the inn window
-    if (card.id === 'forge') {
-      for (let i = 0; i < 3; i++) {
-        const puff = this.add.circle(img.x + 36 * fit, img.y - 50 * fit, 6 * fit + i * 2, 0xd9d3c5, 0.35);
-        c.add(puff);
-        this.tweens.add({ targets: puff, y: puff.y - 60 * fit, x: puff.x + 14 * fit, alpha: 0, scale: 2.2, duration: 2600, delay: i * 800, repeat: -1, ease: 'Sine.Out' });
-      }
-      const glow = this.add.circle(img.x + 2 * fit, img.y + 32 * fit, 30 * fit, PAL.ember, 0.18);
-      c.add(glow);
-      this.tweens.add({ targets: glow, alpha: 0.06, scale: 1.2, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
-    }
-    if (card.locked) { c.setAlpha(0.8); return c; }
-    c.setSize(cw, ch);
-    c.setInteractive(new Phaser.Geom.Rectangle(0, 0, cw, ch), Phaser.Geom.Rectangle.Contains);
-    let armed = -1;
-    c.on('pointerdown', (p: Phaser.Input.Pointer) => { armed = p.id; c.setScale(0.96); });
-    c.on('pointerup', (p: Phaser.Input.Pointer) => { c.setScale(1); if (armed === p.id) { armed = -1; this.open(card.id); } });
-    c.on('pointerout', () => { c.setScale(1); armed = -1; });
-    return c;
-  }
 }

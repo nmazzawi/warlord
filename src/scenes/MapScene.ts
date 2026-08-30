@@ -768,6 +768,11 @@ export class MapScene extends Phaser.Scene {
           GameState.location = here ? here.id : '';
           const crossed = GameState.noteRealm();
           if (crossed) this.hud.toast([crossed, 'Nobody here has heard of you.'], '#f5c542');
+          // anything you were carrying to this place is delivered by standing in it
+          if (here) {
+            const paid = GameState.settleQuests(here.id);
+            if (paid.length) this.hud.toast(paid.map(q => `Delivered ${q.text}: +${q.reward} gold.`), '#c8f0c8');
+          }
           this.passDays(1);
           const caught = GameState.runHunters(1);
           GameState.save();

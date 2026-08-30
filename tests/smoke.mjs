@@ -20,10 +20,18 @@ async function buttonPos(page, sceneKey, prefix) {
   return page.evaluate(([k, p]) => {
     const s = window.__warlord.scene.getScene(k);
     if (!s || !s.children) return null;
+    const d = window.__warlord.scale.displayScale.x || 1;
     for (const c of s.children.list) {
       if (c.type !== 'Container') continue;
       const t = c.list.find(x => x.type === 'Text' && x.text.startsWith(p));
-      if (t) { const d = window.__warlord.scale.displayScale.x || 1; return { x: c.x / d, y: c.y / d }; }
+      if (t) return { x: c.x / d, y: c.y / d };
+    }
+    // a settlement is a street now: its buildings are not containers, they are a picture with its
+    // name written under it, and the whole plot is the tap target
+    for (const c of s.children.list) {
+      if (c.type !== 'Text' || !c.text.startsWith(p)) continue;
+      const b = c.getBounds();
+      return { x: b.centerX / d, y: b.centerY / d };
     }
     return null;
   }, [sceneKey, prefix]);
@@ -248,6 +256,47 @@ async function desktopRun(browser) {
   check((await gs(page)).location === 'camp', 'and you are standing in it');
   await sleep(500);
   await page.screenshot({ path: `${OUT}/d-camp.png` });
+
+  // --- M5.4: the settlement is a street, not a list
+  const street = await page.evaluate(() => {
+    const s2 = window.__warlord.scene.getScene('Settlement');
+    const imgs = s2.children.list.filter(o => o.type === 'Image');
+    const texts = []; const walk = o => { if (o.type === 'Text') texts.push(o.text); if (o.list) o.list.forEach(walk); };
+    s2.children.list.forEach(walk);
+    return { images: imgs.length, hasMarket: texts.includes('MARKET'), hasForge: texts.includes('FORGE'),
+      keys: [...new Set(imgs.map(i => i.texture.key.split('_')[0]))] };
+  });
+  check(street.images >= 5 && street.keys.includes('bld') && street.keys.includes('town'),
+    `the camp is drawn as a street (${street.images} pieces: ${street.keys.join(', ')})`);
+  check(street.hasMarket && street.hasForge, 'with a market on it as well as a forge');
+  // every culture builds differently
+  const arch = await page.evaluate(() => {
+    const seen = {};
+    for (const civ of ['rome', 'japan', 'arabia', 'viking', 'mongolia', 'egypt', 'outlaw']) {
+      window.__GameState.newRun(civ);
+      for (const k of ['Map', 'MapHud', 'CivSelect']) window.__warlord.scene.stop(k);
+      window.__warlord.scene.stop('Settlement');
+      window.__warlord.scene.start('Settlement', { id: 'camp' });
+      seen[civ] = window.__ARCH_OF ? window.__ARCH_OF[window.__GameState.home] : null;
+    }
+    return seen;
+  });
+  check(new Set(Object.values(arch)).size >= 6, `the cultures build differently (${JSON.stringify(arch)})`);
+  await page.evaluate(() => { window.__GameState.newRun('outlaw'); window.__warlord.scene.stop('Settlement');
+    window.__warlord.scene.start('Settlement', { id: 'camp' }); });
+  await sleep(700);
+  // loot off a body, and a market that buys it
+  const trade = await page.evaluate(() => {
+    const S = window.__GameState;
+    S.gold = 200; S.loot = [];
+    S.takeLoot('Helm of Somewhere', 80, 'Somewhere');
+    const before = S.gold;
+    const paid = S.sellLoot(S.loot[0].id, 1);
+    return { paid, gold: S.gold, before, left: S.loot.length };
+  });
+  check(trade.paid > 0 && trade.gold === trade.before + trade.paid && trade.left === 0,
+    `anything you own can be sold (a helm for ${trade.paid} gold)`);
+  await page.evaluate(() => { window.__GameState.quests = []; window.__GameState.loot = []; window.__GameState.save(); });
 
   // --- tap buildings
   await clickBtn(page, 'Settlement', 'FORGE');
@@ -721,8 +770,14 @@ async function desktopRun(browser) {
   check(await waitScene(page, 'Settlement'), 'visited Millbrook peacefully');
   await sleep(400);
   await page.screenshot({ path: `${OUT}/d-visit.png` });
-  const cards = await page.evaluate(() => window.__warlord.scene.getScene('Settlement').children.list.filter(c => c.type === 'Container').map(c => c.list.filter(t => t.type === 'Text').map(t => t.text).join('|')));
-  check(cards.some(c => /BARRACKS.*locked/.test(c)) && cards.some(c => /^INN/.test(c)), `visit screen: barracks locked, inn present (${cards.length} cards)`);
+  // the street writes each building's name and what it is selling as plain text under it
+  const street2 = await page.evaluate(() => {
+    const out = []; const walk = o => { if (o.type === 'Text') out.push(o.text); if (o.list) o.list.forEach(walk); };
+    window.__warlord.scene.getScene('Settlement').children.list.forEach(walk);
+    return out;
+  });
+  check(street2.includes('BARRACKS') && street2.some(t => /^locked — /.test(t)) && street2.includes('INN'),
+    `visit street: the barracks stands there locked, the inn is open (${street2.filter(t => t === t.toUpperCase() && t.length > 2 && t.length < 12).join(', ')})`);
   await clickBtn(page, 'Settlement', 'FORGE');
   await waitScene(page, 'Shop');
   const markup = await page.evaluate(() => { const sh = window.__warlord.scene.getScene('Shop'); return { p60: sh.price(60), blurb: sh.children.list.filter(c => c.type === 'Text').map(t => t.text).join(' | ') }; });

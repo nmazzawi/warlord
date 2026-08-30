@@ -24,6 +24,11 @@ export interface Owned { leather: boolean; plate: boolean; round: boolean; kite:
 export interface SettlementState { timesRaided: number; lastRaidDay: number | null; occupied: boolean; sacked: boolean; wealth: number; }
 export type Conquest = 'sack' | 'occupy' | 'leave';
 export interface DayEvent { kind: 'unpaid' | 'desert'; text: string; }
+/** Something taken off a body, worth what somebody will pay for it. */
+export interface LootItem { id: number; name: string; value: number; from: string; }
+/** A job off a notice board. Two kinds for now: carry something somewhere, or kill somebody. */
+export interface Quest { id: number; kind: 'deliver' | 'hunt'; text: string; to?: string; realm?: string; reward: number; from: string; }
+
 export type Access = 'camp' | 'occupied' | 'visit' | 'closed' | 'sacked' | 'trade' | 'foreign';
 /** A won battle whose sack/occupy choice has not been made yet (survives a reload). */
 export interface PendingVictory { goldEarned: number; deadTroopIds: number[]; battle: BattleOutcome; fallen: string[]; }
@@ -51,6 +56,7 @@ interface SaveData {
   fortifyStepsDone: number; fortifyCarry: number; unpaidDays: number; seenMapHint: boolean;
   rumorsHeard: string[]; pendingVictory: PendingVictory | null;
   steppeInfamy: number; campScattered: Record<string, number>; huntedUntil: number; civ?: string;
+  loot?: LootItem[]; quests?: Quest[];
   realmInfamy?: Record<string, number>;
 }
 
@@ -88,6 +94,10 @@ class GameStateStore {
   steppeInfamy = 0;
   /** Which of the fifteen starts this run is. Everything else about "home" follows from it. */
   civ = 'outlaw';
+  /** Gear stripped off the men you killed, waiting for a market that will take it. */
+  loot: LootItem[] = [];
+  /** Work you have taken off a notice board. */
+  quests: Quest[] = [];
   /** How the warband stands when a fight begins. Chosen once per battle, remembered between them. */
   formation: FormationKind = 'line';
   /** What each foreign realm you have walked into thinks of you. A realm you have never entered is
@@ -108,7 +118,7 @@ class GameStateStore {
     this.gold = UPKEEP.startingGold; this.day = 1; this.infamy = 0; this.weaponTier = 1; this.equippedWeapon = 'sword'; this.horse = 'none';
     this.armor = 'none'; this.shield = 'none';
     this.owned = { leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false, composite: false };
-    this.steppeInfamy = 0; this.realmInfamy = {}; this.campScattered = {}; this.huntedUntil = -1;
+    this.steppeInfamy = 0; this.realmInfamy = {}; this.campScattered = {}; this.loot = []; this.quests = []; this.huntedUntil = -1;
     this.troops = []; this.fallen = []; this.deserted = []; this.raidsDone = 0; this.location = 'camp';
     this.patrolPending = false; this.patrolFrom = 'homeland'; this.pos = { x: nodeById('camp').x, y: nodeById('camp').y }; this.hunters = []; this.settlements = {}; this.garrisons = {}; this.fortifyStepsDone = 0; this.fortifyCarry = 0;
     this.unpaidDays = 0; this.seenMapHint = false; this.rumorsHeard = []; this.pendingVictory = null;
@@ -431,6 +441,39 @@ class GameStateStore {
     };
   }
 
+  /** Strip a body. Only the men who were carrying something worth carrying. */
+  takeLoot(name: string, value: number, from: string) {
+    this.loot.push({ id: this.nextId++, name, value, from });
+  }
+  /** Sell it. Anything you own can go, at any market that will have you. */
+  sellLoot(id: number, markup: number) {
+    const i = this.loot.findIndex(l => l.id === id);
+    if (i < 0) return 0;
+    const [item] = this.loot.splice(i, 1);
+    // a market buys low and sells high; a stranger's market buys lower still
+    const paid = Math.max(1, Math.round((item.value * 0.6) / Math.max(1, markup * 0.75)));
+    this.gold += paid;
+    return paid;
+  }
+  /** Take a job. Arriving, or killing, is what finishes it. */
+  takeQuest(q: Omit<Quest, 'id'>) { this.quests.push({ ...q, id: this.nextId++ }); }
+  /** Anything finished by standing where you are standing now. */
+  settleQuests(where: string): Quest[] {
+    const done = this.quests.filter(q => q.kind === 'deliver' && q.to === where);
+    if (!done.length) return [];
+    this.quests = this.quests.filter(q => !done.includes(q));
+    for (const q of done) this.gold += q.reward;
+    return done;
+  }
+  /** And anything finished by winning a fight against this realm's men. */
+  settleHunt(realm: Territory): Quest[] {
+    const done = this.quests.filter(q => q.kind === 'hunt' && q.realm === realm);
+    if (!done.length) return [];
+    this.quests = this.quests.filter(q => !done.includes(q));
+    for (const q of done) this.gold += q.reward;
+    return done;
+  }
+
   /** Add to whichever meter is keeping score in this country. */
   addInfamyIn(territory: Territory, n: number) {
     if (this.isHome(territory)) this.infamy += n;
@@ -475,6 +518,7 @@ class GameStateStore {
     let summary = `+${goldEarned} gold`;
     if (battle.kind === 'patrol') {
       this.addInfamy(INFAMY.perPatrol);
+      this.settleHunt(this.home);
       this.patrolPending = false;
     } else if (battle.kind === 'steppePatrol') {
       this.steppeInfamy += INFAMY.perPatrol;
@@ -487,7 +531,11 @@ class GameStateStore {
       this.steppeInfamy += STEPPE.campInfamy;
       summary = `${battle.name} plundered: +${goldEarned} gold. Its riders scatter — and the other camps ride to hunt you for ${STEPPE.huntDays} days.`;
     } else if (battle.kind === 'foreignPatrol') {
-      if (battle.realm) this.addInfamyIn(battle.realm, INFAMY.perPatrol);
+      if (battle.realm) {
+        this.addInfamyIn(battle.realm, INFAMY.perPatrol);
+        const paid = this.settleHunt(battle.realm);
+        if (paid.length) summary = `${summary}. Word of it is worth ${paid.reduce((n, q) => n + q.reward, 0)} gold to whoever posted it.`;
+      }
       this.patrolPending = false;
       summary = `Their riders are down: +${goldEarned} gold. The country will send more.`;
     } else if (battle.villageId) {
@@ -559,7 +607,7 @@ class GameStateStore {
       fortifyStepsDone: this.fortifyStepsDone, fortifyCarry: this.fortifyCarry,
       unpaidDays: this.unpaidDays, seenMapHint: this.seenMapHint,
       rumorsHeard: [...this.rumorsHeard], pendingVictory: this.pendingVictory ? JSON.parse(JSON.stringify(this.pendingVictory)) : null,
-      civ: this.civ, formation: this.formation, steppeInfamy: this.steppeInfamy, realmInfamy: { ...this.realmInfamy }, campScattered: { ...this.campScattered }, huntedUntil: this.huntedUntil,
+      civ: this.civ, formation: this.formation, loot: this.loot.map(l => ({ ...l })), quests: this.quests.map(q => ({ ...q })), steppeInfamy: this.steppeInfamy, realmInfamy: { ...this.realmInfamy }, campScattered: { ...this.campScattered }, huntedUntil: this.huntedUntil,
     };
   }
   fromJSON(d: SaveData) {
@@ -582,6 +630,8 @@ class GameStateStore {
     // a save written before there was a choice is the Borderland Outlaw, which is what it was playing
     this.setCiv(d.civ ?? 'outlaw');
     this.formation = d.formation ?? 'line';
+    this.loot = (d.loot ?? []).map(l => ({ ...l }));
+    this.quests = (d.quests ?? []).map(q => ({ ...q }));
     this.steppeInfamy = d.steppeInfamy ?? 0; this.realmInfamy = { ...(d.realmInfamy ?? {}) }; this.campScattered = { ...(d.campScattered ?? {}) }; this.huntedUntil = d.huntedUntil ?? -1;
     this.owned.composite = this.owned.composite ?? false;
   }

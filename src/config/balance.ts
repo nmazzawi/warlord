@@ -74,6 +74,14 @@ export const TROOP_KINDS = {
   guard:  { label: 'Town guard', hp: 75, damage: 10, cost: 60, tint: 0x9fd8ff, desc: 'Drilled, armored, expensive.' },
   rider:  { label: 'Steppe rider', hp: 50, damage: 7, cost: 90, tint: 0xffe0a0, desc: 'Mounted archer. Keeps its distance and shoots; fast, fragile, pricey.' },
 };
+/** What comes off a body. Only the men who were carrying something: captains, the garrison captain,
+ *  and an empire's own elites. Everything here can be sold at any market that will have you. */
+export const LOOT = {
+  chance: 0.35,
+  value: [40, 90] as const,
+  names: ['Blade', 'Helm', 'Mail', 'Bracers', 'Shield', 'Buckle', 'Warhorn', 'Signet', 'Cloakpin', 'Greaves'],
+};
+
 /** What the nine visible troop abilities are worth. Each is one number so a player can feel it. */
 export const TROOP_ABILITY = {
   frenzyMax: 0.6,        // a berserker at death's door hits 60% harder

@@ -8,6 +8,7 @@ import { unitDef } from '../world/Units';
 import { Sound } from '../systems/Sound';
 import { stockFor } from '../world/Stock';
 import { nextRumor } from '../world/Rumors';
+import { noticeFor } from '../world/Notices';
 import { nodeById } from '../world/WorldMap';
 import { visitOf } from '../world/Realms';
 import type { BuildingId } from './SettlementScene';
@@ -42,6 +43,14 @@ export class ShopScene extends Phaser.Scene {
     this.scale.on('resize', this.build, this);
     this.input.keyboard?.on('keydown-ESC', () => this.onClose());
     this.events.once('shutdown', () => this.scale.off('resize', this.build, this));
+  }
+
+  /** A word that fades: what just happened, without a whole panel about it. */
+  private note(text: string) {
+    const { width: w, height: h } = this.scale;
+    const u = uiUnit(w, h, dprOf(this));
+    const t = this.add.text(w / 2, h * 0.16, text, uiStyle(15 * u, CSS.goldHi, { stroke: true })).setOrigin(0.5).setDepth(80);
+    this.tweens.add({ targets: t, y: t.y - 24 * u, alpha: 0, duration: 1100, onComplete: () => t.destroy() });
   }
 
   private price(base: number) { return Math.ceil(base * stockFor(this.settlementId, this.visiting).markup); }
@@ -130,6 +139,35 @@ export class ShopScene extends Phaser.Scene {
       if (garrisoned.length) rows.push({ name: 'Garrisons', desc: garrisoned.join('; '), button: null });
       if (g.fallen.length || g.deserted.length) rows.push({ name: 'Gone', desc: [...g.fallen.slice(-6).map(f => `${f.name} fell at ${f.where}`), ...g.deserted.slice(-4).map(n => `${n} deserted`)].join(', '), button: null });
       return { title: 'THE BARRACKS', blurb: `Recruits follow you in formation and fight on their own. Your warband eats ${g.wagesPerDay} gold a day as it stands.`, rows };
+    }
+    if (this.building === 'harbor') {
+      return { title: 'THE HARBOR', blurb: 'Hulls on the tide, and every one of them spoken for.',
+        rows: [{ name: 'No passage', desc: 'Boats come and go and none of them takes a warband. What is over that water stays over it.', button: null }] };
+    }
+    if (this.building === 'market') {
+      const rows: Row[] = [];
+      // what you stripped off the dead, and what a stranger's market will pay for it
+      if (g.loot.length) {
+        for (const item of g.loot.slice(0, 8)) {
+          const paid = Math.max(1, Math.round((item.value * 0.6) / Math.max(1, stock.markup * 0.75)));
+          rows.push({ name: item.name, desc: `taken at ${item.from}`,
+            button: { label: `sell ${paid}g`, enabled: true, onPress: () => { const got = g.sellLoot(item.id, stock.markup); Sound.gold(); this.note(`+${got} gold`); g.save(); this.build(); } } });
+        }
+        if (g.loot.length > 8) rows.push({ name: `and ${g.loot.length - 8} more`, desc: 'Sell what is on top first.', button: null });
+      } else {
+        rows.push({ name: 'Nothing to sell', desc: 'Captains and an empire\u2019s own men carry gear worth carrying. Take it off them.', button: null });
+      }
+      // the notice board
+      const open = noticeFor(this.settlementId);
+      const taken = g.quests.length;
+      if (open && taken < 3) {
+        rows.push({ name: `Notice: ${open.text}`, desc: `${open.reward} gold, paid ${open.kind === 'deliver' ? 'when it arrives' : 'over the body'}.`,
+          button: { label: 'TAKE IT', enabled: true, onPress: () => { g.takeQuest(open); Sound.click(); this.note('Taken'); g.save(); this.build(); } } });
+      } else if (taken >= 3) {
+        rows.push({ name: 'The board is full to you', desc: 'Finish what you have taken before you take more.', button: null });
+      }
+      for (const q of g.quests) rows.push({ name: `Carrying: ${q.text}`, desc: `${q.reward} gold when it is done.`, button: null });
+      return { title: 'THE MARKET', blurb: `they buy low and sell high${markup}`, rows };
     }
     if (this.building === 'inn') {
       const rows: Row[] = [];

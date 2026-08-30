@@ -4,7 +4,7 @@
 // archers on the wall, and two waves behind it.
 import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
-import { ABILITIES, ENEMIES, PIERCE, RIDER, SIEGE, TROOP_ABILITY } from '../config/balance';
+import { ABILITIES, ENEMIES, LOOT, PIERCE, RIDER, SIEGE, TROOP_ABILITY } from '../config/balance';
 import { Hero } from '../entities/Hero';
 import { Troop } from '../entities/Troop';
 import { Enemy, type EnemyKind } from '../entities/Enemy';
@@ -51,6 +51,8 @@ export class RaidScene extends Phaser.Scene {
   private over = false;
   private wave2Spawned = false;
   private inspireRing!: Phaser.GameObjects.Graphics;
+  /** Stripped off bodies during the fight, and only yours if you win it. */
+  private lootTaken: Array<{ name: string; value: number }> = [];
   /** True while the fight is held for the one choice you make before it. */
   awaitingFormation = false;
   /** Where a realm's own men stand, and how many of their dead the ranks will still close over. */
@@ -542,6 +544,14 @@ export class RaidScene extends Phaser.Scene {
         this.juice.hitStop(110);
         this.juice.banner(u.x, u.y - 30, u.kind === 'boss' ? 'THE CAPTAIN FALLS — HIS HALBERD IS YOURS' : 'CAPTAIN SLAIN', '#f5c542', 16);
       }
+      // a man who was carrying something worth carrying leaves it on the ground
+      if ((big || u.elite) && Math.random() < LOOT.chance) {
+        const grand = u.kind === 'boss';
+        this.lootTaken.push({
+          name: `${LOOT.names[Math.floor(Math.random() * LOOT.names.length)]} of ${this.cfg.name}`,
+          value: Math.round(Phaser.Math.Between(LOOT.value[0], LOOT.value[1]) * (grand ? 2.4 : u.elite ? 1.3 : 1) * this.cfg.defenders.goldMult),
+        });
+      }
       if (u.kind === 'spearman' && this.reformsLeft > 0 && !this.over) {
         // if he was the LAST man standing the fight would be over before a delayed replacement could
         // arrive — so the ranks close on the spot, and the battle does not end on a lie
@@ -620,6 +630,10 @@ export class RaidScene extends Phaser.Scene {
     if (swept > 0) {
       Sound.gold();
       this.juice.damageNumber(this.hero.x, this.hero.y - 30, `+${swept}`, COLORS.gold, 15);
+    }
+    for (const l of this.lootTaken) GameState.takeLoot(l.name, l.value, this.cfg.name);
+    if (this.lootTaken.length) {
+      this.juice.banner(this.hero.x, this.hero.y - 76, `${this.lootTaken.length} piece${this.lootTaken.length === 1 ? '' : 's'} of gear taken`, '#c8e0ff', 14);
     }
     Sound.victory();
     const msg = this.cfg.kind === 'patrol' ? 'PATROL ROUTED' : this.cfg.kind === 'siege' ? 'KINGSPORT FALLS'
