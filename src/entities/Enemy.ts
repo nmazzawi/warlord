@@ -13,10 +13,9 @@ import { dealDamage } from '../systems/Combat';
 import { hasLineOfSight } from '../systems/LineOfSight';
 
 export type EnemyKind = 'militia' | 'archer' | 'captain' | 'guard' | 'boss' | 'horsearcher' | 'rider' | 'noyan'
+  // the empires' elites — ordinary men, drilled. Every realm fields one of these three for now.
   | 'shieldman' | 'axeman' | 'spearman';
 const MOUNTED: EnemyKind[] = ['horsearcher', 'rider', 'noyan'];
-/** The empires' elites — ordinary men, drilled. Every realm's is one of these three for now. */
-export const ELITE_KINDS: EnemyKind[] = ['shieldman', 'axeman', 'spearman'];
 
 export interface EnemyMult { hp: number; dmg: number; gold: number; }
 
