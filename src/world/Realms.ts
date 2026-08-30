@@ -51,6 +51,14 @@ export const ELITE_TINT: Record<string, number> = {
   japan: 0xe8dcc8, viking: 0xa8c4dc, aztecs: 0x9ad8a0, inca: 0xe0a8b0, mongolia: 0xe0c89a,
 };
 
+/** What a country calls the man who holds it. You take their throne; you take their word for it. */
+export const CROWN_TITLE: Record<string, string> = {
+  homeland: 'King', rome: 'Imperator', greece: 'Hegemon', japan: 'Shogun', china: 'Emperor',
+  steppe: 'Khan', mongolia: 'Khan', rus: 'Grand Prince', arabia: 'Caliph', viking: 'Konungr',
+  persia: 'Shahanshah', india: 'Maharaja', egypt: 'Pharaoh', kush: 'Qore', aztecs: 'Tlatoani',
+  inca: 'Sapa Inca',
+};
+
 /** The name the meter uses when you are standing in a realm. Short enough for a phone's status bar. */
 export const REALM_SHORT: Record<string, string> = {
   rome: 'ROME', greece: 'GREECE', rus: 'RUS', arabia: 'THE CALIPHATE', persia: 'PERSIA',

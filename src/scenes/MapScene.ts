@@ -122,7 +122,7 @@ export class MapScene extends Phaser.Scene {
 
     for (const r of REGIONS) {
       const [cx, cy] = r.labelAt;
-      this.empireLabels.push(this.add.text(cx, cy, MapScene.titleLines(r.name), {
+      this.empireLabels.push(this.add.text(cx, cy, MapScene.titleLines(GameState.rules(r.id) ? `\u265B ${r.name}` : r.name), {
         fontFamily: DISPLAY, fontSize: '64px', color: r.enterable ? CSS.ink : '#5c4b33', fontStyle: 'bold', letterSpacing: 6, align: 'center',
       }).setOrigin(0.5).setDepth(3).setLineSpacing(-10).setPadding(0, 0, 14, 0));
       for (const p of r.places) this.drawPlace(r, p);
@@ -507,6 +507,11 @@ export class MapScene extends Phaser.Scene {
 
   /** Refresh every label from the game state (day passed, village raided, infamy grew, camps moved...). */
   refresh() {
+    // a crown shows on the country's name the moment it is won
+    for (let i = 0; i < REGIONS.length; i++) {
+      const want = MapScene.titleLines(GameState.rules(REGIONS[i].id) ? `\u265B ${REGIONS[i].name}` : REGIONS[i].name);
+      if (this.empireLabels[i] && this.empireLabels[i].text !== want) this.empireLabels[i].setText(want);
+    }
     // how well each place is held, as it stands today — a city you took reads one star, a ruin none
     for (const m of this.markers) {
       const n = FOREIGN_PLACES.find(f => f.territory === m.empire.id && f.name === m.place.name);
@@ -876,6 +881,12 @@ export class MapScene extends Phaser.Scene {
     const v = visitOf(r.id);
     if (!v) return ['Across water, and no ship will carry you — yet.'];
     const cap = capitalOf(r.id);
+    if (GameState.rules(r.id)) {
+      const cap = capitalOf(r.id);
+      return [`Yours. They call you ${GameState.title}.`,
+        'Its gates are open, its prices are your prices, and its riders ride for you now.',
+        cap ? `The throne sits at ${cap.name}.` : ''].filter(Boolean);
+    }
     const out = [v.army.armyNote];
     // the smallest place in the realm, so the card names a fight you could actually pick
     const untouched = (n: MapNode) => { const st = GameState.settlement(n.id); return !st.sacked && !st.occupied; };
@@ -1073,7 +1084,12 @@ export class MapScene extends Phaser.Scene {
     }
 
     // the intel: exactly what is in the square, and what their own men are
-    lines.push(`${GameState.stars(n.id)}   ${info.total} defenders: ${info.militia} militia, ${many(info.archers, 'archer', 'archers')}, ${many(info.captains, 'captain', 'captains')}, and ${many(info.elites, info.eliteName, info.elitePlural)}.`);
+    const parts = [`${info.militia} militia`];
+    if (info.archers) parts.push(many(info.archers, 'archer', 'archers'));
+    if (info.captains) parts.push(many(info.captains, 'captain', 'captains'));
+    if (info.elites) parts.push(many(info.elites, info.eliteName, info.elitePlural));
+    if (info.champion) parts.push('and their champion');
+    lines.push(`${GameState.stars(n.id)}   ${info.total} defenders: ${parts.join(', ')}.`);
     if (v) lines.push(v.army.eliteNote);
     if (info.reforms > 0) lines.push(`Their line closes over its dead: expect ${info.reforms} more of them before it breaks.`);
     if (n.rank === 'capital' && v) lines.push(v.army.capitalWarning);

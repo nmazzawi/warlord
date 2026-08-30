@@ -1,10 +1,11 @@
 // GameState.ts — the whole run: gold, day, infamy, gear, horse, your named troops, where you are on
 // the map, what state each settlement is in, who garrisons what, and the daily ledger (wages in,
 // tribute out). Saved to browser storage (single slot).
-import { CONQUEST, FOREIGN, FOREIGN_GARRISON, FOREIGN_MAX_DEFENDERS, FRONTIER_THIN, HUNT, REALM_POWER, DEFENSE_SOFTCAP, EQUIPMENT, HERO, HORSES, INFAMY, PATROLS, RERAID, SIEGE, STEPPE, TRIBUTE, TROOP, UPKEEP, VILLAGE_TIERS } from '../config/balance';
+import { CONQUEST, FOREIGN, FOREIGN_GARRISON, FOREIGN_MAX_DEFENDERS, FRONTIER_THIN, GARRISON_MIX, HUNT, PAY, REALM_POWER, WARBAND_GEAR, DEFENSE_SOFTCAP, EQUIPMENT, HERO, HORSES, INFAMY, PATROLS, RERAID, SIEGE, STEPPE, TRIBUTE, TROOP, UPKEEP, VILLAGE_TIERS } from '../config/balance';
 import { nameAt } from '../utils/names';
-import { frontier, NODES, nodeById, territoryOf, type Territory } from '../world/WorldMap';
-import { ELITE_TINT, REALM_SHORT, visitOf } from '../world/Realms';
+import { frontier, NODES, nodeById, territoryOf, type MapNode, type Territory } from '../world/WorldMap';
+import { CROWN_TITLE, ELITE_TINT, REALM_SHORT, visitOf } from '../world/Realms';
+import { REGIONS } from '../world/WorldChart';
 import { campPoint, civOf } from '../world/Civs';
 import { unitDef } from '../world/Units';
 import type { FormationKind } from '../systems/Formation';
@@ -56,7 +57,8 @@ interface SaveData {
   fortifyStepsDone: number; fortifyCarry: number; unpaidDays: number; seenMapHint: boolean;
   rumorsHeard: string[]; pendingVictory: PendingVictory | null;
   steppeInfamy: number; campScattered: Record<string, number>; huntedUntil: number; civ?: string;
-  loot?: LootItem[]; quests?: Quest[]; huntQuiet?: Record<string, number>;
+  loot?: LootItem[]; quests?: Quest[]; huntQuiet?: Record<string, number>; ruled?: string[];
+  gearTier?: number; payRate?: 'half' | 'full' | 'double';
   realmInfamy?: Record<string, number>;
 }
 
@@ -84,6 +86,12 @@ class GameStateStore {
   patrolFrom: Territory = 'homeland';
   /** The day each country's hunt goes quiet until, after you put one of its parties down. */
   huntQuiet: Record<string, number> = {};
+  /** The countries whose crown you wear. */
+  ruled: string[] = [];
+  /** How well the whole warband is armed: 0 as they came, up to 3. */
+  gearTier = 0;
+  /** What you pay them. */
+  payRate: 'half' | 'full' | 'double' = 'full';
   settlements: Record<string, SettlementState> = {};
   garrisons: Record<string, TroopRecord[]> = {};
   fortifyStepsDone = 0;
@@ -120,7 +128,7 @@ class GameStateStore {
     this.gold = UPKEEP.startingGold; this.day = 1; this.infamy = 0; this.weaponTier = 1; this.equippedWeapon = 'sword'; this.horse = 'none';
     this.armor = 'none'; this.shield = 'none';
     this.owned = { leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false, composite: false };
-    this.steppeInfamy = 0; this.realmInfamy = {}; this.campScattered = {}; this.loot = []; this.quests = []; this.huntQuiet = {}; this.huntedUntil = -1;
+    this.steppeInfamy = 0; this.realmInfamy = {}; this.campScattered = {}; this.loot = []; this.quests = []; this.huntQuiet = {}; this.ruled = []; this.gearTier = 0; this.payRate = 'full'; this.huntedUntil = -1;
     this.troops = []; this.fallen = []; this.deserted = []; this.raidsDone = 0; this.location = 'camp';
     this.patrolPending = false; this.patrolFrom = 'homeland'; this.pos = { x: nodeById('camp').x, y: nodeById('camp').y }; this.hunters = []; this.settlements = {}; this.garrisons = {}; this.fortifyStepsDone = 0; this.fortifyCarry = 0;
     this.unpaidDays = 0; this.seenMapHint = false; this.rumorsHeard = []; this.pendingVictory = null;
@@ -258,7 +266,19 @@ class GameStateStore {
 
   // ------------------------------------------------------------ the ledger
   /** Every man is paid his own wage — a samurai is not a levy, on the field or in the ledger. */
-  get wagesPerDay() { return this.troops.reduce((n, t) => n + unitDef(t.kind ?? 'raider').wage, 0); }
+  get wagesPerDay() {
+    const base = this.troops.reduce((n, t) => n + unitDef(t.kind ?? 'raider').wage, 0);
+    return Math.round(base * PAY[this.payRate].mult);
+  }
+  /** What the whole warband carries, on top of what each man came with. */
+  get gear() { return WARBAND_GEAR[Math.min(this.gearTier, WARBAND_GEAR.length - 1)]; }
+  /** Arming everyone costs by the head: a big warband is a big bill. */
+  gearCost(toTier = this.gearTier + 1) {
+    const step = WARBAND_GEAR[Math.min(toTier, WARBAND_GEAR.length - 1)];
+    return Math.round(step.cost * Math.max(3, this.troops.length) * 0.55);
+  }
+  /** How hard they swing today, all things considered. */
+  get moraleDamage() { return PAY[this.payRate].damage; }
   get tributePerDay() {
     let t = 0;
     for (const n of NODES) {
@@ -301,12 +321,18 @@ class GameStateStore {
       if (this.gold >= wages) {
         this.gold -= wages;
         this.unpaidDays = 0;
+        // paid, but paid HALF: a man who is short every day starts looking at the road
+        if (this.payRate === 'half' && this.troops.length > 1 && Math.random() < 0.06) {
+          const [gone] = this.troops.splice(Math.floor(Math.random() * this.troops.length), 1);
+          this.deserted.push(gone.name);
+          events.push({ kind: 'desert', text: `Day ${this.day}: ${gone.name} walked. Half wages buy half a warband.` });
+        }
       } else {
         this.gold = 0;
         this.unpaidDays += 1;
         if (this.unpaidDays <= UPKEEP.graceDays) {
           events.push({ kind: 'unpaid', text: `Day ${this.day}: the men were not paid. They grumble — pay them tomorrow or they walk.` });
-        } else if (this.troops.length > 0) {
+        } else if (this.troops.length > 0 && this.payRate !== 'double') {
           const idx = Math.floor(Math.random() * this.troops.length);
           const [gone] = this.troops.splice(idx, 1);
           this.deserted.push(gone.name);
@@ -352,6 +378,7 @@ class GameStateStore {
       if (s2.occupied) return 'occupied';
       if (s2.sacked) return 'sacked';
       // your own country is not a country you visit: its gates are open and its prices are its prices
+      if (this.rules(node.territory)) return s2.occupied ? 'occupied' : 'visit';
       if (this.isHome(node.territory)) return s2.timesRaided > 0 ? 'closed' : 'visit';
       // a country that has had a warband in it does not sell you a sword the following week
       if ((this.realmInfamy[node.territory] ?? 0) > 0) return 'closed';
@@ -420,11 +447,20 @@ class GameStateStore {
     const thin = n.fringe ? FRONTIER_THIN.fringe : 1 - frontier(n) * (FRONTIER_THIN[rank] ?? 0);
     const up = (x: number) => Math.max(1, Math.round(x * power * thin));
     let militia = up(base.militia);
-    const archers = up(base.archers), captains = up(base.captains), elites = up(base.elites);
+    let archers = up(base.archers), captains = up(base.captains), elites = up(base.elites);
     // A phone has to draw every one of them, so past the cap the rank and file are trimmed and the
     // men who matter never are. The strength of the ones sent home is not thrown away — it goes into
     // the ones still standing, so Rome stays harder than China even when both field the same 58.
-    const raw = militia + archers + captains + elites;
+    // What is standing there depends on how well the place is held, not only how many. A hamlet is
+    // whoever lives in it; a throne is the country's army with its champion in front.
+    const grade = Math.max(1, Math.min(5, Math.round(
+      (rank === 'capital' ? 5 : rank === 'city' ? 4 : rank === 'town' ? 3 : n.fringe ? 1 : 2) * (0.5 + thin * 0.55))));
+    const mix = GARRISON_MIX[grade];
+    militia = Math.max(1, Math.round(militia * mix.militia));
+    archers = Math.round(archers * mix.archers);
+    captains = Math.round(captains * mix.captains);
+    elites = Math.round(elites * mix.elites);
+    const raw = militia + archers + captains + elites + (mix.champion ? 1 : 0);
     const over = raw - FOREIGN_MAX_DEFENDERS;
     let crowd = 1;
     if (over > 0) {
@@ -434,7 +470,8 @@ class GameStateStore {
     const style = v?.army.style ?? 'shieldman';
     return {
       realm, rank, militia, archers, captains, elites,
-      total: militia + archers + captains + elites,
+      grade, champion: mix.champion,
+      total: militia + archers + captains + elites + (mix.champion ? 1 : 0),
       // come back a second time and they are ready for you, and there is less left to take
       // frontier men are the same men, just fewer of them and less well kept
       statMult: base.statMult * power * crowd * (0.6 + thin * 0.4) * (1 + vs.timesRaided * FOREIGN.reraidStat),
@@ -509,8 +546,51 @@ class GameStateStore {
 
   /** A party you put down is gone for good, and its country stops looking for a few days. */
   huntQuieted(territory: Territory) { this.huntQuiet[territory] = this.day + HUNT.graceDays; }
-  /** Do you wear this country's crown? (Filled in by rulership; false until then.) */
-  rules(_territory: Territory) { return false; }
+  /** Do you wear this country's crown? */
+  rules(territory: Territory) {
+    return this.ruled.includes(territory) || (territory === 'mongolia' && this.ruled.includes('steppe'))
+      || (territory === 'steppe' && this.ruled.includes('mongolia'));
+  }
+  /** What they call you. The grandest crown you wear, in that country's own word for it. */
+  get title() {
+    if (!this.ruled.length) return '';
+    const best = [...this.ruled].sort((a, b) => this.realmWeight(b) - this.realmWeight(a))[0];
+    const word = CROWN_TITLE[best] ?? 'King';
+    const of = best === 'homeland' ? 'the Borderland' : (REGIONS.find(r => r.id === best || (best === 'steppe' && r.id === 'mongolia'))?.name ?? best);
+    return this.ruled.length > 1 ? `${word} of ${of}, and ${this.ruled.length - 1} more` : `${word} of ${of}`;
+  }
+  private realmWeight(realm: string) { return NODES.filter(n => n.territory === realm).length; }
+
+  /**
+   * Have you taken enough of a country to BE it? The throne and every great city — after that the
+   * villages send fealty rather than making you walk to each of them, which is the difference between
+   * a conquest and a mopping-up chore.
+   */
+  checkFealty(realm: Territory): boolean {
+    if (!realm || realm === 'steppe' || this.rules(realm)) return false;
+    const held = (n: MapNode) => { const st = this.settlements[n.id]; return !!(st && (st.occupied || st.sacked)); };
+    const crowns = NODES.filter(n => n.territory === realm && (n.rank === 'capital' || n.rank === 'city'));
+    if (crowns.length < 2 || !crowns.every(held)) return false;
+    // the rest bends the knee
+    for (const n of NODES.filter(x => x.territory === realm)) {
+      const st = this.settlement(n.id);
+      if (!st.sacked) { st.occupied = true; st.timesRaided = 0; }
+    }
+    this.ruled.push(realm);
+    // a crown clears the score: the country stops hunting the man who now rules it
+    this.realmInfamy[realm] = 0;
+    if (realm === this.home) this.infamy = Math.min(this.infamy, INFAMY.tiers[1].min - 1);
+    delete this.huntQuiet[realm];
+    this.hunters = this.hunters.filter(h => h.kind !== realm);
+    // and every other throne on the chart hears about it
+    for (const other of new Set(NODES.map(n => n.territory))) {
+      if (other === realm || this.rules(other) || other === this.home) continue;
+      const tier = this.tierOf(this.territoryInfamy(other));
+      const next = INFAMY.tiers[Math.min(tier + 1, INFAMY.tiers.length - 1)].min;
+      if (this.territoryInfamy(other) < next) this.addInfamyIn(other, next - this.territoryInfamy(other));
+    }
+    return true;
+  }
 
   /** Add to whichever meter is keeping score in this country. */
   addInfamyIn(territory: Territory, n: number) {
@@ -620,6 +700,13 @@ class GameStateStore {
           : `Raided ${node.name}: +${goldEarned} gold. It lies ruined for ${RERAID.recoverDays} days, and poorer for longer.`;
       }
     }
+    // did that take enough of a country to BE it?
+    if (battle.villageId) {
+      const realm = nodeById(battle.villageId).territory;
+      if (this.checkFealty(realm)) {
+        summary = `${summary}  ${realm === this.home ? 'Your own country' : (REGIONS.find(r => r.id === realm)?.name ?? 'The realm')} is yours. They call you ${this.title}.`;
+      }
+    }
     this.pendingVictory = null;
     this.snapshot = null;
     this.save();
@@ -674,6 +761,9 @@ class GameStateStore {
     this.loot = (d.loot ?? []).map(l => ({ ...l }));
     this.quests = (d.quests ?? []).map(q => ({ ...q }));
     this.huntQuiet = { ...(d.huntQuiet ?? {}) };
+    this.ruled = [...(d.ruled ?? [])];
+    this.gearTier = d.gearTier ?? 0;
+    this.payRate = d.payRate ?? 'full';
     this.steppeInfamy = d.steppeInfamy ?? 0; this.realmInfamy = { ...(d.realmInfamy ?? {}) }; this.campScattered = { ...(d.campScattered ?? {}) }; this.huntedUntil = d.huntedUntil ?? -1;
     this.owned.composite = this.owned.composite ?? false;
   }

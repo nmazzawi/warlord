@@ -2,7 +2,7 @@
 // the infamy meter and bounty, pop-up panels for places, and toasts for things that happened on the road.
 import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
-import { INFAMY } from '../config/balance';
+import { INFAMY, PAY } from '../config/balance';
 import { CSS, displayStyle, dprOf, drawPanel, FONT, makeButton, PAL, safeInsets, uiStyle, uiUnit } from './ui';
 
 export interface PanelButton { label: string; color?: number; enabled?: boolean; onPress: () => void; }
@@ -117,8 +117,9 @@ export class MapHudScene extends Phaser.Scene {
     this.dateText.setText(GameState.dateLabel);
     this.goldText.setText(`⬤ ${GameState.gold} gold`);
     const wages = GameState.wagesPerDay, tribute = GameState.tributePerDay, net = tribute - wages;
+    const pay = GameState.payRate === 'full' ? '' : ` (${PAY[GameState.payRate].label} pay)`;
     const unpaid = GameState.unpaidDays > 0;
-    this.ledgerText.setText(`Troops ${GameState.troops.length}  ·  wages −${wages}/day  ·  tribute +${tribute}/day  ·  net ${net >= 0 ? '+' : ''}${net}/day${unpaid ? '   ·   UNPAID — the men grumble' : ''}`)
+    this.ledgerText.setText(`Troops ${GameState.troops.length}/${GameState.troopCap}  ·  wages −${wages}/day${pay}  ·  tribute +${tribute}/day  ·  net ${net >= 0 ? '+' : ''}${net}/day${unpaid ? '   ·   UNPAID — the men grumble' : ''}`)
       .setColor(unpaid ? '#ff9a8a' : net >= 0 ? '#c8f0c8' : '#ffe9a8');
     // the meter shows how the territory you stand in sees you
     const where = GameState.territoryName();
@@ -129,7 +130,9 @@ export class MapHudScene extends Phaser.Scene {
     const frac = next === null ? 1 : Phaser.Math.Clamp((value - cur) / (next - cur), 0, 1);
     this.infamyLabel.setText(`${where ? `${where} ` : ''}INFAMY ${value}  ·  ${INFAMY.tiers[tier].name.toUpperCase()}${next !== null ? `  (${INFAMY.tiers[tier + 1].name} at ${next})` : ''}${GameState.hunted ? '  ·  HUNTED' : ''}`);
     this.infamyFg.width = this.infamyBg.width * frac;
-    this.bountyText.setText(GameState.bounty > 0 ? `bounty ${GameState.bounty}g (homeland)` : 'no bounty yet');
+    // a king is not a man with a price on his head
+    this.bountyText.setText(GameState.title ? GameState.title
+      : GameState.bounty > 0 ? `bounty ${GameState.bounty}g (homeland)` : 'no bounty yet');
   }
 
   get panelOpen() { return this.spec !== null; }

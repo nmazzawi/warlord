@@ -604,7 +604,8 @@ async function desktopRun(browser) {
   check(war.kush.total < war.roma.total && war.kush.stat < war.roma.stat,
     `a realm's own strength counts: Meroe ${war.kush.total} at x${war.kush.stat}, Roma ${war.roma.total} at x${war.roma.stat}`);
   check(war.max <= 58, `no battle fields more men than a phone can draw (worst ${war.max})`);
-  check(war.village.elites >= 2 && /\w/.test(war.village.elite), `realms field their own men (${war.village.elites} ${war.village.elite})`);
+  // a village fields a few of its country's own men; a throne fields a wall of them (checked below)
+  check(war.village.elites >= 1 && /\w/.test(war.village.elite), `realms field their own men (${war.village.elites} ${war.village.elite})`);
   // no panel anywhere may still forbid a war
   const locks = await page.evaluate(() => {
     const bad = [];
@@ -672,14 +673,16 @@ async function desktopRun(browser) {
       const cfg = window.__battles.foreignBattle(v.id);
       for (const k of ['Settlement', 'Shop', 'Map', 'MapHud']) window.__warlord.scene.stop(k);
       window.__warlord.scene.start('Raid', cfg);
-      return { id: v.id, name: v.name, total: cfg.defenders.militia + cfg.defenders.archers + cfg.defenders.captains + cfg.elite.count, elite: cfg.elite.kind };
+      return { id: v.id, name: v.name, elite: cfg.elite.kind, champion: !!cfg.elite.champion,
+        total: cfg.defenders.militia + cfg.defenders.archers + cfg.defenders.captains + cfg.elite.count + (cfg.elite.champion ? 1 : 0) };
     });
     check(await waitScene(page, 'Raid'), `assaulted ${fought.name}, a village of Rome`);
     await pickFormation(page);
     const spawned = await page.evaluate(() => { const r = window.__warlord.scene.getScene('Raid');
       const k = {}; for (const e of r.enemies) k[e.kind] = (k[e.kind] ?? 0) + 1;
       return { n: r.enemies.length, k, tinted: r.enemies.filter(e => e.liveryTint !== null).length }; });
-    check(spawned.n === fought.total && spawned.k[fought.elite] > 0 && spawned.tinted === spawned.k[fought.elite],
+    check(spawned.n === fought.total && spawned.k[fought.elite] > 0
+      && spawned.tinted === spawned.k[fought.elite] + (fought.champion ? 1 : 0),
       `their own men stand with the militia: ${JSON.stringify(spawned.k)}`);
     // a shieldman turns half of everything until he swings; an axeman does not
     const shield = await page.evaluate(() => {
@@ -783,6 +786,52 @@ async function desktopRun(browser) {
   check(hunts.atRaider >= 1 && hunts.atRaider <= 1, `a raider is hunted, by one party at a time (${hunts.atRaider}; ${JSON.stringify(hunts.why)})`);
   check(hunts.quietUntil === 5 && hunts.duringGrace === 0,
     `putting a party down buys ${hunts.quietUntil} days of quiet (${hunts.duringGrace} came in them)`);
+
+  // --- M5.5 B: what a garrison is made of, what your men carry, and what you pay them
+  const depth = await page.evaluate(() => {
+    const S = window.__GameState;
+    const keep = JSON.parse(JSON.stringify(S.toJSON()));
+    const at = (t, pick) => { const n = window.__NODES.find(pick); return n ? { name: n.name, stars: S.protection(n.id), ...S.foreignInfo(n.id) } : null; };
+    const fringe = at('rome', n => n.territory === 'rome' && n.fringe);
+    const cap = at('rome', n => n.id === 'f_rome_roma');
+    // gear and pay
+    S.gearTier = 0; S.payRate = 'full';
+    const bare = { atk: S.gear.attack, wage: S.wagesPerDay, dmg: S.moraleDamage };
+    S.gearTier = 3; S.payRate = 'double';
+    const armed = { atk: S.gear.attack, wage: S.wagesPerDay, dmg: S.moraleDamage };
+    S.fromJSON(keep);
+    return { fringe: { m: fringe.militia, e: fringe.elites, champion: fringe.champion, stars: fringe.stars },
+      cap: { m: cap.militia, e: cap.elites, champion: cap.champion, stars: cap.stars }, bare, armed };
+  });
+  check(depth.fringe.e === 0 && !depth.fringe.champion && depth.cap.e > depth.cap.m * 0.8 && depth.cap.champion,
+    `a hamlet is farmers (${depth.fringe.m}m ${depth.fringe.e}e) and a throne is an army (${depth.cap.m}m ${depth.cap.e}e + champion)`);
+  check(depth.armed.atk > depth.bare.atk && depth.armed.wage === depth.bare.wage * 2 && depth.armed.dmg > depth.bare.dmg,
+    `gear and pay are levers (+${depth.armed.atk} attack armed, ${depth.armed.wage} a day at double)`);
+
+  // --- M5.5 C: take a country and wear its crown
+  const crown = await page.evaluate(() => {
+    const S = window.__GameState;
+    const keep = JSON.parse(JSON.stringify(S.toJSON()));
+    S.newRun('outlaw');
+    S.realmInfamy.greece = 20;
+    const before = { greece: S.realmInfamy.greece };
+    for (const n of window.__NODES.filter(x => x.territory === 'rome' && (x.rank === 'capital' || x.rank === 'city'))) {
+      S.settlement(n.id).occupied = true;
+    }
+    const won = S.checkFealty('rome');
+    const all = window.__NODES.filter(n => n.territory === 'rome');
+    const out = { won, title: S.title, rules: S.rules('rome'), score: S.realmInfamy.rome ?? 0,
+      held: all.filter(n => S.settlement(n.id).occupied).length, of: all.length,
+      greeceBefore: before.greece, greeceAfter: S.realmInfamy.greece,
+      tribute: S.tributePerDay, access: S.access('f_rome_roma') };
+    S.fromJSON(keep);
+    return out;
+  });
+  check(crown.won && crown.held === crown.of && crown.score === 0,
+    `taking the throne and the cities takes the country (${crown.held}/${crown.of} bend the knee, the score clears)`);
+  check(/Imperator of/.test(crown.title), `and they call you what Rome calls its own (${crown.title})`);
+  check(crown.greeceAfter > crown.greeceBefore, `other thrones notice (Greece ${crown.greeceBefore} → ${crown.greeceAfter})`);
+  check(crown.tribute > 100 && crown.access === 'occupied', `a country you rule pays you (${crown.tribute} a day)`);
 
   // --- M5.5 F: every start has a plausible first raid at home
   const firstRaids = await page.evaluate(() => {

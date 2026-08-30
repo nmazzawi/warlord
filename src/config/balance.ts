@@ -251,6 +251,35 @@ export const PATROLS = [
   { militia: 16, archers: 6, captains: 3, statMult: 2.3, goldMult: 2.2 },
 ];
 
+/**
+ * What a garrison is MADE of, by how well the place is held. A hamlet is whoever lives there with a
+ * spear; a throne is that country's whole army with its champion in front of it. The weights multiply
+ * the rank's counts, so the mix changes as well as the size.
+ */
+export const GARRISON_MIX: Array<{ militia: number; archers: number; captains: number; elites: number; champion: boolean }> = [
+  { militia: 0, archers: 0, captains: 0, elites: 0, champion: false },       // unused (0 stars = a ruin)
+  { militia: 1.0, archers: 0.35, captains: 0, elites: 0, champion: false },  // 1: farmers with spears
+  { militia: 1.0, archers: 0.7, captains: 0.5, elites: 0.35, champion: false },
+  { militia: 0.95, archers: 1.0, captains: 1.0, elites: 0.8, champion: false },
+  { militia: 0.8, archers: 1.1, captains: 1.2, elites: 1.15, champion: true },
+  { militia: 0.7, archers: 1.2, captains: 1.4, elites: 1.4, champion: true },  // 5: everything, and a name
+];
+
+/** Arming the whole warband, three tiers, at any forge that will serve you. */
+export const WARBAND_GEAR = [
+  { name: 'as they came', attack: 0, defense: 0, cost: 0 },
+  { name: 'Hardened', attack: 2, defense: 1, cost: 55 },
+  { name: 'Ironed', attack: 4, defense: 2, cost: 130 },
+  { name: 'Harnessed', attack: 7, defense: 4, cost: 260 },
+];
+
+/** What you pay them, and what that buys. */
+export const PAY = {
+  half: { mult: 0.5, damage: 0.88, label: 'HALF', note: 'They eat half and they know it. Some will not be there in the morning.' },
+  full: { mult: 1, damage: 1, label: 'FULL', note: 'The wage they were promised. They stay while it is paid.' },
+  double: { mult: 2, damage: 1.1, label: 'DOUBLE', note: 'Nobody deserts a purse like that, and they fight like it.' },
+};
+
 /** How a hunt is paced, so being wanted is a weather system and not a metronome. */
 export const HUNT = {
   /** Days of quiet in a territory after you put one of its parties down. */

@@ -13,7 +13,9 @@ export interface DefenderCounts { militia: number; archers: number; captains: nu
 export const many = (n: number, one: string, plural: string) => `${n} ${n === 1 ? one : plural}`;
 
 /** The one elite a realm fields, for as long as its own milestone is still ahead of it. */
-export interface EliteSpec { kind: EnemyKind; count: number; name: string; plural: string; tint: number; reforms: number; }
+export interface EliteSpec { kind: EnemyKind; count: number; name: string; plural: string; tint: number; reforms: number;
+  /** A named man at the head of it, at a place held well enough to have one. */
+  champion?: boolean; }
 
 export interface BattleConfig {
   kind: 'village' | 'patrol' | 'siege' | 'camp' | 'steppePatrol' | 'foreign' | 'foreignPatrol';
@@ -62,7 +64,8 @@ export function foreignBattle(nodeId: string): BattleConfig {
     hint: `${info.total} defenders: ${info.militia} militia, ${many(info.archers, 'archer', 'archers')}, ${many(info.captains, 'captain', 'captains')}, and ${many(info.elites, info.eliteName, info.elitePlural)}.\n${info.eliteNote}`,
     defenders: { militia: info.militia, archers: info.archers, captains: info.captains, statMult: info.statMult, goldMult: info.goldMult },
     palisade: walls, villageId: nodeId, tier: info.tierish, realm: info.realm, rank: info.rank,
-    elite: { kind: info.eliteKind, count: info.elites, name: info.eliteName, plural: info.elitePlural, tint: info.tint, reforms: info.reforms },
+    elite: { kind: info.eliteKind, count: info.elites, name: info.eliteName, plural: info.elitePlural, tint: info.tint,
+      reforms: info.reforms, champion: info.champion },
   };
 }
 

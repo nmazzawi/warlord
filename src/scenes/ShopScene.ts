@@ -3,7 +3,7 @@
 // settlement and on whether you own the place or are merely visiting.
 import Phaser from 'phaser';
 import { GameState, type ArmorKind, type HorseKind, type ShieldKind, type WeaponKind } from '../state/GameState';
-import { COMPOSITE_BOW, EQUIPMENT, HORSES, WEAPONS } from '../config/balance';
+import { COMPOSITE_BOW, EQUIPMENT, HORSES, PAY, WARBAND_GEAR, WEAPONS } from '../config/balance';
 import { unitDef } from '../world/Units';
 import { Sound } from '../systems/Sound';
 import { stockFor } from '../world/Stock';
@@ -115,6 +115,16 @@ export class ShopScene extends Phaser.Scene {
         rows.push({ name: 'Fight with', desc: 'The sword cleaves up close; bows shoot from range (stand still — the composite bow lets you keep a slow ride). Your arrows pierce.', button: null, choices });
       }
       const weaponName = g.weaponKind === 'bow' ? 'Hunting Bow' : g.weaponKind === 'composite' ? 'Composite Bow' : g.weaponKind === 'halberd' ? 'Kingsport Halberd' : WEAPONS[tier - 1].name;
+      // arming everyone, not just the man in front
+      if (g.gearTier < WARBAND_GEAR.length - 1) {
+        const cost = g.gearCost();
+        const next = WARBAND_GEAR[g.gearTier + 1];
+        rows.push({ name: `Arm the warband — ${next.name}`,
+          desc: `Every man: +${next.attack} attack, +${next.defense} defense. ${g.troops.length} to fit out.`,
+          button: { label: `${cost} gold`, enabled: g.gold >= cost, onPress: () => this.buy(cost, () => { g.gearTier++; }) } });
+      } else {
+        rows.push({ name: `The warband is ${g.gear.name}`, desc: 'There is nothing better to put on them.', button: null });
+      }
       return { title: 'THE FORGE', blurb: `${foreign ? `${foreign.forge.note}\n` : ''}Defense ${g.defense}  ·  weapon: ${weaponName}${markup}`, rows };
     }
     if (this.building === 'barracks') {
@@ -134,6 +144,13 @@ export class ShopScene extends Phaser.Scene {
       });
       // legend is command: the cap IS the ladder, and the barracks says so out loud
       const nxt = g.nextCommand();
+      // what you pay them, and what it buys
+      for (const rate of ['half', 'full', 'double'] as const) {
+        if (rate === g.payRate) continue;
+        rows.push({ name: `Pay them ${PAY[rate].label}`, desc: PAY[rate].note,
+          button: { label: 'SET', enabled: true, onPress: () => { g.payRate = rate; Sound.click(); g.save(); this.build(); } } });
+      }
+      rows.push({ name: `Paying ${PAY[g.payRate].label} — ${g.wagesPerDay} gold a day`, desc: PAY[g.payRate].note, button: null });
       rows.unshift({
         name: `${g.troops.length}/${g.troopCap} in the warband  ·  ${g.highestTierName}`,
         desc: nxt

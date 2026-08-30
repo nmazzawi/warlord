@@ -47,7 +47,7 @@ export function stockFor(settlementId: string, visiting = false): StockDef {
     const tier = v ? v.forge.swordMaxTier : 1;
     // a place in your OWN country trades with you the way your own camp does: no stranger's markup,
     // and its people will take your coin to fight
-    if (!visiting || GameState.isHome(node.territory)) {
+    if (!visiting || GameState.isHome(node.territory) || GameState.rules(node.territory)) {
       return { forge: { swordMaxTier: Math.max(2, tier), items }, barracks: { kinds: rosterOf(node.territory) },
         stables: v && v.stables.horses.length ? v.stables.horses : ['courser'], inn: true, markup: 1 };
     }

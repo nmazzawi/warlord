@@ -184,7 +184,8 @@ export class Troop extends Unit {
    * standing behind him telling him to hold.
    */
   private blow(e: Enemy) {
-    let dmg = this.damageAmount;
+    // what the whole warband carries, and what they are being paid to carry it
+    let dmg = (this.damageAmount + GameState.gear.attack) * GameState.moraleDamage;
     // a berserker is worth more the worse he is doing
     if (this.ability === 'frenzy') dmg *= 1 + TROOP_ABILITY.frenzyMax * (1 - this.hp / this.maxHp);
     // a knife in the back of a man busy with somebody else
@@ -210,10 +211,11 @@ export class Troop extends Unit {
     }
   }
 
-  /** A shield turns most of what lands on it — but it is down while its own blow is going out. */
+  /** Armour bought for everyone turns part of everything. */
   override mitigate(amount: number) {
-    if (this.ability !== 'shieldwall' || this.raid.time.now < this.openUntil) return amount;
-    return Math.max(1, Math.round(amount * (1 - TROOP_ABILITY.shieldTurns)));
+    const armored = Math.max(1, amount - GameState.gear.defense);
+    if (this.ability !== 'shieldwall' || this.raid.time.now < this.openUntil) return armored;
+    return Math.max(1, Math.round(armored * (1 - TROOP_ABILITY.shieldTurns)));
   }
 
   /** Levies and town guards carry a colour of their own (a flash still overrides it). */

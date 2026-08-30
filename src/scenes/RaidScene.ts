@@ -152,6 +152,10 @@ export class RaidScene extends Phaser.Scene {
       this.elitePosts = layout.posts.guards ?? [...layout.posts.captains, ...layout.posts.militia];
       this.reformsLeft = cfg.elite.reforms;
       spawn(cfg.elite.kind, this.elitePosts, cfg.elite.count, e => { e.liveryTint = cfg.elite!.tint; e.applyTint(); });
+      // and at a place held well enough to have one, the man whose name is on it
+      if (cfg.elite.champion) {
+        spawn('boss', layout.posts.boss ?? layout.posts.captains, 1, e => { e.liveryTint = cfg.elite!.tint; e.applyTint(); });
+      }
     }
 
     this.arrows = this.physics.add.group({ classType: Arrow, maxSize: 60, runChildUpdate: false });
