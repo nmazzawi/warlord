@@ -456,7 +456,9 @@ class GameStateStore {
       } else {
         vs.timesRaided += 1;
         vs.lastRaidDay = this.day;
-        if (!town) vs.wealth = Math.max(RERAID.wealthMin, vs.wealth - RERAID.wealthDrop); // plundered — recovers over ~15 days
+        // plundered — recovers over ~15 days. Abroad this applies at EVERY rank: a great city you
+        // strip has to be poorer next time, or the richest places on the board are a free income.
+        if (!town || foreign) vs.wealth = Math.max(RERAID.wealthMin, vs.wealth - RERAID.wealthDrop);
         if (foreign) this.addInfamyIn(realm, spike);
         else this.addInfamy(INFAMY.perRaidBase + INFAMY.perRaidPerTier * (battle.tier ?? 1));
         summary = foreign

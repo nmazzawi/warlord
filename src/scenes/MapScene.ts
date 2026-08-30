@@ -595,6 +595,7 @@ export class MapScene extends Phaser.Scene {
     }
     if (this.traveling) return;
     const zoom = this.cameras.main.zoom;
+    const u = this.scale.displayScale.x || 1;
     const wp = this.cameras.main.getWorldPoint(p.x, p.y);
     // one of your own places?
     const tapR = Math.max(18, 34 / zoom);
@@ -625,15 +626,30 @@ export class MapScene extends Phaser.Scene {
       this.showNodePanel(best);
       return;
     }
-    // one of the world's places — but only the ones you can actually see right now
+    // One of the world's places. Two ways to claim a tap, and the nearer one wins:
+    //   the marker AS DRAWN — a crown seen from orbit is not a giant hitbox, but a thumb is wider
+    //   than a crown, so the target never shrinks below a finger's width; and
+    //   the place itself, marker or no marker — the label layout hides a settlement whose bigger
+    //   neighbour claimed the space (Tibur lives under Rome's crown at every zoom), and every one of
+    //   those can be marched on and attacked, so every one of them has to be reachable.
     let mark: Marker | null = null, md = Infinity;
     for (const m of this.markers) {
       if (!m.icon.visible) continue;
-      // the target is the marker as drawn: a crown seen from orbit is not a giant hitbox
       const h = m.icon.height * m.icon.scaleY;
       const d = Phaser.Math.Distance.Between(wp.x, wp.y, m.place.x, m.place.y - h / 2);
-      if (d < Math.max(h * 0.8, 10 / zoom) && d < md) { md = d; mark = m; }
+      if (d < Math.max(h * 0.9, 22 * u / zoom) && d < Math.max(md, 0)) {
+        md = Phaser.Math.Distance.Between(wp.x, wp.y, m.place.x, m.place.y);   // compare on the POINT
+        mark = m;
+      }
     }
+    let hidden: MapNode | null = null, hd = Math.max(14, 26 * u / zoom);
+    if (zoom > this.minZoom() * 2.2) {
+      for (const n of FOREIGN_PLACES) {
+        const d = Phaser.Math.Distance.Between(wp.x, wp.y, n.x, n.y);
+        if (d < hd) { hd = d; hidden = n; }
+      }
+    }
+    if (hidden && (!mark || hd < md)) { this.showNodePanel(hidden); return; }
     if (mark) { this.showPlacePanel(mark); return; }
     // the name of a realm, written across it — the most obvious thing on the chart to tap
     let named: Region | null = null, nd = Infinity;
@@ -838,16 +854,19 @@ export class MapScene extends Phaser.Scene {
     const cap = capitalOf(r.id);
     const out = [v.army.armyNote];
     // the smallest place in the realm, so the card names a fight you could actually pick
-    const fringe = FOREIGN_PLACES.filter(n => n.territory === r.id && n.rank === 'village')
+    const untouched = (n: MapNode) => { const st = GameState.settlement(n.id); return !st.sacked && !st.occupied; };
+    const fringe = FOREIGN_PLACES.filter(n => n.territory === r.id && n.rank === 'village' && untouched(n))
       .sort((a, b) => this.routeDays(a.id) - this.routeDays(b.id))[0];
     if (fringe) {
       const f = GameState.foreignInfo(fringe.id);
       const fd = this.routeDays(fringe.id);
       out.push(`Their smallest place, ${fringe.name}, keeps ${f.total} defenders — ${fd} day${fd === 1 ? '' : 's'}' march.`);
     }
-    if (cap) {
+    if (cap && untouched(cap)) {
       const c = GameState.foreignInfo(cap.id);
       out.push(`${cap.name} keeps ${c.total}, and is ${this.routeDays(cap.id)} days away.`);
+    } else if (cap) {
+      out.push(`${cap.name} is already yours to answer for.`);
     }
     const infamy = GameState.territoryInfamy(r.id);
     if (infamy > 0) out.push(`They have a score with you: ${infamy}. Their gates are shut and their riders are out.`);
@@ -1024,6 +1043,7 @@ export class MapScene extends Phaser.Scene {
     // the intel: exactly what is in the square, and what their own men are
     lines.push(`${info.total} defenders: ${info.militia} militia, ${many(info.archers, 'archer', 'archers')}, ${many(info.captains, 'captain', 'captains')}, and ${many(info.elites, info.eliteName, info.elitePlural)}.`);
     if (v) lines.push(v.army.eliteNote);
+    if (info.reforms > 0) lines.push(`Their line closes over its dead: expect ${info.reforms} more of them before it breaks.`);
     if (n.rank === 'capital' && v) lines.push(v.army.capitalWarning);
     else if (n.rank === 'village' && v) lines.push(v.army.villageNote);
     if (!here) { const d = this.routeDays(n.id); lines.push(`${d} day${d === 1 ? '' : 's'}' march from where you stand.`); }
