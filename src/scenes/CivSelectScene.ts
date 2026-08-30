@@ -4,7 +4,7 @@
 // camp will stand. The Borderland Outlaw stands first: it is the game as it was, and the hard way in.
 import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
-import { civList, type CivDef } from '../world/Civs';
+import { civList, CONFINED, type CivDef } from '../world/Civs';
 import { portrait, type Headgear } from '../systems/Portraits';
 import { REGIONS } from '../world/WorldChart';
 import { baseTexture } from '../world/ChartLayer';
@@ -109,6 +109,12 @@ export class CivSelectScene extends Phaser.Scene {
       this.add.text(colX, y + 18 * u, `Starts with ${weaponName(civ.weapon)}`, uiStyle(Math.round(11 * u), CSS.ink, { bold: false, wrap: colW })).setOrigin(0, 0);
       this.add.text(colX, y + 34 * u, `Rides out with:\n${civ.troops.slice(0, 3).map(t => `\u00b7 ${t.name}`).join('\n')}`,
         uiStyle(Math.round(11 * u), CSS.ink, { bold: false, wrap: colW })).setOrigin(0, 0);
+    }
+    if (CONFINED.has(civ.id)) {
+      this.add.text(px0 + pad, y + mapH + 2 * u,
+        'NO ROAD LEAVES THIS COUNTRY. Until there are ships, the whole run is fought here.',
+        uiStyle(Math.round(10.5 * u), '#8a3a10', { wrap: pw - pad * 2 })).setOrigin(0, 0);
+      y += 16 * u;
     }
     y += mapH + 10 * u;
 

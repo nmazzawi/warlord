@@ -48,12 +48,14 @@ export interface RealmVisit {
 export const ELITE_TINT: Record<string, number> = {
   rome: 0xe8705f, greece: 0xe8cf7a, rus: 0xb9c6e0, arabia: 0xefd98a, persia: 0xd0a6e8,
   egypt: 0x7fdcd0, kush: 0xf0c48a, india: 0xf0a95c, china: 0xef8f8f,
+  japan: 0xe8dcc8, viking: 0xa8c4dc, aztecs: 0x9ad8a0, inca: 0xe0a8b0,
 };
 
 /** The name the meter uses when you are standing in a realm. Short enough for a phone's status bar. */
 export const REALM_SHORT: Record<string, string> = {
   rome: 'ROME', greece: 'GREECE', rus: 'RUS', arabia: 'THE CALIPHATE', persia: 'PERSIA',
   egypt: 'EGYPT', kush: 'KUSH', india: 'INDIA', china: 'CHINA',
+  japan: 'JAPAN', viking: 'THE JARLDOMS', aztecs: 'THE AZTECS', inca: 'THE INCA',
   mongolia: 'STEPPE', homeland: '', steppe: 'STEPPE',
 };
 
@@ -283,6 +285,106 @@ export const REALM_VISITS: Record<string, RealmVisit> = {
       ],
     },
     markup: 2.6,
+  },
+  viking: {
+    id: "viking",
+    enter: "You are in the jarldoms. Grey water at the end of every field, boat sheds above the tideline, and no man over the man in the hall.",
+    army: {
+      style: "shieldman",
+      eliteName: "Huscarl",
+      elitePlural: "Huscarls",
+      eliteNote: "Boards overlapped edge on edge, and he leans on them and walks at you. What you swing hits linden and rivets and stops there.",
+      armyNote: "There is no one army. Each jarl brings his own hall - farm levies with axes, hunting bows, Huscarls in mail - and the crews come ashore where the last lot did not.",
+      capitalWarning: "Nine days of sacrifice bring every jarl in the north to Uppsala with his sworn men behind him. Come at that temple ground and you fight all of them.",
+      villageNote: "No wall here and no lord asked for. The farms lie a day apart, every man keeps an axe and a shield board by the door, and smoke fetches them.",
+    },
+    barracksLocked: "a sworn man eats at his jarl's table all winter and is not for sale",
+    forge: { items: ["plate", "round", "bow"], swordMaxTier: 2, note: "Bog iron drawn into mail, ring by ring. Good blades come up from the Franks, and half those names are filed in false." },
+    stables: { horses: ["courser"], note: "Shaggy farm stock, small and sure-footed. Nothing here is bred to carry armour - they ride to the fight and get off it." },
+    inn: {
+      name: "the mead bench by the boat sheds",
+      rumors: [
+        "The king at Uppsala is raised at the thing and can be put down at the same thing. A jarl owes him ships and men in summer and nothing after. Break one hall and the neighbours count it a gift and send nobody.",
+        "The wall is boards overlapped edge on edge, and they lean on it and walk. Berserkers go in shieldless where it is thinnest. It holds while it is moving forward - stop it, get round the end of it, and it comes apart.",
+        "Silver here is weighed, not counted. Hacked coin and cut arm rings on a scale at Birka and Hedeby, and the rest buried under a hall floor by the one man who knows the field. The markets stand empty from the first ice.",
+      ],
+    },
+    markup: 1.9,
+  },
+  japan: {
+    id: "japan",
+    enter: "You come up a mountain road into the Shogunate. Pine on the ridges, a gate on every pass, and men at it who counted you first.",
+    army: {
+      style: "axeman",
+      eliteName: "Samurai",
+      elitePlural: "Samurai",
+      eliteNote: "No shield. The blade goes up in both hands and comes down once, through helm and collarbone, and he is past you already.",
+      armyNote: "Few, and each one drilled from childhood. Levy spears and bowmen hold the ground, samurai loose from the saddle and then get down, and the rest is done at night.",
+      capitalWarning: "No wall around Heian-kyo. Every pass into the valley is gated and watched, and what you take by day is visited the same night.",
+      villageNote: "A lord holds this valley and takes his men out of its fields. Somebody on the ridge counted you an hour back, and the count went up the road.",
+    },
+    barracksLocked: "a samurai's sword is his lord's, and his father swore it first",
+    forge: { items: ["plate", "bow", "composite"], swordMaxTier: 3, note: "Steel folded until the edge holds. Lacquered plates laced with silk, and a long uneven bow loosed at a canter." },
+    stables: { horses: ["courser"], note: "Short hill stock out of Kai and Kiso, sure-footed on a track a cart cannot take. A samurai's own mount is never sold." },
+    inn: {
+      name: "the sakaya by the Rashomon gate",
+      rumors: [
+        "The Emperor keeps the court at Heian-kyo and seals what he is handed. The Shogun at Kamakura holds the swords, the great houses hold the provinces, and the temples at Nara arm monks who answer to neither of them.",
+        "They carry no shield. The long blade goes up in both hands and comes down once, through helm and collarbone together - slow enough to watch and too heavy to turn. Get inside the stroke or do not go in at all.",
+        "The towns are timber, thatch and paper, packed close, and the mountains hold every road between them. No house here fears a siege. It fears a dry night wind, and men who come over the wall to set one fire.",
+      ],
+    },
+    markup: 2.5,
+  },
+  aztecs: {
+    id: "aztecs",
+    enter: "You come down out of the pines into the lake valley. The city stands out on the water, and canoes are counting your men already.",
+    army: {
+      style: "shieldman",
+      eliteName: "Jaguar Warrior",
+      elitePlural: "Jaguar Warriors",
+      eliteNote: "Shield up, and the club comes in low at the legs. The obsidian opens a man to the bone and leaves him standing to be carried off.",
+      armyNote: "Ward levies, dart-throwers loosing over them, and jaguar and eagle warriors in the front rank - all of it drilled to carry you off the field alive.",
+      capitalWarning: "Three causeways onto the island, each one bridged in sections that come up behind you, and canoes on the water either side of every one.",
+      villageNote: "Every man here learned the club in the ward school, and the canals cut this ground into strips. They cross by plank and take the plank up after.",
+    },
+    barracksLocked: "rank here is counted in captives a man took with his own hands",
+    forge: { items: ["leather", "plate", "round"], swordMaxTier: 1, note: "No iron. Obsidian knapped in rows and set into a club edge, and cotton quilted in layers till no dart goes through." },
+    stables: { horses: [], note: "Nothing here is bred to ride. Every load the empire moves goes on a man's back, under a strap across the brow." },
+    inn: {
+      name: "the cacao bench in Tlatelolco",
+      rumors: [
+        "Three cities hold this lake and Tenochtitlan takes two shares. Tribute walks in on carriers' backs from a month off - cloth, cacao, feathers, obsidian - and Tlaxcallan sits ringed by all of it and has never sent a load.",
+        "They fight to take you alive. The club is a shaft toothed with obsidian, swung at the legs and not the head, and a man who kills where he could have carried you off gets nothing. Get out of their hands and you are off that field.",
+        "Every causeway lifts its bridges out in sections, and the sweet water comes down one clay pipe off the Chapultepec springs. Cut the pipe and the island drinks lake salt with every wall of it still standing.",
+      ],
+    },
+    markup: 2,
+  },
+  inca: {
+    id: "inca",
+    enter: "You climb into the Inca country on cut stone. The road is swept, the gorge is bridged, and a runner has already gone ahead of you.",
+    army: {
+      style: "axeman",
+      eliteName: "Sinchi",
+      elitePlural: "Sinchikuna",
+      eliteNote: "Both hands on a long haft with a bronze star on the end. The blow is slow and comes down through the shield onto the collarbone.",
+      armyNote: "Levies out of every province, fed off the road and swapped fresh; slingers on the heights above them; and the Sinchikuna in the line with bronze on long hafts.",
+      capitalWarning: "Three walls of fitted stone stand on the hill above Cusco, and slings hold every approach. The road has a province coming up while you climb.",
+      villageNote: "Every man here owes the Inca a season of work and has carried a sling since he could walk. The stones start coming down before the path levels.",
+    },
+    barracksLocked: "every man here owes the Inca his season of work, and it is not sold",
+    forge: { items: ["leather", "plate", "kite"], swordMaxTier: 1, note: "Bronze mace heads, plates sewn on quilted cotton, tall shields of hardwood slats. No long blade comes off these anvils." },
+    stables: { horses: [], note: "No horse in this country. The llama trains walk their loads up the passes and will not carry a man at all." },
+    inn: {
+      name: "the chicha house by the tambo",
+      rumors: [
+        "The Sapa Inca holds Cusco, and the dead ones keep their estates and their servants still. A new Inca inherits the name and no land, so he takes more or he is nothing. Two hold court now, Cusco and Quito, and neither yields.",
+        "The fight opens with stones. A sling stone off the height breaks a helmet at a hundred paces, and they drop them on you before you see a face. The maces come down the slope after. Meet them on the flat, if you find any.",
+        "Half these provinces were taken inside two lifetimes, and whole villages were moved off their own fields after. The Canari and the Chachapoya count their dead still. They march when Cusco calls, and they will march the other way.",
+      ],
+    },
+    markup: 2.5,
   },
 };
 /** The realms whose gates are open to a foreigner on foot. */

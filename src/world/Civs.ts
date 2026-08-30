@@ -523,6 +523,11 @@ export function civList(): CivDef[] {
   const rest = Object.values(CIVS).filter(c => c.id !== 'outlaw').sort((a, b) => a.name.localeCompare(b.name));
   return CIVS.outlaw ? [CIVS.outlaw, ...rest] : rest;
 }
+/** The starts that no road leaves: an island, or a continent with no bridge to the rest. Until ships
+ *  exist these are runs fought inside one country, which is a real choice and must be said out loud
+ *  on the card rather than discovered forty minutes in. */
+export const CONFINED = new Set(['japan', 'aztecs', 'inca']);
+
 export function campPoint(id: string): Pt {
   if (id === 'outlaw') return OUTLAW_CAMP;
   const at = CAMP_AT[id] ?? CAMP_AT.outlaw;

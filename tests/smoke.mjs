@@ -180,6 +180,35 @@ async function desktopRun(browser) {
   });
   check(preChoice.civ === 'outlaw' && preChoice.home === 'homeland' && preChoice.camp.x === 3590 && preChoice.camp.y === 1005,
     `an old save is the Borderland Outlaw, camped where it always was (${preChoice.camp.x},${preChoice.camp.y})`);
+  // every realm on the chart now has its shops, its rumors and its own elite — including the four
+  // across the water, because three of them can be PLAYED and a start needs a country to stand in
+  const realms = await page.evaluate(() => {
+    const V = window.__REALM_VISITS;
+    const withPlaces = [...new Set(window.__NODES.filter(n => n.kind === 'foreign').map(n => n.territory))];
+    const missing = withPlaces.filter(r => !V[r]);
+    const camp = ['leather', 'round', 'bow'];
+    const pointless = Object.keys(V).filter(r => !V[r].forge.items.some(i => !camp.includes(i)));
+    return { realms: withPlaces.length, missing, pointless, elites: [...new Set(Object.keys(V).map(r => V[r].army.elitePlural))].length };
+  });
+  check(realms.missing.length === 0, `every realm with settlements has an army and a market (${realms.realms}; missing: ${realms.missing.join(', ') || 'none'})`);
+  check(realms.pointless.length === 0, `every realm's forge sells something your camp does not (${realms.pointless.join(', ') || 'all do'})`);
+  // a country across the water says so plainly, and offers no march
+  const overseas = await page.evaluate(() => {
+    const S = window.__GameState; S.newRun('outlaw');
+    const m = window.__warlord.scene.getScene('Map');
+    const heian = window.__NODES.find(n => n.id === 'f_japan_heiankyo');
+    return { days: m ? m.routeDays(heian.id) : -1, home: S.home };
+  });
+  check(overseas.days === 0, 'no road runs from the Borderland to Japan');
+  // ...but a start born there is standing in it
+  const jpHome = await page.evaluate(() => {
+    const S = window.__GameState; S.newRun('japan');
+    const city = window.__NODES.find(n => n.territory === 'japan' && n.rank === 'city');
+    return { access: S.access(city.id), stars: S.stars(city.id), elite: S.foreignInfo(city.id).elitePlural,
+      reach: window.__NODES.filter(n => n.kind === 'foreign' && n.territory === 'japan').length };
+  });
+  check(jpHome.access === 'visit' && jpHome.elite === 'Samurai' && jpHome.reach === 9,
+    `a Japanese start has a Japan to stand in (${jpHome.reach} places, garrisoned by ${jpHome.elite})`);
   await page.evaluate(() => window.__GameState.newRun('outlaw'));
   await clickBtn(page, 'Title', 'NEW');
   check(await waitScene(page, 'CivSelect'), 'new warband asks which of the fifteen you are');
@@ -435,8 +464,19 @@ async function desktopRun(browser) {
   });
   check(gates.count >= 25 && gates.capitals >= 9,
     `${gates.count} foreign gates open in ${gates.realms.length} realms (${gates.capitals} thrones)`);
-  check(!gates.realms.includes('japan') && !gates.realms.includes('viking') && !gates.realms.includes('aztecs') && !gates.realms.includes('inca'),
-    'realms across water stay shut');
+  // every realm on Earth has settlements now; what separates them is whether a ROAD reaches them
+  const overseasReach = await page.evaluate(() => {
+    const m = window.__warlord.scene.getScene('Map');
+    const out = {};
+    for (const r of ['japan', 'aztecs', 'inca', 'viking', 'rome']) {
+      const n = window.__NODES.find(x => x.territory === r && x.rank === 'capital');
+      out[r] = n ? m.routeDays(n.id) : -1;
+    }
+    return out;
+  });
+  check(overseasReach.japan === 0 && overseasReach.aztecs === 0 && overseasReach.inca === 0
+    && overseasReach.viking > 0 && overseasReach.rome > 0,
+    `no road crosses the water (Japan ${overseasReach.japan}d, the Aztecs ${overseasReach.aztecs}d) while Uppsala is ${overseasReach.viking}d away`);
   const romaDays = await page.evaluate(() => window.__warlord.scene.getScene('Map').routeDays('f_rome_roma'));
   check(romaDays >= 21, `Rome is honestly far: ${romaDays} days' march from the camp`);
   // every gate must be a place the march actually ENDS on — Rome's own point is on a cell this map
@@ -446,7 +486,7 @@ async function desktopRun(browser) {
     const bad = [];
     for (const n of window.__NODES.filter(x => x.kind === 'foreign')) {
       const r = m.planTo(n.id);
-      if (!r) { bad.push(`${n.name}: no route`); continue; }
+      if (!r) continue;                       // across water: no road reaches it, which is its own check
       const end = r.points[r.points.length - 1];
       const at = m.constructor.placeAt(end[0], end[1]);
       if (!at || at.id !== n.id) bad.push(`${n.name} -> ${at ? at.name : 'open country'}`);
@@ -486,8 +526,8 @@ async function desktopRun(browser) {
       roma: sample('f_rome_roma'), kush: sample('f_kush_meroe'),
       max: Math.max(...foreign.map(n => S.foreignInfo(n.id).total)) };
   });
-  check(war.count >= 78 && war.byRank.village >= 10 && war.byRank.capital === 9,
-    `every place in nine realms can be marched on: ${war.count} (${JSON.stringify(war.byRank)})`);
+  check(war.count >= 110 && war.byRank.village >= 15 && war.byRank.capital >= 13,
+    `every settlement of every realm is a place you can stand: ${war.count} (${JSON.stringify(war.byRank)})`);
   check(war.village.total < war.romaTown.total && war.romaTown.total < war.roma.total,
     `garrisons climb: a Rus village ${war.village.total}, a Roman town ${war.romaTown.total}, Roma ${war.roma.total}`);
   check(war.kush.total < war.roma.total && war.kush.stat < war.roma.stat,

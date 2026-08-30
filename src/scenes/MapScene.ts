@@ -874,7 +874,11 @@ export class MapScene extends Phaser.Scene {
     const out = [v.army.armyNote];
     // the smallest place in the realm, so the card names a fight you could actually pick
     const untouched = (n: MapNode) => { const st = GameState.settlement(n.id); return !st.sacked && !st.occupied; };
-    const fringe = FOREIGN_PLACES.filter(n => n.territory === r.id && n.rank === 'village' && untouched(n))
+    const cap0 = capitalOf(r.id);
+    if (cap0 && this.routeDays(cap0.id) <= 0 && !GameState.isHome(r.id)) {
+      return [v.army.armyNote, 'No road runs to this country from where you stand. There is water in the way, and no ship.'];
+    }
+    const fringe = FOREIGN_PLACES.filter(n => n.territory === r.id && n.rank === 'village' && untouched(n) && this.routeDays(n.id) > 0)
       .sort((a, b) => this.routeDays(a.id) - this.routeDays(b.id))[0];
     if (fringe) {
       const f = GameState.foreignInfo(fringe.id);
@@ -914,9 +918,10 @@ export class MapScene extends Phaser.Scene {
     if (great.length) lines.push(`${great.join(' · ')}${lesser > 0 ? `, and ${lesser} lesser places` : ''}`);
     lines.push(...this.foreignLines(r));
     const cap = visitOf(r.id) ? capitalOf(r.id) : null;
+    const capDays = cap ? this.routeDays(cap.id) : 0;
     this.hud.showPanel({ title: r.name.toUpperCase(), lines,
       buttons: [
-        ...(cap && GameState.location !== cap.id ? [{ label: `MARCH TO ${cap.name.toUpperCase()} (${this.routeDays(cap.id)}d)`, color: 0x2f6b8a, onPress: () => this.travelTo(cap.id) }] : []),
+        ...(cap && capDays > 0 && GameState.location !== cap.id ? [{ label: `MARCH TO ${cap.name.toUpperCase()} (${capDays}d)`, color: 0x2f6b8a, onPress: () => this.travelTo(cap.id) }] : []),
         ...(cap ? [this.zoomInButton(r.id)] : []),
         leave] });
   }
@@ -941,8 +946,11 @@ export class MapScene extends Phaser.Scene {
   private showNodePanel(n: MapNode) {
     const leave = { label: 'Leave', color: 0x555555, onPress: () => { this.hud.hidePanel(); this.clearPlan(); } };
     const here = GameState.location === n.id;
-    // anywhere you are not standing can be marched to, whatever kind of place it is
-    const march = here ? null : { label: `MARCH (${this.routeDays(n.id)}d)`, color: 0x2f6b8a, onPress: () => this.travelTo(n.id) };
+    // anywhere you are not standing can be marched to — if a road actually reaches it. Japan, the
+    // Aztecs and the Inca have no road to them from anywhere, and the panel must say so rather than
+    // offer a march of nought days.
+    const days = here ? 0 : this.routeDays(n.id);
+    const march = here || days <= 0 ? null : { label: `MARCH (${days}d)`, color: 0x2f6b8a, onPress: () => this.travelTo(n.id) };
     if (n.kind === 'foreign') { this.showForeignPanel(n, here, march, leave); return; }
     if (n.kind === 'camp') {
       this.hud.showPanel({
@@ -1065,7 +1073,11 @@ export class MapScene extends Phaser.Scene {
     if (info.reforms > 0) lines.push(`Their line closes over its dead: expect ${info.reforms} more of them before it breaks.`);
     if (n.rank === 'capital' && v) lines.push(v.army.capitalWarning);
     else if (n.rank === 'village' && v) lines.push(v.army.villageNote);
-    if (!here) { const d = this.routeDays(n.id); lines.push(`${d} day${d === 1 ? '' : 's'}' march from where you stand.`); }
+    if (!here) {
+      const d = this.routeDays(n.id);
+      lines.push(d > 0 ? `${d} day${d === 1 ? '' : 's'}' march from where you stand.`
+        : 'No road runs there from where you stand. There is water in the way, and no ship.');
+    }
 
     const buttons: PanelButton[] = [];
     if (here) {

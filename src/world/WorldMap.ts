@@ -5,7 +5,6 @@
 // but nothing routes along them any more — you walk where you like.
 
 import { ATLAS_EMPIRES, type PlaceKind } from './AtlasData';
-import { REALM_VISITS } from './Realms';
 
 export type NodeKind = 'camp' | 'village' | 'town' | 'cross' | 'waypoint' | 'trade' | 'gate' | 'foreign';
 /** 'homeland', 'steppe', or the id of a foreign realm you have walked into. Every one of them keeps
@@ -44,13 +43,16 @@ const HOME: MapNode[] = [
   { id: 'steppe_trade', name: "Khoja's Camp", kind: 'trade', x: 4470, y: 1075, territory: 'steppe', blurb: 'A neutral trade camp. Everyone is welcome here, and everyone pays.' },
 ];
 
-/** EVERY place in a realm you can reach on foot: its throne, its great cities, its towns and the
- *  villages on its fringe. All of them can be walked to, and all of them can be attacked — what
- *  differs is how much is standing in the square. A capital and a great city also open their gates to
- *  a stranger with coin. Their ids are derived from the atlas, so adding a place to a pack adds a
- *  place you can march on without touching this file. */
+/**
+ * EVERY settlement of every realm on Earth: thrones, great cities, towns and the villages on their
+ * fringe. All of them can be stood on and all of them can be attacked — what differs is how much is
+ * in the square, and whether you can WALK there, which is the pathfinder's business and not this
+ * list's. That last point is why the realms across the water are here too: you cannot march to Japan,
+ * but if you were born there you are already standing in it, and its cities have to exist.
+ * Their ids are derived from the atlas, so adding a place to a pack adds a place without touching
+ * this file.
+ */
 export const FOREIGN: MapNode[] = ATLAS_EMPIRES
-  .filter(e => !!REALM_VISITS[e.id])
   .flatMap(e => e.places.map(p => ({
     id: `f_${e.id}_${p.name.toLowerCase().replace(/[^a-z0-9]+/g, '')}`,
     name: p.name, kind: 'foreign' as const, x: p.x, y: p.y, territory: e.id,
