@@ -7,7 +7,7 @@
 import Phaser from 'phaser';
 import { GameState } from '../state/GameState';
 import { FOREIGN, INFAMY, SIEGE, STEPPE } from '../config/balance';
-import { capitalOf, EDGES, FOREIGN as FOREIGN_PLACES, nodeById, NODES, tradesWithForeigners, type MapNode, type Territory } from '../world/WorldMap';
+import { capitalOf, drawnEdges, FOREIGN_SETTLEMENTS as FOREIGN_PLACES, nodeById, NODES, tradesWithForeigners, type MapNode, type Territory } from '../world/WorldMap';
 import { visitOf } from '../world/Realms';
 import { route as findRoute, routeToPlace, terrain, totalLength, type Route } from '../world/Terrain';
 import { CONTACT } from '../world/Hunters';
@@ -126,6 +126,11 @@ export class MapScene extends Phaser.Scene {
         fontFamily: DISPLAY, fontSize: '64px', color: r.enterable ? CSS.ink : '#5c4b33', fontStyle: 'bold', letterSpacing: 6, align: 'center',
       }).setOrigin(0.5).setDepth(3).setLineSpacing(-10).setPadding(0, 0, 14, 0));
       for (const p of r.places) this.drawPlace(r, p);
+      // and the border hamlets, which the atlas never named but a warband very much cares about
+      for (const h of FOREIGN_PLACES) {
+        if (h.territory !== r.id || !h.fringe) continue;
+        this.drawPlace(r, { name: h.name, kind: 'village', x: h.x, y: h.y, note: h.blurb ?? '' });
+      }
     }
     const claimArea = (r: Region) => { const bb = bbox(r.poly); return bb.w * bb.h * (r.enterable ? 1e6 : 1); };
     this.empireOrder = REGIONS.map((_r, i) => i).sort((a, b) => claimArea(REGIONS[b]) - claimArea(REGIONS[a]));
@@ -436,7 +441,7 @@ export class MapScene extends Phaser.Scene {
   private drawRoads() {
     const g = this.add.graphics().setDepth(1);
     this.territoryObjects.push(g);
-    for (const e of EDGES) {
+    for (const e of drawnEdges(GameState.home)) {
       const a = nodeById(e.a), b = nodeById(e.b);
       const steppe = a.territory === 'steppe' && b.territory === 'steppe';
       g.lineStyle(steppe ? 3 : 4, PAL.dirtDeep, steppe ? 0.5 : 0.9).lineBetween(a.x, a.y, b.x, b.y);
@@ -707,7 +712,7 @@ export class MapScene extends Phaser.Scene {
 
   /** The road network, as line segments, so the terrain grid knows where a road speeds you up. */
   private static roadSegments() {
-    return EDGES.map(e => {
+    return drawnEdges(GameState.home).map(e => {
       const a = nodeById(e.a), b = nodeById(e.b);
       return [[a.x, a.y], [b.x, b.y]] as [[number, number], [number, number]];
     });

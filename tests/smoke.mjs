@@ -861,13 +861,20 @@ async function desktopRun(browser) {
         && Math.hypot(n.x - S.pos.x, n.y - S.pos.y) < 460);
       let easy = 0;
       for (const n of near) { const d = m.routeDays(n.id); if (d > 0 && d <= 12 && S.protection(n.id) === 1) easy++; }
-      out[civ] = easy;
+      // and it must be able to walk to its own country: a region outline drawn round Italy also
+      // encloses Corsica, and a camp put on Corsica is a Roman start that can never reach Rome.
+      const own = window.__NODES.filter(n => n.territory === S.home && n.name && n.id !== 'camp');
+      const stranded = own.filter(n => m.routeDays(n.id) <= 0 && n.name !== 'Reykjavik').map(n => n.name);
+      out[civ] = { easy, stranded };
     }
     S.fromJSON(keep);
     return out;
   });
-  const thin = Object.entries(firstRaids).filter(([, n]) => n < 2).map(([c, n]) => `${c}:${n}`);
+  const thin = Object.entries(firstRaids).filter(([, v]) => v.easy < 2).map(([c, v]) => `${c}:${v.easy}`);
   check(thin.length === 0, `every start has two or more one-star places in reach (${thin.join(', ') || 'all fifteen'})`);
+  const cutOff = Object.entries(firstRaids).filter(([, v]) => v.stranded.length)
+    .map(([c, v]) => `${c} cannot reach ${v.stranded.join('/')}`);
+  check(cutOff.length === 0, `every start can march to its own country (${cutOff.join('; ') || 'all fifteen'})`);
   check(await marchTo(page, 'ashford'), 'marched to Ashford');
   let r = await raidHere(page);
   check(r && r.enemies === 11, `Ashford: ${r && r.enemies} defenders`);

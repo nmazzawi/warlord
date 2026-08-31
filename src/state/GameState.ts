@@ -460,6 +460,9 @@ class GameStateStore {
     archers = Math.round(archers * mix.archers);
     captains = Math.round(captains * mix.captains);
     elites = Math.round(elites * mix.elites);
+    // A place the atlas bothered to name keeps a man or two of the country's own, however far out it
+    // is. Only the border hamlets — nobody's idea of a garrison — field none.
+    if (!n.fringe) elites = Math.max(1, elites);
     const raw = militia + archers + captains + elites + (mix.champion ? 1 : 0);
     const over = raw - FOREIGN_MAX_DEFENDERS;
     let crowd = 1;

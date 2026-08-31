@@ -163,6 +163,64 @@ export function nearestLand(x: number, y: number, reach = 8): Pt | null {
   return null;
 }
 
+/**
+ * Which landmass a point stands on. Italy and Corsica are both land and a mile apart, and no warband
+ * walks between them, so "is it land" is not the question a start camp needs answered — "is it the
+ * same land as my capital" is. Labelled once by flood fill; 0 means water.
+ */
+let comps: Int32Array | null = null;
+export function landComponent(x: number, y: number): number {
+  if (!comps) {
+    const g = terrain();
+    comps = new Int32Array(COLS * ROWS);
+    let next = 0;
+    const q: number[] = [];
+    for (let i = 0; i < comps.length; i++) {
+      if (!g.land[i] || comps[i]) continue;
+      const id = ++next;
+      comps[i] = id; q.length = 0; q.push(i);
+      while (q.length) {
+        const c = q.pop()!, cx = c % COLS, cy = (c / COLS) | 0;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+          const nx = cx + dx, ny = cy + dy;
+          if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) continue;
+          const n = idx(nx, ny);
+          if (!g.land[n] || comps[n]) continue;
+          comps[n] = id; q.push(n);
+        }
+      }
+    }
+  }
+  const [cx, cy] = cellOf(x, y);
+  return comps[idx(cx, cy)];
+}
+
+/** The nearest spot on ONE named landmass — the shore of Italy, not of the islet off it. */
+export function nearestOnLandmass(x: number, y: number, comp: number, reach = 10): Pt | null {
+  if (landComponent(x, y) === comp) return [x, y];
+  const [sx, sy] = cellOf(x, y);
+  for (let r = 1; r <= reach; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const cx = sx + dx, cy = sy + dy;
+        if (cx < 0 || cy < 0 || cx >= COLS || cy >= ROWS) continue;
+        const c = centreOf(cx, cy);
+        if (landComponent(c[0], c[1]) === comp) return c;
+      }
+    }
+  }
+  return null;
+}
+
+/** The landmass a named place belongs to, even when the atlas drew it a little way out to sea. */
+export function componentNear(x: number, y: number): number {
+  const c = landComponent(x, y);
+  if (c) return c;
+  const near = nearestLand(x, y, 6);
+  return near ? landComponent(near[0], near[1]) : 0;
+}
+
 /** Days per world unit across one cell, for this warband. */
 function costPerUnit(i: number, g: Grid, mounted: boolean) {
   const kind = GROUNDS[g.ground[i]];

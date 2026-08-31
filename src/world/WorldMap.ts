@@ -118,5 +118,18 @@ const LINKS: Array<[string, string, number]> = [
 ];
 export const EDGES: MapEdge[] = LINKS.map(([a, b, days]) => ({ a, b, days }));
 
+/** Every settlement of every realm, the atlas's own and the border hamlets alike. */
+export const FOREIGN_SETTLEMENTS: MapNode[] = [...FOREIGN, ...FRINGE];
+
+/**
+ * The roads as they should be DRAWN today. They are the Borderland's own network, and one of them ran
+ * from the camp — so a warlord who begins in Italy had a dirt road running from his tent to Ashford,
+ * across Europe. A camp that is not in the Borderland is simply not on the Borderland's roads.
+ */
+export function drawnEdges(home: string): MapEdge[] {
+  if (home === 'homeland') return EDGES;
+  return EDGES.filter(e => e.a !== 'camp' && e.b !== 'camp');
+}
+
 /** Roads are drawn features and a speed bonus now — nothing routes along them. Travel is free
  *  movement across the terrain (see Terrain.ts), so the old Dijkstra over this graph is gone. */

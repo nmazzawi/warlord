@@ -7,7 +7,7 @@
 // separates a start today is its roster, its kit, its home ground, its hero's lean, and who they were.
 import { ll, type Pt } from './geo';
 import { FOREIGN, FRINGE, frontier } from './WorldMap';
-import { isLand, nearestLand } from './Terrain';
+import { isLand, nearestLand, route } from './Terrain';
 import type { WeaponKind } from '../state/GameState';
 
 export type UnitRole = 'line' | 'elite' | 'specialist';
@@ -566,18 +566,29 @@ export function campPoint(id: string): Pt {
   if (fringe.length >= 2) {
     // Stand among them — but "among" means beside the one with the others CLOSEST, not at the average
     // of three points scattered across Rus, which is a spot with nothing within a month's walk.
-    // the hamlets are a cluster now, so the middle of them really is among them
+    // Where the camp goes is not a guess: try the middle of the fringe and a spot beside each hamlet,
+    // and take whichever leaves the LONGEST of the three marches shortest. A centroid works for a tight
+    // cluster and is useless across a desert, so let the pathfinder decide rather than the geometry.
+    const cands: Pt[] = [];
     const mx = fringe.reduce((n, k) => n + k.x, 0) / fringe.length;
     const my = fringe.reduce((n, k) => n + k.y, 0) / fringe.length;
-    if (isLand(mx, my)) return [Math.round(mx), Math.round(my)];
-    const snap = nearestLand(mx, my, 8);
-    if (snap) return [Math.round(snap[0]), Math.round(snap[1])];
-    const c = fringe[0];
-    for (const [dx, dy] of [[34, 26], [-34, 26], [34, -26], [-34, -26], [0, 44], [0, -44]]) {
-      const p: Pt = [Math.round(c.x + dx), Math.round(c.y + dy)];
-      if (isLand(p[0], p[1])) return p;
+    for (const c of [[mx, my] as Pt, ...fringe.map(k => [k.x + 30, k.y + 24] as Pt)]) {
+      if (isLand(c[0], c[1])) { cands.push([Math.round(c[0]), Math.round(c[1])]); continue; }
+      const snap = nearestLand(c[0], c[1], 8);
+      if (snap) cands.push([Math.round(snap[0]), Math.round(snap[1])]);
     }
-    return [c.x, c.y];
+    let best: Pt | null = null, bestWorst = Infinity;
+    for (const c of cands) {
+      let worst = 0, ok = true;
+      for (const k of fringe) {
+        const r = route(c, [k.x, k.y]);
+        if (!r) { ok = false; break; }
+        worst = Math.max(worst, r.days);
+      }
+      if (ok && worst < bestWorst) { bestWorst = worst; best = c; }
+    }
+    if (best) return best;
+    return [fringe[0].x, fringe[0].y];
   }
   const kin = FOREIGN.filter(n => mine(n.territory));
   if (kin.length >= 2) {
