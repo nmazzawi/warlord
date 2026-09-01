@@ -37,7 +37,7 @@ async function buttonPos(page, sceneKey, prefix) {
   }, [sceneKey, prefix]);
 }
 const activeScenes = (page) => page.evaluate(() => window.__warlord.scene.getScenes(true).map(s => s.scene.key));
-const gs = (page) => page.evaluate(() => { const S = window.__GameState; return { gold: S.gold, day: S.day, infamy: S.infamy, location: S.location, tier: S.infamyTierName, troops: S.troops.length, kinds: S.troops.map(t => t.kind), horse: S.horse, weapon: S.weaponKind, owned: { ...S.owned }, armor: S.armor, shield: S.shield, defense: S.defense, wages: S.wagesPerDay, tribute: S.tributePerDay, deserted: S.deserted.length, unpaid: S.unpaidDays, settlements: JSON.parse(JSON.stringify(S.settlements)), garrisons: Object.fromEntries(Object.entries(S.garrisons).map(([k, v]) => [k, v.length])), siege: S.siegeUnlocked }; });
+const gs = (page) => page.evaluate(() => { const S = window.__GameState; return { gold: S.gold, day: S.day, infamy: S.infamy, location: S.location, tier: S.infamyTierName, troops: S.troops.length, kinds: S.troops.map(t => t.kind), horse: S.horse, weapon: S.weaponKind, owned: { ...S.owned }, armor: S.armor, shield: S.shield, defense: S.defense, wages: S.wagesPerDay, tribute: S.tributePerDay, deserted: S.deserted.length, unpaid: S.unpaidDays, settlements: JSON.parse(JSON.stringify(S.settlements)), garrisons: Object.fromEntries(Object.entries(S.garrisons).map(([k, v]) => [k, v.length])), siege: S.siegeUnlocked, rescuedTo: S.rescuedTo }; });
 const raidState = (page) => page.evaluate(() => {
   const r = window.__warlord.scene.getScene('Raid');
   if (!r || !r.hero || !r.scene.isActive()) return null;
@@ -1382,7 +1382,8 @@ async function desktopRun(browser) {
   check(await waitScene(page, 'Map'), 'CONTINUE loads the save');
   await sleep(600);
   s = await gs(page);
-  check(s.settlements.kingsport?.occupied && s.owned.halberd && s.armor === 'plate', 'conquests, the halberd and the plate survived a reload');
+  check(s.settlements.kingsport?.occupied && s.owned.halberd && s.armor === 'plate',
+    `conquests, the halberd and the plate survived a reload (kingsport occupied ${!!s.settlements.kingsport?.occupied}, halberd ${!!s.owned.halberd}, armor ${s.armor}, standing at ${s.location}${s.rescuedTo ? ` — CARRIED ASHORE to ${s.rescuedTo}` : ''})`);
   // the map's STEADY frame rate, once the rolling average has forgotten the scene it came from —
   // and a check that the chart is not repainting itself over and over while nothing moves
   await sleep(2600);
