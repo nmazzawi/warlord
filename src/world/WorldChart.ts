@@ -10,6 +10,7 @@
 import Phaser from 'phaser';
 import { ll, type Pt } from './geo';
 import { ATLAS_EMPIRES, type AtlasPlace } from './AtlasData';
+import { spreadAcrossRealms, spreadPlaces, unstack } from './Spread';
 
 export { CHART } from './geo';
 export type { Pt } from './geo';
@@ -41,6 +42,12 @@ const BORDERLAND: Pt[] = ([
   [55.2, 55.0], [59.0, 55.4], [63.4, 55.2], [67.4, 54.2], [68.4, 52.0],
   [67.2, 49.4], [63.0, 48.2], [58.6, 48.5], [55.0, 49.8], [54.0, 52.4],
 ] as Array<[number, number]>).map(([lon, lat]) => ll(lon, lat));
+
+// Real geography stacks a capital's suburbs on top of it. Ease every realm's settlements apart once,
+// before anything reads them, so each has ground of its own to be drawn on, named on and tapped on.
+for (const e of ATLAS_EMPIRES) spreadPlaces(e.places, e.poly);
+spreadAcrossRealms(ATLAS_EMPIRES.flatMap(e => e.places));
+unstack(ATLAS_EMPIRES.flatMap(e => e.places));
 
 export const REGIONS: Region[] = [
   ...ATLAS_EMPIRES.map(e => ({

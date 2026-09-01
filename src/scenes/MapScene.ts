@@ -47,6 +47,8 @@ interface Marker {
   rank: number;          // 0 capital, 1 city, 2 town, 3 village
   iconPx: number;        // how tall the marker is drawn, in CSS pixels
   labelPx: number;       // and how big its name is set
+  /** What took the room its name needed, when it could not be written. Null when it was. */
+  blockedBy?: string | null;
 }
 /** What each rank looks like, and how far in you must be before it is worth drawing at all. */
 const RANK = [
@@ -63,6 +65,10 @@ interface Fadeable { alpha: number; visible: boolean; setAlpha(v: number): unkno
 const MAX_ZOOM = 5;
 /** Past this the chart is ground underfoot, not an index, and its settlements scale with it. */
 const GROUND_ZOOM = 1.5;
+/** How much of the world's growth a marker takes for itself past that. The rest becomes elbow room. */
+const MARKER_GROWTH = 0.45;
+/** Close enough that a place must always be VISIBLE, even where there is no room to write its name. */
+const CLOSE_ZOOM = 2.1;
 /** How far in the chart is drawn: the whole Earth, then capitals, then every road and hut. */
 const BAND = { major: [0.55, 0.85], minor: [1.3, 1.8], empire: [1.15, 1.95] };
 
@@ -419,7 +425,14 @@ export class MapScene extends Phaser.Scene {
     // map stops being an index and becomes ground you are standing on, so from there the markers
     // grow with it — your own camp and its plate are drawn in world units and do exactly that, and
     // a Roman village has no business being a speck beside them.
-    const u = dpr / Math.min(zoom, GROUND_ZOOM);             // one CSS pixel, in world units
+    //
+    // But they grow SLOWER than the ground does. If they kept a constant size in world units, the
+    // crowding would be frozen: zooming into the valley of Mexico would never reveal one more name
+    // than it showed at arm's length, because every claim grew exactly as fast as the room did. The
+    // exponent is what makes zooming in mean something — the marker still gets bigger on the screen,
+    // and it takes up less of the ground while it does.
+    const ze = zoom <= GROUND_ZOOM ? zoom : GROUND_ZOOM * Math.pow(zoom / GROUND_ZOOM, MARKER_GROWTH);
+    const u = dpr / ze;                                      // one CSS pixel, in world units
     // Your own settlements are laid out by applyLOD, not by this, and they take up what IT gives them:
     // a plate and a name held at a constant size on screen until the clamp catches. Claim that, or a
     // close view has every atlas name stepping aside for a box far bigger than the plate it stands for.
@@ -429,26 +442,28 @@ export class MapScene extends Phaser.Scene {
     // and they are laid out FIRST, so they claim their name before anything else can take the room
     const order = [...this.markers].sort((a, b) =>
       Number(questNames.has(b.place.name)) - Number(questNames.has(a.place.name)) || a.rank - b.rank || a.place.x - b.place.x);
-    const taken: Array<[number, number, number, number]> = [];       // everything that is written
-    const solid: Array<[number, number, number, number]> = [];       // and the things that are drawn
-    const hit = (b: [number, number, number, number], list: Array<[number, number, number, number]>) =>
-      list.some(q => Math.abs(q[0] - b[0]) < (q[2] + b[2]) / 2 && Math.abs(q[1] - b[1]) < (q[3] + b[3]) / 2);
+    type Box = [number, number, number, number, string?];
+    const taken: Box[] = [];       // everything that is written
+    const solid: Box[] = [];       // and the things that are drawn
+    const blocker = (b: Box, list: Box[]) =>
+      list.find(q => Math.abs(q[0] - b[0]) < (q[2] + b[2]) / 2 && Math.abs(q[1] - b[1]) < (q[3] + b[3]) / 2);
+    const hit = (b: Box, list: Box[]) => !!blocker(b, list);
     // the name of a realm outranks every settlement NAME in it — but a crown may still stand under a
     // letter of it, because a capital is a landmark and must not vanish from the world view
     for (const t of this.empireLabels) {
       if (!t.visible || t.alpha <= 0.15) continue;
-      taken.push([t.x, t.y, t.width * t.scaleX, t.height * t.scaleY]);
+      taken.push([t.x, t.y, t.width * t.scaleX, t.height * t.scaleY, `realm name ${t.text}`]);
     }
     // your own places hold their ground: an empire's village never writes over one of your villages
     if (MapScene.fade(zoom, BAND.minor) > 0.3) {
       for (const n of NODES) {
         if (n.kind === 'cross' || n.kind === 'foreign') continue;
-        taken.push([n.x, n.y, 24, 24]);                     // the marker itself is drawn in world units
-        solid.push([n.x, n.y, 24, 24]);
+        taken.push([n.x, n.y, 24, 24, n.name]);             // the marker itself is drawn in world units
+        solid.push([n.x, n.y, 24, 24, n.name]);
         // the plate is opaque and drawn over the atlas, so a marker that would end up behind it is
         // not a marker at all — it steps aside like anything else that cannot fit
-        taken.push([n.x, n.y + 10 + 17 * hu, 124 * hu, 38 * hu]);
-        solid.push([n.x, n.y + 10 + 17 * hu, 124 * hu, 38 * hu]);
+        taken.push([n.x, n.y + 10 + 17 * hu, 124 * hu, 38 * hu, `${n.name} plate`]);
+        solid.push([n.x, n.y + 10 + 17 * hu, 124 * hu, 38 * hu, `${n.name} plate`]);
       }
     }
     for (const m of order) {
@@ -466,24 +481,31 @@ export class MapScene extends Phaser.Scene {
       const sh = m.stars.text ? m.stars.height * sscale : 0;
       // a settlement asks for its marker AND its name; if there is no room for both it keeps the marker
       // and gives up the name, and only steps aside entirely when even the marker will not fit
-      const both: [number, number, number, number] =
-        [m.place.x, m.place.y + (gap + lh + sh - ih) / 2, Math.max(iw, lw, m.stars.width * sscale), ih + gap + lh + sh];
-      const alone: [number, number, number, number] = [m.place.x, m.place.y - ih / 2, iw, ih];
+      const both: Box =
+        [m.place.x, m.place.y + (gap + lh + sh - ih) / 2, Math.max(iw, lw, m.stars.width * sscale), ih + gap + lh + sh, m.place.name];
+      const alone: Box = [m.place.x, m.place.y - ih / 2, iw, ih, m.place.name];
       // and if the ground below is spoken for — the camp's own banner is a wide thing at close range —
       // the name goes above the marker instead. Moving the writing is what a cartographer does before
       // he gives up on naming a place at all.
       const drop = gap + lh + sh;
       // the claim runs from the top of the writing down to the foot of the marker, exactly as below
-      const above: [number, number, number, number] =
-        [both[0], m.place.y - (ih + drop + gap) / 2, both[2], ih + drop + gap];
+      const above: Box =
+        [both[0], m.place.y - (ih + drop + gap) / 2, both[2], ih + drop + gap, m.place.name];
       // a place you are carrying work to is never hidden, however far out you pull
       if (zoom < spec.from && !questNames.has(m.place.name)) {
         m.icon.setVisible(false); m.label.setVisible(false); m.stars.setVisible(false); continue;
       }
       let named = !hit(both, taken), up = false;
       if (!named && !hit(above, taken)) { named = true; up = true; }
+      // why a name could not be written, kept for the harness — a place nobody can read is a bug
+      m.blockedBy = named ? null : (blocker(both, taken)?.[4] ?? 'another place');
       const box = named ? (up ? above : both) : alone;
-      if (!named && hit(alone, solid)) { m.icon.setVisible(false); m.label.setVisible(false); m.stars.setVisible(false); continue; }
+      // Standing over a place and not being shown it at all is worse than a crowded chart: you tap
+      // what looks like open ground and a panel names somewhere that was never drawn. Close in, a
+      // settlement always keeps its marker; it is only far out that it may step aside entirely.
+      if (!named && hit(alone, solid) && zoom < CLOSE_ZOOM) {
+        m.icon.setVisible(false); m.label.setVisible(false); m.stars.setVisible(false); continue;
+      }
       taken.push(box);
       solid.push(box);                    // what is actually drawn, so nothing later lands on a name
       const ly = up ? m.place.y - ih - drop - gap : m.place.y + gap;

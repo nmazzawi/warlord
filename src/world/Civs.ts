@@ -572,8 +572,16 @@ export function campPoint(id: string): Pt {
     const cands: Pt[] = [];
     const mx = fringe.reduce((n, k) => n + k.x, 0) / fringe.length;
     const my = fringe.reduce((n, k) => n + k.y, 0) / fringe.length;
+    // near the middle of the hamlets first, then further out — a valley as crowded as Mexico's has no
+    // clear ground within arm's reach of its own capital, and a camp must still find somewhere to be
     const spread: Array<[number, number]> = [[0, 0], [40, 30], [-40, 30], [40, -30], [-40, -30],
       [56, 0], [-56, 0], [0, 52], [0, -52], [74, 40], [-74, 40], [74, -40], [-74, -40]];
+    for (const rad of [96, 132, 170]) {
+      for (let i = 0; i < 12; i++) {
+        const th = (i / 12) * Math.PI * 2 + rad * 0.013;
+        spread.push([Math.cos(th) * rad, Math.sin(th) * rad * 0.8]);
+      }
+    }
     for (const [dx, dy] of spread) {
       const c: Pt = [mx + dx, my + dy];
       if (isLand(c[0], c[1])) { cands.push([Math.round(c[0]), Math.round(c[1])]); continue; }
@@ -582,9 +590,12 @@ export function campPoint(id: string): Pt {
     }
     let best: Pt | null = null, bestWorst = Infinity;
     for (const c of cands) {
-      // A camp pitched ON a hamlet buries it: the camp's own name plate is drawn over the chart and is
-      // wider than the gap, so the hamlet is neither readable nor visible. Stand clear of all three.
+      // A camp pitched ON a place buries it: the camp's own name plate is drawn over the chart and is
+      // wider than the gap, so its neighbour is neither readable nor tappable. Stand clear of the three
+      // hamlets AND of anything the atlas already named — an Aztec camp eighteen units from
+      // Tenochtitlan takes the capital's name off the map.
       if (fringe.some(k => Math.hypot(k.x - c[0], k.y - c[1]) < 46)) continue;
+      if (FOREIGN.some(k => mine(k.territory) && Math.hypot(k.x - c[0], k.y - c[1]) < 62)) continue;
       let worst = 0, ok = true;
       for (const k of fringe) {
         const r = route(c, [k.x, k.y]);

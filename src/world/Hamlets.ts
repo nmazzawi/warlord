@@ -92,7 +92,9 @@ export function hamlets(): Hamlet[] {
     for (const a of anchors) {
       // India's valley and the Aztec lake are crowded: if three will not fit at arm's length from the
       // named places, they stand closer. Every realm gets its three.
-      for (const [clear, apart] of [[56, 44], [34, 30], [18, 22]] as const) {
+      // The last tier is as close as anything may ever stand: a settlement resolves a tap within 22
+      // units, so 26 is the point below which two places become one to a thumb.
+      for (const [clear, apart] of [[62, 70], [44, 52], [32, 40], [26, 32], [22, 28]] as const) {
         const set: Pt[] = [];
         for (const [dx, dy] of ring) {
           if (set.length >= 3) break;
@@ -102,7 +104,10 @@ export function hamlets(): Hamlet[] {
             if (!snap) continue;
             p = [Math.round(snap[0]), Math.round(snap[1])];
           }
-          if (r.places.some(q => Math.hypot(q.x - p[0], q.y - p[1]) < clear)) continue;
+          // clear of EVERY realm's places, not just this one's: a Caliphate hamlet five units from an
+          // Egyptian one is a tap that could mean either, and two names drawn on top of each other
+          if (REGIONS.some(x => x.places.some(q => Math.hypot(q.x - p[0], q.y - p[1]) < clear))) continue;
+          if (out.some(h => Math.hypot(h.xy[0] - p[0], h.xy[1] - p[1]) < clear)) continue;
           if (set.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < apart)) continue;
           if (mainland && landComponent(p[0], p[1]) !== mainland) continue;
           if (set.length) { const w = route(set[0], p); if (!w || w.days > 3) continue; }
