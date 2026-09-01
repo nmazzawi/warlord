@@ -204,7 +204,10 @@ export const STEPPE = {
 };
 /** The siege of Kingsport. */
 // the gate is a phase: ~20-30 s for a fresh warband (~50 dps) under arrow fire — bring a bow, use the rocks, or eat it
-export const SIEGE = { gateHp: 1000, wallArchers: 4, guards: 8, escort: 3, unlockTier: 1, gateGuardRadius: 240 };
+/** Losing is not a rewind. What it costs: half your purse, your dead, and the better part of a week. */
+export const DEFEAT = { plunderShare: 0.5, floorGold: 25, restDays: [3, 5] as const };
+
+export const SIEGE = { gateHp: 1000, villageGateHp: 420, wallArchers: 4, guards: 8, escort: 3, unlockTier: 1, gateGuardRadius: 240 };
 
 /** Village strength by tier (index = tier - 1). */
 export const VILLAGE_TIERS = [

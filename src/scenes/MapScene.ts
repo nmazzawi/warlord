@@ -5,7 +5,7 @@
 // visit it — or get stopped on the road. The steppe has camps that move and riders that hunt raiders.
 // Everything outside your reach is drawn muted: it is the content plan, visible from day one.
 import Phaser from 'phaser';
-import { GameState } from '../state/GameState';
+import { GameState, type Quest } from '../state/GameState';
 import { FOREIGN, INFAMY, SIEGE, STEPPE } from '../config/balance';
 import { capitalOf, drawnEdges, FOREIGN_SETTLEMENTS as FOREIGN_PLACES, nodeById, NODES, tradesWithForeigners, type MapNode, type Territory } from '../world/WorldMap';
 import { visitOf } from '../world/Realms';
@@ -95,6 +95,11 @@ export class MapScene extends Phaser.Scene {
   private hud!: MapHudScene;
   /** The line drawn for the march being offered or walked. */
   private planLine!: Phaser.GameObjects.Graphics;
+  private questPulse: Phaser.GameObjects.Graphics | null = null;
+  /** The little flags over places a job points at, kept by settlement id. */
+  private questPins = new Map<string, Phaser.GameObjects.Text>();
+  /** What was drawn for each of your own places, so a quest can hold one out of the fade. */
+  private nodeArt = new Map<string, Fadeable[]>();
   private hunterIcons = new Map<number, Phaser.GameObjects.Container>();
   // far in the past, so the very first tap after the map opens can never be read as the second half
   // of a double tap (the scene clock starts at zero)
@@ -114,6 +119,7 @@ export class MapScene extends Phaser.Scene {
   create() {
     this.status.clear(); this.names.clear(); this.badges.clear(); this.flags.clear(); this.campIcons.clear();
     this.labels = []; this.empireLabels = []; this.territoryObjects = []; this.stateObjects = [];
+    this.nodeArt.clear(); this.questPins.clear();
     this.markers = []; this.icons = [];
     this.traveling = false; this.pinchDist = 0;
 
@@ -185,6 +191,9 @@ export class MapScene extends Phaser.Scene {
     this.hud = this.scene.get('MapHud') as MapHudScene;
     this.hud.onZoom = dir => this.zoomBy(dir > 0 ? 1.5 : 1 / 1.5);
     this.hud.onLocate = () => this.locate();
+    this.hud.onQuestFind = q => this.showQuest(q);
+    this.hud.onQuestRoute = q => this.routeToQuest(q);
+    this.markQuestPins();
     this.fitViewport();
 
     // a battle won just before a reload: offer the sack/occupy choice again
@@ -288,11 +297,16 @@ export class MapScene extends Phaser.Scene {
     const s = Phaser.Math.Clamp(dpr / zoom, 0.35, 2.6);
     for (const l of this.labels) l.t.setScale(s);
     for (const [id, name] of this.names) this.status.get(id)?.setY(name.y + name.displayHeight + 1);
+    this.layoutQuestPins();
 
     const detail = MapScene.fade(zoom, BAND.minor);
     const empire = 1 - MapScene.fade(zoom, BAND.empire);
     const set = (objs: Fadeable[], a: number) => { for (const o of objs) { o.setAlpha(a); o.setVisible(a > 0.02); } };
     set(this.territoryObjects, detail);
+    // and a place you are carrying work to is held out of that fade entirely
+    for (const id of GameState.questTargets()) {
+      for (const ob of this.nodeArt.get(id) ?? []) { ob.setAlpha(1); ob.setVisible(true); }
+    }
     for (const o of this.stateObjects) o.setAlpha(detail);   // shown or not is the game state's call
     // realm names hold 13 CSS px — but never grow past a size that would make twelve of them collide
     // on a narrow phone showing the whole Earth, so far out they shrink with the world instead. Where
@@ -400,7 +414,11 @@ export class MapScene extends Phaser.Scene {
     // a plate and a name held at a constant size on screen until the clamp catches. Claim that, or a
     // close view has every atlas name stepping aside for a box far bigger than the plate it stands for.
     const hu = Phaser.Math.Clamp(dpr / zoom, 0.35, 2.6);
-    const order = [...this.markers].sort((a, b) => a.rank - b.rank || a.place.x - b.place.x);
+    const questNames = new Set<string>();
+    for (const id of GameState.questTargets()) { try { questNames.add(nodeById(id).name); } catch { /* gone from the chart */ } }
+    // and they are laid out FIRST, so they claim their name before anything else can take the room
+    const order = [...this.markers].sort((a, b) =>
+      Number(questNames.has(b.place.name)) - Number(questNames.has(a.place.name)) || a.rank - b.rank || a.place.x - b.place.x);
     const taken: Array<[number, number, number, number]> = [];       // everything that is written
     const solid: Array<[number, number, number, number]> = [];       // and the things that are drawn
     const hit = (b: [number, number, number, number], list: Array<[number, number, number, number]>) =>
@@ -448,7 +466,10 @@ export class MapScene extends Phaser.Scene {
       // the claim runs from the top of the writing down to the foot of the marker, exactly as below
       const above: [number, number, number, number] =
         [both[0], m.place.y - (ih + drop + gap) / 2, both[2], ih + drop + gap];
-      if (zoom < spec.from) { m.icon.setVisible(false); m.label.setVisible(false); m.stars.setVisible(false); continue; }
+      // a place you are carrying work to is never hidden, however far out you pull
+      if (zoom < spec.from && !questNames.has(m.place.name)) {
+        m.icon.setVisible(false); m.label.setVisible(false); m.stars.setVisible(false); continue;
+      }
       let named = !hit(both, taken), up = false;
       if (!named && !hit(above, taken)) { named = true; up = true; }
       const box = named ? (up ? above : both) : alone;
@@ -505,10 +526,15 @@ export class MapScene extends Phaser.Scene {
     if (n.kind === 'cross') { this.territoryObjects.push(this.add.image(n.x, n.y, TEX.mapCross).setDepth(3).setScale(0.5)); return; }
     const tex = n.kind === 'camp' ? TEX.mapCamp : n.kind === 'village' ? TEX.mapVillage : n.kind === 'town' ? TEX.mapTown
       : n.kind === 'waypoint' ? TEX.mapWaypoint : n.kind === 'trade' ? TEX.mapTrade : TEX.mapGate;
-    this.icon(n.x, n.y, tex);
+    // remembered per place, so a settlement you are carrying work to can be kept on the chart when
+    // the rest of its neighbours fade out
+    const mine: Fadeable[] = [];
+    mine.push(this.icon(n.x, n.y, tex));
     const small = n.kind === 'waypoint' || n.kind === 'gate';
-    this.plate(n.x, n.y + 10, small ? 96 : 120);
+    mine.push(this.plate(n.x, n.y + 10, small ? 96 : 120) as unknown as Fadeable);
     this.names.set(n.id, this.label(n.x, n.y + 12, n.name, small ? 11 : 13, CSS.ink).setDepth(6));
+    mine.push(this.names.get(n.id)!);
+    this.nodeArt.set(n.id, mine);
     const st = this.label(n.x, n.y + 28, '', 9, CSS.inkSoft);
     st.setDepth(6);
     this.status.set(n.id, st);
@@ -805,7 +831,11 @@ export class MapScene extends Phaser.Scene {
           // anything you were carrying to this place is delivered by standing in it
           if (here) {
             const paid = GameState.settleQuests(here.id);
-            if (paid.length) this.hud.toast(paid.map(q => `Delivered ${q.text}: +${q.reward} gold.`), '#c8f0c8');
+            if (paid.length) {
+              this.hud.toast(paid.map(q => `Delivered ${q.text}: +${q.reward} gold.`), '#c8f0c8');
+              this.hud.refreshQuests();
+              this.markQuestPins();
+            }
           }
           this.passDays(1);
           const caught = GameState.runHunters(1);
@@ -870,6 +900,83 @@ export class MapScene extends Phaser.Scene {
     // should be — it then throws on every frame and the whole game appears to freeze. Pass the
     // function itself and there is nothing to spell wrong.
     cam.pan(this.token.x, this.token.y, 420, Phaser.Math.Easing.Sine.InOut, true);
+  }
+
+  /**
+   * A place you are carrying work to is never allowed to fade out of the chart. It keeps a small pin
+   * above it at every zoom, and its marker is exempted from the level-of-detail rules that hide
+   * lesser places when you pull back — you can always see where you are going.
+   */
+  private markQuestPins() {
+    const want = new Set(GameState.questTargets());
+    for (const [id, pin] of this.questPins) {
+      if (want.has(id)) continue;
+      pin.destroy();
+      this.questPins.delete(id);
+    }
+    for (const id of want) {
+      if (this.questPins.has(id)) continue;
+      let n;
+      try { n = nodeById(id); } catch { continue; }
+      const pin = this.add.text(n.x, n.y, '⚑', { fontFamily: FONT, fontSize: '22px', color: '#f5c542', stroke: '#2b1d0e', strokeThickness: 4 })
+        .setOrigin(0.5, 1.6).setDepth(8.5);
+      this.questPins.set(id, pin);
+    }
+    this.layoutQuestPins();
+  }
+
+  /** The pins hold a constant size on screen, like the markers they stand over. */
+  private layoutQuestPins() {
+    const dpr = this.scale.displayScale.x || 1;
+    const s = Phaser.Math.Clamp(dpr / this.cameras.main.zoom, 0.3, 2.2);
+    for (const pin of this.questPins.values()) pin.setScale(s).setVisible(true);
+  }
+
+  /**
+   * Show me where this work is: fly to it, open it out far enough to read, and put a pulse on the
+   * marker so the eye finds it among everything else on the plate.
+   */
+  private showQuest(q: Quest) {
+    const target = this.questPoint(q);
+    if (!target) { this.hud.toast(['That job has nowhere left to point at.'], '#ff9a8a'); return; }
+    const cam = this.cameras.main;
+    cam.stopFollow();
+    cam.panEffect.reset();
+    if (cam.zoom < 1.6) this.setZoom(1.6);
+    cam.pan(target.x, target.y, 460, Phaser.Math.Easing.Sine.InOut, true);
+    this.pulseAt(target.x, target.y);
+  }
+
+  /** And the second tap: the same march the map itself offers, days and all, to confirm. */
+  private routeToQuest(q: Quest) {
+    const target = this.questPoint(q);
+    if (!target) { this.hud.toast(['That job has nowhere left to point at.'], '#ff9a8a'); return; }
+    if (this.traveling) { this.hud.toast(['You are already on the road.'], '#ff9a8a'); return; }
+    this.offerMarch(target.x, target.y);
+  }
+
+  /** Where a job points, if it points anywhere on the chart. */
+  private questPoint(q: Quest): { x: number; y: number } | null {
+    if (q.kind !== 'deliver' || !q.to) return null;
+    try { const n = nodeById(q.to); return { x: n.x, y: n.y }; } catch { return null; }
+  }
+
+  /** A ring that opens and fades on a spot, twice — enough to catch the eye, not enough to nag. */
+  private pulseAt(x: number, y: number) {
+    this.questPulse?.destroy();
+    const g = this.add.graphics().setDepth(9.5);
+    this.questPulse = g;
+    let n = 0;
+    const ring = () => {
+      n++;
+      const o = { r: 10, a: 0.9 };
+      this.tweens.add({
+        targets: o, r: 70, a: 0, duration: 900, ease: 'Sine.Out',
+        onUpdate: () => { g.clear().lineStyle(3, 0xf5c542, o.a).strokeCircle(x, y, o.r); },
+        onComplete: () => { if (n < 3) ring(); else { g.destroy(); if (this.questPulse === g) this.questPulse = null; } },
+      });
+    };
+    ring();
   }
 
   /** Zoom a step, keeping whatever is under the pointer roughly under the pointer. */

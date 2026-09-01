@@ -1,9 +1,9 @@
 // ResultScene.ts — the overlay after a battle. Victory over a village or the town ends in a choice:
-// SACK it, OCCUPY it, or just take the loot and go. Defeat offers retry / retreat.
+// SACK it, OCCUPY it, or just take the loot and go. Defeat is final: it is read, not replayed.
 import Phaser from 'phaser';
 import { FOREIGN, CONQUEST, INFAMY, RERAID, TRIBUTE } from '../config/balance';
 import { REALM_SHORT } from '../world/Realms';
-import { GameState, type Conquest } from '../state/GameState';
+import { GameState, type Conquest, type DefeatReport } from '../state/GameState';
 import { nodeById } from '../world/WorldMap';
 import type { BattleConfig } from '../world/Battles';
 import { CSS, displayStyle, dprOf, makeButton, panel, uiStyle, uiUnit } from './ui';
@@ -18,9 +18,17 @@ export interface ResultData {
 
 export class ResultScene extends Phaser.Scene {
   private result!: ResultData;
+  /** A loss is settled the moment the screen opens: there is no button here that could undo it. */
+  private defeat: DefeatReport | null = null;
   constructor() { super('Result'); }
 
-  init(data: ResultData) { this.result = data; }
+  init(data: ResultData) {
+    this.result = data;
+    this.defeat = data.outcome === 'defeat'
+      ? GameState.commitDefeat(data.deadTroopIds, { kind: data.battle.kind, villageId: data.battle.villageId,
+        campId: data.battle.campId, tier: data.battle.tier, name: data.battle.name, realm: data.battle.realm, rank: data.battle.rank })
+      : null;
+  }
 
   create() {
     this.build();
@@ -106,24 +114,28 @@ export class ResultScene extends Phaser.Scene {
         y += 8 * u;
       }
     } else {
+      // A loss is already paid for by the time this is drawn. All that is left is to read it.
+      const r = this.defeat!;
       text(patrol
-        ? 'The patrol ran you down. Your warband regroups as it was before the fight.'
-        : 'The attack is lost. Loot from it is gone, but your warband regroups as it was before.', uiStyle(12 * u, CSS.ink, { bold: false }), 14);
+        ? 'The patrol rode you down and left you in the ditch for dead.'
+        : 'The attack broke. They dragged you off the field and went through your purse where you lay.',
+        uiStyle(12 * u, CSS.ink, { bold: false }), 10);
+      text(r.fallen.length
+        ? `Dead: ${r.fallen.join(', ')}  —  they do not come back.`
+        : 'Not one of your men fell. That is the only good in it.',
+        uiStyle(12 * u, r.fallen.length ? CSS.danger : CSS.ink, { bold: false }), 8);
+      text(r.goldLost > 0 ? `They took ${r.goldLost} gold. You have ${r.goldLeft} left.`
+        : `They found nothing worth taking. You have ${r.goldLeft} gold.`, uiStyle(15 * u, CSS.emberDeep), 8);
+      text(`You came round ${r.days} days later at ${r.wokeAt}, with ${r.survivors === 0 ? 'no one' : r.survivors === 1 ? 'one man' : `${r.survivors} men`} still standing.`,
+        uiStyle(12 * u, CSS.inkSoft, { bold: false }), 6);
+      const grumble = r.events.filter(e => e.kind === 'desert' || e.kind === 'unpaid').length;
+      if (grumble) text('The wages still had to be found while you were down.', uiStyle(11 * u, CSS.inkSoft, { bold: false }), 6);
+      text('There is no fighting it again.', uiStyle(11 * u, CSS.inkSoft, { bold: false }), 14);
       items.push(makeButton(this, cx, y + 27 * u, {
-        width: Math.min(colW, 320 * u), height: 54 * u, label: patrol ? 'FIGHT AGAIN' : 'TRY AGAIN', tone: 'danger',
-        onPress: () => { GameState.restoreSnapshot(); this.scene.stop('Raid'); this.scene.start('Raid', d.battle); },
+        width: Math.min(colW, 320 * u), height: 54 * u, label: 'GET UP', tone: 'danger',
+        onPress: () => { GameState.save(); this.toMap(`You woke at ${r.wokeAt}, ${r.days} days poorer.`); },
       }));
-      y += 54 * u + 12 * u;
-      items.push(makeButton(this, cx, y + 22 * u, {
-        width: Math.min(colW, 260 * u), height: 44 * u, label: patrol ? 'Fall back' : 'Retreat to the map', tone: 'ghost',
-        onPress: () => {
-          GameState.restoreSnapshot();
-          GameState.patrolPending = false;
-          GameState.save();
-          this.toMap();
-        },
-      }));
-      y += 44 * u + 24 * u;
+      y += 54 * u + 24 * u;
     }
     // the plate, then shift everything so the whole thing sits centred vertically
     const ph = y;

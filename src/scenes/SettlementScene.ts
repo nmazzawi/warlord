@@ -94,6 +94,12 @@ export class SettlementScene extends Phaser.Scene {
     // and its notice board has work on it
     if (stock.inn || isCamp) {
       const jobs = GameState.quests.length;
+      // if what you are carrying is FOR here, the market card says so before you have to look
+      const due = GameState.quests.filter(q => q.kind === 'deliver' && q.to === this.id).length;
+      if (due) {
+        cards.push({ id: 'market', label: 'MARKET', tex: TEX.inn,
+          sub: `Quest: deliver here (${due} to hand over) · notice board` });
+      } else
       cards.push({ id: 'market', label: 'MARKET', tex: TEX.inn,
         sub: GameState.loot.length ? `sell ${GameState.loot.length} piece${GameState.loot.length === 1 ? '' : 's'} · notice board${jobs ? ` (${jobs} taken)` : ''}`
           : `nothing to sell yet · notice board${jobs ? ` (${jobs} taken)` : ''}` });

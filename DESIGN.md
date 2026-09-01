@@ -401,3 +401,26 @@ This absorbs the old Milestone 7 (culture starts). Governance and coalition mile
 - **You are on the hillside, not on the pavement.** The ground is contoured in bands from the far hills down to the near grass, with soft rises across it; where a settlement stands on water the sea runs down one side with a line of surf and two boats drawn up on it. Everything except the buildings you can enter is one baked picture, because only the ones you can enter need to be tapped.
 - **Two ranks, not a row.** The buildings you can walk into stand in two ranks — the far one smaller and set back, the near one larger — with dirt roads running along each and a spur joining them. Six big roofs in one line is a shopfront; two ranks with roads between them is a town, and it gives every name plate somewhere to live that is not on top of another one.
 - **Big buildings are drawn at three-quarters**: a roof plane you see the top of, a lit wall facing you and a shadowed one turned away, by culture — a pediment and columns, tiered eaves, a dome, a steep turf roof, a felt tent, a stepped platform. Small houses scatter across the whole ground, thicker along the roads, drawn back to front so the near ones overlap the far ones the way a hillside view does.
+
+## QUEST TRACKER (designer, 2026-08-31)
+
+- **A quest box under the ledger.** Compact, upper-left, collapsed by default to one line — `Quests · 2`. Expanded it lists each job: title, a one-line objective, the reward, and days remaining if it is timed. It must never crowd the map on a phone.
+- **Tap to find.** Tapping a quest pans and zooms to its destination and pulses the marker there. Tapping again offers ROUTE, which plots the journey with the normal route preview and day cost, so the march is always confirmed before it is walked.
+- **A quest's destination is never hidden.** Any settlement tied to an active quest stays drawn at every zoom with a small quest pin, ignoring the level-of-detail fade that hides lesser places when you pull back.
+- **Quests are only ever given for places you can actually reach.** The generator picks from settlements on the same landmass as the board offering the work, with no sea crossing until ships exist, between three and twelve days away, and always a real settlement. The notice board shows the distance.
+- **Turn-in is automatic.** Arriving at the destination prompts completion; the settlement's own panel also says "Quest: deliver here" so it is never a surprise.
+
+## DEFEAT HAS TEETH (designer, 2026-08-31)
+
+*This replaces Milestone 1's rewind-on-loss rule.*
+
+- **No retry.** Losing a raid, a siege or a hunters' battle is final. Every troop who fell is dead for good and named on the defeat screen. The fight cannot be replayed.
+- **Plunder.** The victors take half the gold you are carrying. A small floor stays so a run can never be bricked. The screen shows exactly what was taken.
+- **Beaten, not killed.** The hero is left for dead, not dead — true death and the heir belong to the dynasty milestone. You wake three to five days later at the nearest friendly place: the home camp, or a settlement you hold. Only the troops who survived are with you. Tribute keeps flowing through those days, so recovery is possible.
+- **The defeat screen narrates it**: the fallen by name, the coin lost, the days lost, and where you woke.
+
+## BATTLE MAPS MUST BE WALKABLE (designer, 2026-08-31)
+
+- **Every fortified layout has a way in.** At least one gate, always. The warband spawns TOGETHER, outside the walls, facing that gate — never split, never sealed inside.
+- **Validate before the fight starts.** A walkable path must exist from the spawn to every defender and every building. A layout that fails is regenerated, not shipped: an enclosed or split map never reaches the player.
+- **A fully walled village is a siege, not a wall.** The gate has hit points and must be broken, or a breach already stands open. A sealed ring is a bug, not a difficulty.

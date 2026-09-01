@@ -184,12 +184,20 @@ export class ShopScene extends Phaser.Scene {
       const open = noticeFor(this.settlementId);
       const taken = g.quests.length;
       if (open && taken < 3) {
-        rows.push({ name: `Notice: ${open.text}`, desc: `${open.reward} gold, paid ${open.kind === 'deliver' ? 'when it arrives' : 'over the body'}.`,
+        // the board says how far it is, because a courier who does not know that is not being paid fairly
+        const how = open.kind === 'deliver'
+          ? `${open.reward} gold, paid when it arrives${open.days ? ` · ${open.days} day${open.days === 1 ? '' : 's'} out` : ''}.`
+          : `${open.reward} gold, paid over the body.`;
+        rows.push({ name: `Notice: ${open.text}`, desc: how,
           button: { label: 'TAKE IT', enabled: true, onPress: () => { g.takeQuest(open); Sound.click(); this.note('Taken'); g.save(); this.build(); } } });
       } else if (taken >= 3) {
         rows.push({ name: 'The board is full to you', desc: 'Finish what you have taken before you take more.', button: null });
       }
-      for (const q of g.quests) rows.push({ name: `Carrying: ${q.text}`, desc: `${q.reward} gold when it is done.`, button: null });
+      for (const q of g.quests) {
+        const here = q.kind === 'deliver' && q.to === this.settlementId;
+        rows.push({ name: `Carrying: ${q.text}`,
+          desc: here ? 'This is the place. Walk out onto the map and it is paid.' : `${q.reward} gold when it is done.`, button: null });
+      }
       return { title: 'THE MARKET', blurb: `they buy low and sell high${markup}`, rows };
     }
     if (this.building === 'inn') {

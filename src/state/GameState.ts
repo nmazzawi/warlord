@@ -1,9 +1,10 @@
 // GameState.ts — the whole run: gold, day, infamy, gear, horse, your named troops, where you are on
 // the map, what state each settlement is in, who garrisons what, and the daily ledger (wages in,
 // tribute out). Saved to browser storage (single slot).
-import { CONQUEST, FOREIGN, FOREIGN_GARRISON, FOREIGN_MAX_DEFENDERS, FRONTIER_THIN, GARRISON_MIX, HUNT, PAY, REALM_POWER, WARBAND_GEAR, DEFENSE_SOFTCAP, EQUIPMENT, HERO, HORSES, INFAMY, PATROLS, RERAID, SIEGE, STEPPE, TRIBUTE, TROOP, UPKEEP, VILLAGE_TIERS } from '../config/balance';
+import { CONQUEST, DEFEAT, FOREIGN, FOREIGN_GARRISON, FOREIGN_MAX_DEFENDERS, FRONTIER_THIN, GARRISON_MIX, HUNT, PAY, REALM_POWER, WARBAND_GEAR, DEFENSE_SOFTCAP, EQUIPMENT, HERO, HORSES, INFAMY, PATROLS, RERAID, SIEGE, STEPPE, TRIBUTE, TROOP, UPKEEP, VILLAGE_TIERS } from '../config/balance';
 import { nameAt } from '../utils/names';
 import { frontier, NODES, nodeById, territoryOf, type MapNode, type Territory } from '../world/WorldMap';
+import { componentNear, routeToPlace } from '../world/Terrain';
 import { CROWN_TITLE, ELITE_TINT, REALM_SHORT, visitOf } from '../world/Realms';
 import { REGIONS } from '../world/WorldChart';
 import { campPoint, civOf } from '../world/Civs';
@@ -24,11 +25,23 @@ export type HorseKind = 'none' | 'courser' | 'destrier';
 export interface Owned { leather: boolean; plate: boolean; round: boolean; kite: boolean; bow: boolean; halberd: boolean; courser: boolean; destrier: boolean; composite: boolean; }
 export interface SettlementState { timesRaided: number; lastRaidDay: number | null; occupied: boolean; sacked: boolean; wealth: number; }
 export type Conquest = 'sack' | 'occupy' | 'leave';
+
+/** What a beaten warband is told when it wakes up. */
+export interface DefeatReport {
+  fallen: string[]; goldLost: number; goldLeft: number; days: number;
+  wokeAt: string; survivors: number; events: DayEvent[];
+}
 export interface DayEvent { kind: 'unpaid' | 'desert'; text: string; }
 /** Something taken off a body, worth what somebody will pay for it. */
 export interface LootItem { id: number; name: string; value: number; from: string; }
 /** A job off a notice board. Two kinds for now: carry something somewhere, or kill somebody. */
-export interface Quest { id: number; kind: 'deliver' | 'hunt'; text: string; to?: string; realm?: string; reward: number; from: string; }
+export interface Quest {
+  id: number; kind: 'deliver' | 'hunt'; text: string; to?: string; realm?: string; reward: number; from: string;
+  /** The march the board quoted when the work was offered. */
+  days?: number;
+  /** Day the job expires, for timed work. Absent means it keeps. */
+  by?: number;
+}
 
 export type Access = 'camp' | 'occupied' | 'visit' | 'closed' | 'sacked' | 'trade' | 'foreign';
 /** A won battle whose sack/occupy choice has not been made yet (survives a reload). */
@@ -117,7 +130,6 @@ class GameStateStore {
   huntedUntil = -1;
   private nextId = 1;
   private nameCursor = 0;
-  private snapshot: SaveData | null = null;
   /** Only a run that was started or loaded on purpose may be written to storage (the title screen must never clobber a save). */
   private persistable = false;
 
@@ -132,7 +144,7 @@ class GameStateStore {
     this.troops = []; this.fallen = []; this.deserted = []; this.raidsDone = 0; this.location = 'camp';
     this.patrolPending = false; this.patrolFrom = 'homeland'; this.pos = { x: nodeById('camp').x, y: nodeById('camp').y }; this.hunters = []; this.settlements = {}; this.garrisons = {}; this.fortifyStepsDone = 0; this.fortifyCarry = 0;
     this.unpaidDays = 0; this.seenMapHint = false; this.rumorsHeard = []; this.pendingVictory = null;
-    this.nextId = 1; this.nameCursor = 0; this.snapshot = null;
+    this.nextId = 1; this.nameCursor = 0;
     // a bare reset is the game as it always was; newRun() sets the real start straight after
     this.setCiv('outlaw');
     for (let i = 0; i < TROOP.starting; i++) this.recruit('raider');
@@ -530,6 +542,43 @@ class GameStateStore {
   }
   /** Take a job. Arriving, or killing, is what finishes it. */
   takeQuest(q: Omit<Quest, 'id'>) { this.quests.push({ ...q, id: this.nextId++ }); }
+
+  /** The settlements an active job points at — these stay on the chart at every zoom. */
+  questTargets(): string[] {
+    return this.quests.filter(q => q.kind === 'deliver' && q.to).map(q => q.to as string);
+  }
+
+  /**
+   * A job whose destination cannot be reached is not a job, it is a dead end in the save file. Older
+   * boards named any place within nine hundred units, islands and all; those are re-pointed at the
+   * nearest settlement that can actually be walked to, keeping the parcel and the pay.
+   */
+  repairQuests(): number {
+    let fixed = 0;
+    for (const q of this.quests) {
+      if (q.kind !== 'deliver' || !q.to) continue;
+      let node: MapNode | null = null;
+      try { node = nodeById(q.to); } catch { node = null; }
+      const walk = node ? routeToPlace([this.pos.x, this.pos.y], [node.x, node.y]) : null;
+      if (node && walk) { if (q.days == null) q.days = Math.max(1, Math.round(walk.days)); continue; }
+      const land = componentNear(this.pos.x, this.pos.y);
+      const alt = NODES
+        .filter(n => !!n.name && n.kind !== 'cross' && n.kind !== 'waypoint' && n.kind !== 'camp'
+          && (!land || componentNear(n.x, n.y) === land))
+        .map(n => ({ n, d: Math.hypot(n.x - this.pos.x, n.y - this.pos.y) }))
+        .sort((a, b) => a.d - b.d)
+        .map(x => x.n)
+        .find(n => !!routeToPlace([this.pos.x, this.pos.y], [n.x, n.y]));
+      if (!alt) continue;
+      const was = node?.name ?? 'somewhere off the map';
+      q.text = q.text.replace(new RegExp(`to ${was}$`), `to ${alt.name}`);
+      if (!q.text.includes(alt.name)) q.text = `${q.text.replace(/ to .*$/, '')} to ${alt.name}`;
+      q.to = alt.id;
+      q.days = Math.max(1, Math.round(routeToPlace([this.pos.x, this.pos.y], [alt.x, alt.y])!.days));
+      fixed++;
+    }
+    return fixed;
+  }
   /** Anything finished by standing where you are standing now. */
   settleQuests(where: string): Quest[] {
     const done = this.quests.filter(q => q.kind === 'deliver' && q.to === where);
@@ -623,9 +672,53 @@ class GameStateStore {
   /** The rating as it is written on the chart and in the panels. */
   stars(id: string) { const n = this.protection(id); return n ? `${'\u2605'.repeat(n)}${'\u2606'.repeat(5 - n)}` : ''; }
 
-  // ------------------------------------------------------------ retry support
-  takeSnapshot() { this.snapshot = this.toJSON(); }
-  restoreSnapshot() { if (this.snapshot) this.fromJSON(this.snapshot); }
+  // ------------------------------------------------------------ defeat
+
+  /**
+   * A lost fight, and it stays lost. The men who fell are dead, the victors go through your purse,
+   * and you are carried off the field alive but useless for the better part of a week. There is no
+   * replaying it — which is the whole point of having gone in the first place.
+   */
+  commitDefeat(deadTroopIds: number[], battle: BattleOutcome): DefeatReport {
+    for (const id of deadTroopIds) {
+      const t = this.troops.find(x => x.id === id);
+      if (t) this.fallen.push({ name: t.name, raid: this.raidsDone + 1, where: battle.name });
+    }
+    const lost = this.troops.filter(t => deadTroopIds.includes(t.id)).map(t => t.name);
+    this.troops = this.troops.filter(t => !deadTroopIds.includes(t.id));
+    // they take half of what you carry, and leave you enough to get up the road
+    const before = this.gold;
+    const kept = Math.max(DEFEAT.floorGold, Math.round(before * (1 - DEFEAT.plunderShare)));
+    const taken = Math.max(0, before - Math.min(before, kept));
+    this.gold = Math.max(0, before - taken);
+    // out cold for a few days. The days still pass — tribute from what you hold keeps coming in, so
+    // a man with land can recover from this and a man with none has to be careful.
+    const days = DEFEAT.restDays[0] + Math.floor(Math.random() * (DEFEAT.restDays[1] - DEFEAT.restDays[0] + 1));
+    const events = this.advanceDays(days);
+    const where = this.nearestRefuge();
+    this.pos = { x: where.x, y: where.y };
+    this.patrolPending = false;
+    this.pendingVictory = null;
+    this.raidsDone += 1;
+    this.save();
+    return { fallen: lost, goldLost: taken, goldLeft: this.gold, days, wokeAt: where.name, survivors: this.troops.length, events };
+  }
+
+  /**
+   * Where a beaten man wakes: his own camp, or the nearest place he holds. Whoever carried him off
+   * the field took him somewhere that would have him.
+   */
+  nearestRefuge(): { id: string; name: string; x: number; y: number } {
+    const mine = NODES.filter(n => n.id === 'camp' || this.settlements[n.id]?.occupied);
+    const home = mine.find(n => n.id === 'camp') ?? mine[0];
+    if (!mine.length) return { id: 'camp', name: 'your camp', x: this.pos.x, y: this.pos.y };
+    let best = home, bestD = Infinity;
+    for (const n of mine) {
+      const d = Math.hypot(n.x - this.pos.x, n.y - this.pos.y);
+      if (d < bestD) { bestD = d; best = n; }
+    }
+    return { id: best.id, name: best.name, x: best.x, y: best.y };
+  }
 
   /** Victory: bank the loot, bury the dead, and apply the conquest choice. Returns a short summary line. */
   commitVictory(goldEarned: number, deadTroopIds: number[], battle: BattleOutcome, choice: Conquest): string {
@@ -711,7 +804,6 @@ class GameStateStore {
       }
     }
     this.pendingVictory = null;
-    this.snapshot = null;
     this.save();
     return summary;
   }
@@ -763,6 +855,7 @@ class GameStateStore {
     this.formation = d.formation ?? 'line';
     this.loot = (d.loot ?? []).map(l => ({ ...l }));
     this.quests = (d.quests ?? []).map(q => ({ ...q }));
+    this.repairQuests();
     this.huntQuiet = { ...(d.huntQuiet ?? {}) };
     this.ruled = [...(d.ruled ?? [])];
     this.gearTier = d.gearTier ?? 0;
@@ -789,7 +882,6 @@ class GameStateStore {
     const d = this.peek();
     if (!d) return false;
     try { this.fromJSON(d); } catch { return false; }
-    this.snapshot = null;
     this.persistable = true;
     return true;
   }

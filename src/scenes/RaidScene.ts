@@ -21,6 +21,7 @@ import { setLineOfSightObstacles } from '../systems/LineOfSight';
 import { Sound } from '../systems/Sound';
 import { COLORS, TEX } from '../systems/Textures';
 import { buildLayout, clearOf, LAYOUTS, palisadeFor, type LayoutDef, type Obstacle } from '../world/Layouts';
+import { prepare, walkFrom, warbandPosts } from '../world/LayoutCheck';
 import type { BattleConfig } from '../world/Battles';
 import type { HudModel, HudScene } from './HudScene';
 import type { ResultData } from './ResultScene';
@@ -33,6 +34,10 @@ export class RaidScene extends Phaser.Scene {
   flow!: FlowField;
   cfg!: BattleConfig;
   gate: Gate | null = null;
+  /** How the map had to be repaired before it could be fought on, if at all. */
+  repaired: 'none' | 'gate-cut' | 'walls-dropped' = 'none';
+  /** The posts as the check left them: every one of them somewhere the warband can reach. */
+  readyPosts!: LayoutDef['posts'];
   /** arrows loosed by the hero this battle (used by the smoke test to check the ranged rule) */
   shots = 0;
   private layout!: LayoutDef;
@@ -84,24 +89,38 @@ export class RaidScene extends Phaser.Scene {
     this.awaitingFormation = false;
     this.surround = new SurroundManager();
     this.tweens.timeScale = 1;
-    GameState.takeSnapshot();
 
     const cfg = this.cfg;
     const layout = this.layout = LAYOUTS[cfg.layoutId];
-    this.obstacles = [...layout.obstacles, ...(cfg.palisade ? palisadeFor(layout) : [])];
+    // No fight starts on a map that cannot be walked. A palisade raised over a layout authored open
+    // can seal it — the warband outside a ring it cannot cross, the defenders inside one it cannot
+    // reach — so the map is walked first, and one that fails has a gate cut into it.
+    const ready = prepare(layout, !!cfg.palisade, cfg.palisade ? palisadeFor(layout) : []);
+    this.obstacles = ready.obstacles;
+    this.repaired = ready.repaired;
+    this.readyPosts = ready.posts;
     setLineOfSightObstacles(this.obstacles);
     this.physics.world.setBounds(0, 0, layout.w, layout.h);
     this.huts = buildLayout(this, layout, this.obstacles);
     this.flow = new FlowField(layout.w, layout.h, this.obstacles);
     this.juice = new Juice(this);
 
-    // --- the warband
-    const start = clearOf(this.obstacles, layout.heroStart.x, layout.heroStart.y, 14);
+    // --- the warband, together and on one side of the wall
+    const start = clearOf(this.obstacles, ready.spawn.x, ready.spawn.y, 14);
     this.hero = new Hero(this, start.x, start.y);
+    // whatever they came for: the gate if there is one to break, else the middle of the defenders
+    const posts = Object.values(ready.posts).flat().filter(Boolean) as Array<{ x: number; y: number }>;
+    const aim = ready.gate ?? (posts.length
+      ? { x: posts.reduce((n, p) => n + p.x, 0) / posts.length, y: posts.reduce((n, p) => n + p.y, 0) / posts.length }
+      : { x: layout.w / 2, y: layout.h / 2 });
     // (groups re-apply their defaults to every body added, so world-bounds collision must be set here)
     this.troopGroup = this.physics.add.group({ collideWorldBounds: true });
+    // every man on ground the hero can actually walk back to, so nobody starts the fight cut off
+    const walk = walkFrom(layout, this.obstacles, start);
+    const stands = warbandPosts(start, aim, GameState.troops.length,
+      (x, y) => x > 24 && y > 24 && x < layout.w - 24 && y < layout.h - 24 && walk.at(x, y));
     GameState.troops.forEach((rec, i) => {
-      const p = clearOf(this.obstacles, this.hero.x - 30 - i * 12, this.hero.y + (i % 2 ? 26 : -26), 11);
+      const p = clearOf(this.obstacles, stands[i].x, stands[i].y, 11);
       const t = new Troop(this, p.x, p.y, rec, i);
       this.troops.push(t);
       this.troopGroup.add(t);
@@ -124,7 +143,7 @@ export class RaidScene extends Phaser.Scene {
     };
     if (cfg.kind === 'siege') {
       // archers on the wall (placed ON the wall, not nudged off it), the guard asleep behind it
-      const wallPosts = layout.posts.wall ?? [];
+      const wallPosts = ready.posts.wall ?? [];
       for (let i = 0; i < Math.min(SIEGE.wallArchers, wallPosts.length); i++) {
         const e = new Enemy(this, wallPosts[i].x, wallPosts[i].y, 'archer', mult);
         e.onWall = true;
@@ -134,27 +153,27 @@ export class RaidScene extends Phaser.Scene {
         this.enemies.push(e);
         this.enemyGroup.add(e);
       }
-      spawn('guard', layout.posts.guards ?? [], SIEGE.guards, e => { e.dormant = true; });
-      spawn('archer', layout.posts.archers, 2, e => { e.dormant = true; });
+      spawn('guard', ready.posts.guards ?? [], SIEGE.guards, e => { e.dormant = true; });
+      spawn('archer', ready.posts.archers, 2, e => { e.dormant = true; });
     } else if (cfg.steppe) {
-      spawn('horsearcher', layout.posts.horsearchers ?? [], cfg.steppe.horsearchers);
-      spawn('rider', layout.posts.riders ?? [], cfg.steppe.riders);
-      spawn('noyan', layout.posts.noyans ?? [], cfg.steppe.noyans);
+      spawn('horsearcher', ready.posts.horsearchers ?? [], cfg.steppe.horsearchers);
+      spawn('rider', ready.posts.riders ?? [], cfg.steppe.riders);
+      spawn('noyan', ready.posts.noyans ?? [], cfg.steppe.noyans);
     } else {
-      spawn('militia', layout.posts.militia, d.militia);
-      spawn('archer', layout.posts.archers, d.archers);
-      spawn('captain', layout.posts.captains, d.captains);
+      spawn('militia', ready.posts.militia, d.militia);
+      spawn('archer', ready.posts.archers, d.archers);
+      spawn('captain', ready.posts.captains, d.captains);
     }
     // the realm's own men, painted its colour, standing in front of everybody else
     if (cfg.elite) {
       // they stand where the captains stand, and spill along the militia line behind them — a walled
       // capital fields more of them than any layout has posts for
-      this.elitePosts = layout.posts.guards ?? [...layout.posts.captains, ...layout.posts.militia];
+      this.elitePosts = ready.posts.guards ?? [...ready.posts.captains, ...ready.posts.militia];
       this.reformsLeft = cfg.elite.reforms;
       spawn(cfg.elite.kind, this.elitePosts, cfg.elite.count, e => { e.liveryTint = cfg.elite!.tint; e.applyTint(); });
       // and at a place held well enough to have one, the man whose name is on it
       if (cfg.elite.champion) {
-        spawn('boss', layout.posts.boss ?? layout.posts.captains, 1, e => { e.liveryTint = cfg.elite!.tint; e.applyTint(); });
+        spawn('boss', ready.posts.boss ?? ready.posts.captains, 1, e => { e.liveryTint = cfg.elite!.tint; e.applyTint(); });
       }
     }
 
@@ -182,10 +201,12 @@ export class RaidScene extends Phaser.Scene {
         return !(arrow.overWalls && wallLike); // shots from the battlements clear the wall, not the rocks
       });
 
-    // --- the gate (siege)
-    if (cfg.kind === 'siege') {
+    // --- the gate. A siege has one by design; a walled village that had to have one cut gets the
+    // same rule, because a village that has genuinely closed its wall is a siege and not a dead end.
+    if (cfg.kind === 'siege' || ready.gate) {
       const gateSprite = (this.huts.getChildren() as Phaser.Physics.Arcade.Sprite[]).find(s => (s.getData('obstacle') as Obstacle | undefined)?.kind === 'gate');
-      if (gateSprite) this.gate = new Gate(this, gateSprite, gateSprite.getData('obstacle') as Obstacle, SIEGE.gateHp);
+      if (gateSprite) this.gate = new Gate(this, gateSprite, gateSprite.getData('obstacle') as Obstacle,
+        cfg.kind === 'siege' ? SIEGE.gateHp : SIEGE.villageGateHp);
     }
 
     // --- camera
@@ -203,7 +224,7 @@ export class RaidScene extends Phaser.Scene {
       troopsAlive: this.troops.length, troopsTotal: this.troops.length, enemiesAlive: this.enemies.length,
       hornCd: 0, hornMax: ABILITIES.horn.cooldown, chargeCd: 0, chargeMax: ABILITIES.charge.cooldown, boosted: false,
       defense: GameState.defense, weapon: this.hero.mode === 'bow' ? 'Bow' : this.hero.mode === 'composite' ? 'Composite bow' : this.hero.weapon.name, gate: this.gate ? 1 : null,
-      objective: cfg.kind === 'siege' ? 'Break the gate' : `Clear ${this.enemies.length} defenders`,
+      objective: this.gate ? 'Break the gate' : `Clear ${this.enemies.length} defenders`,
     };
     this.scene.launch('Hud', { input: this.playerInput, model: this.hud });
     // nothing moves until the warband is told how to stand
@@ -365,7 +386,7 @@ export class RaidScene extends Phaser.Scene {
     this.obstacles = this.obstacles.filter(o => o !== g.obstacle);
     setLineOfSightObstacles(this.obstacles);
     this.flow = new FlowField(this.layout.w, this.layout.h, this.obstacles);
-    const inner = this.layout.posts.wallInner ?? [];
+    const inner = this.readyPosts.wallInner ?? [];
     let k = 0;
     for (const e of this.enemies) {
       if (!e.alive) continue;
@@ -391,7 +412,7 @@ export class RaidScene extends Phaser.Scene {
   /** Second wave: the garrison captain and his escort come out of the keep. */
   private spawnWave2() {
     this.wave2Spawned = true;
-    const posts = (this.layout.posts.boss ?? [{ x: this.layout.w / 2, y: this.layout.h / 2 }]).map(p => {
+    const posts = (this.readyPosts.boss ?? [{ x: this.layout.w / 2, y: this.layout.h / 2 }]).map(p => {
       // never on top of the hero: step the post away from them
       const d = Phaser.Math.Distance.Between(p.x, p.y, this.hero.x, this.hero.y);
       if (d >= 90) return p;

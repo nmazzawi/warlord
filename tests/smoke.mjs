@@ -875,6 +875,93 @@ async function desktopRun(browser) {
   const cutOff = Object.entries(firstRaids).filter(([, v]) => v.stranded.length)
     .map(([c, v]) => `${c} cannot reach ${v.stranded.join('/')}`);
   check(cutOff.length === 0, `every start can march to its own country (${cutOff.join('; ') || 'all fifteen'})`);
+
+  // --- no battle map ships enclosed, split, or with the warband on both sides of a wall
+  const maps = await page.evaluate(async () => {
+    const L = await import('/src/world/Layouts.ts');
+    const C = await import('/src/world/LayoutCheck.ts');
+    const bad = [], sieges = [];
+    for (const id of Object.keys(L.LAYOUTS)) {
+      const l = L.LAYOUTS[id];
+      for (const walls of (l.palisade ? [false, true] : [false])) {
+        const r = C.prepare(l, walls, walls ? L.palisadeFor(l) : []);
+        const posts = C.allPosts({ ...l, posts: r.posts });
+        const v = C.inspect(l, r.obstacles, r.spawn, posts);
+        const walk = C.walkFrom(l, r.obstacles, r.spawn);
+        const aim = r.gate ?? { x: posts.reduce((n, p) => n + p.x, 0) / posts.length, y: posts.reduce((n, p) => n + p.y, 0) / posts.length };
+        const stands = C.warbandPosts(r.spawn, aim, 8,
+          (x, y) => x > 24 && y > 24 && x < l.w - 24 && y < l.h - 24 && walk.at(x, y));
+        const split = stands.filter(q => !walk.at(q.x, q.y)).length;
+        const p = l.palisade;
+        const inside = walls && p && r.spawn.x > p.x0 && r.spawn.x < p.x1 && r.spawn.y > p.y0 && r.spawn.y < p.y1;
+        if (!v.ok) bad.push(`${id}${walls ? '+walls' : ''}: ${v.strandedPosts.length} defenders / ${v.strandedBuildings} buildings cut off`);
+        if (split) bad.push(`${id}${walls ? '+walls' : ''}: ${split} troops spawn cut off`);
+        if (inside) bad.push(`${id}+walls: warband spawns inside the ring`);
+        if (walls && r.gate) sieges.push(`${id} (${r.repaired})`);
+        if (walls && r.repaired === 'walls-dropped') bad.push(`${id}+walls: could not be made walkable at all`);
+      }
+    }
+    return { bad, sieges };
+  });
+  check(maps.bad.length === 0, `every battle map is walkable, and the warband lands on one side of the wall (${maps.bad.join('; ') || 'all twelve'})`);
+  check(maps.sieges.length >= 1, `a village that has genuinely closed its wall is a siege with a gate to break (${maps.sieges.join(', ') || 'none'})`);
+
+  // --- the quest board only ever offers work you can walk to, and says how far
+  const board = await page.evaluate(async () => {
+    const N = await import('/src/world/Notices.ts');
+    const bad = [], seen = [];
+    for (const n of window.__NODES.filter(x => x.name && x.kind !== 'cross' && x.kind !== 'waypoint').slice(0, 80)) {
+      const q = N.noticeFor(n.id);
+      if (!q || q.kind !== 'deliver') continue;
+      seen.push(q);
+      const to = window.__NODES.find(x => x.id === q.to);
+      if (!to) { bad.push(`${q.from}: names a place that is not on the chart`); continue; }
+      if (!q.days || q.days < 3 || q.days > 12) bad.push(`${q.from} → ${to.name}: ${q.days} days`);
+    }
+    return { n: seen.length, bad: bad.slice(0, 4) };
+  });
+  check(board.n >= 10 && board.bad.length === 0,
+    `every job on a board is a real place, reachable, three to twelve days out (${board.n} checked${board.bad.length ? ': ' + board.bad.join('; ') : ''})`);
+
+  // --- an old save pointing at somewhere unreachable is re-pointed, not left broken
+  const migrated = await page.evaluate(() => {
+    const S = window.__GameState;
+    const keep = JSON.parse(JSON.stringify(S.toJSON()));
+    S.quests = [{ id: 9001, kind: 'deliver', to: 'f_japan_kagoshima', text: 'a dead man\u2019s ring to Kagoshima', reward: 90, from: 'Ashford' }];
+    const fixed = S.repairQuests();
+    const q = S.quests[0];
+    const to = window.__NODES.find(x => x.id === q.to);
+    const m = window.__warlord.scene.getScene('Map');
+    const reach = to ? m.routeDays(to.id) : 0;
+    const out = { fixed, to: to && to.name, reach, text: q.text };
+    S.fromJSON(keep);
+    return out;
+  });
+  check(migrated.fixed === 1 && migrated.reach > 0 && migrated.text.includes(migrated.to),
+    `a job pointing somewhere no road reaches is re-pointed (now ${migrated.to}, ${migrated.reach}d, "${migrated.text}")`);
+  // --- losing costs, and it stays lost
+  const beaten = await page.evaluate(() => {
+    const S = window.__GameState;
+    const keep = JSON.parse(JSON.stringify(S.toJSON()));
+    S.gold = 400;
+    const before = { gold: S.gold, day: S.day, troops: S.troops.length };
+    const dead = S.troops.slice(0, 2).map(t => t.id);
+    const names = S.troops.slice(0, 2).map(t => t.name);
+    const rep = S.commitDefeat(dead, { kind: 'village', villageId: 'ashford', tier: 1, name: 'Ashford' });
+    const stillAlive = S.troops.filter(t => dead.includes(t.id)).length;
+    const buried = names.every(n => S.fallen.some(f => f.name === n));
+    const out = { before, rep, stillAlive, buried, goldNow: S.gold, dayNow: S.day, at: { x: S.pos.x, y: S.pos.y } };
+    S.fromJSON(keep);
+    return out;
+  });
+  check(beaten.stillAlive === 0 && beaten.buried && beaten.rep.fallen.length === 2,
+    `the men who fell in a lost fight are dead for good (${beaten.rep.fallen.join(', ')})`);
+  check(beaten.rep.goldLost === 200 && beaten.rep.goldLeft >= 25,
+    `the victors take half the purse and leave a floor (400 → took ${beaten.rep.goldLost}, left ${beaten.rep.goldLeft})`);
+  check(beaten.rep.days >= 3 && beaten.rep.days <= 5 && beaten.dayNow === beaten.before.day + beaten.rep.days,
+    `you wake ${beaten.rep.days} days later, and the days really passed (day ${beaten.before.day} → ${beaten.dayNow})`);
+  check(!!beaten.rep.wokeAt, `and you wake somewhere friendly (${beaten.rep.wokeAt})`);
+
   check(await marchTo(page, 'ashford'), 'marched to Ashford');
   let r = await raidHere(page);
   check(r && r.enemies === 11, `Ashford: ${r && r.enemies} defenders`);
@@ -883,6 +970,7 @@ async function desktopRun(browser) {
   check(await waitScene(page, 'Result'), 'victory result');
   const choices = await page.evaluate(() => window.__warlord.scene.getScene('Result').children.list.filter(c => c.type === 'Container').map(c => c.list.find(t => t.type === 'Text')?.text));
   check(choices.includes('SACK') && choices.includes('OCCUPY') && choices.includes('LEAVE'), `conquest choice offered (${choices.join('/')})`);
+  check(!choices.includes('TRY AGAIN') && !choices.includes('FIGHT AGAIN'), 'no battle offers a retry any more');
   await page.screenshot({ path: `${OUT}/d-choice.png` });
   // the phone tab dies right here: the victory must survive a reload
   await page.reload();

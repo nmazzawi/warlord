@@ -1,7 +1,9 @@
 // MapHudScene.ts — screen-space overlay for the world map: the ledger (gold, wages, tribute), date,
-// the infamy meter and bounty, pop-up panels for places, and toasts for things that happened on the road.
+// the infamy meter and bounty, the jobs you are carrying, pop-up panels for places, and toasts for
+// things that happened on the road.
 import Phaser from 'phaser';
-import { GameState } from '../state/GameState';
+import { GameState, type Quest } from '../state/GameState';
+import { QuestBox } from '../systems/QuestBox';
 import { INFAMY, PAY } from '../config/balance';
 import { CSS, displayStyle, dprOf, drawPanel, FONT, makeButton, PAL, safeInsets, uiStyle, uiUnit } from './ui';
 
@@ -16,6 +18,11 @@ export class MapHudScene extends Phaser.Scene {
   private dateText!: Phaser.GameObjects.Text;
   private goldText!: Phaser.GameObjects.Text;
   private ledgerText!: Phaser.GameObjects.Text;
+  private questBox: QuestBox | null = null;
+  /** Show me where this work is. */
+  onQuestFind?: (q: Quest) => void;
+  /** Plot the march to it, for confirming. */
+  onQuestRoute?: (q: Quest) => void;
   private infamyLabel!: Phaser.GameObjects.Text;
   private infamyBg!: Phaser.GameObjects.Rectangle;
   private infamyFg!: Phaser.GameObjects.Rectangle;
@@ -42,6 +49,8 @@ export class MapHudScene extends Phaser.Scene {
 
   create() {
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      // the quest box is a panel too, as far as the map's double-tap logic is concerned
+      if (this.questBox?.contains(p.x, p.y)) { this.lastPanelPressAt = this.time.now; this.lastPanelPress.set(p.x, p.y); return; }
       if (!this.panelContains(p.x, p.y)) return;
       this.lastPanelPressAt = this.time.now;
       this.lastPanelPress.set(p.x, p.y);
@@ -71,10 +80,20 @@ export class MapHudScene extends Phaser.Scene {
       this.tweens.add({ targets: this.hintText, alpha: 0, delay: 6000, duration: 700, onComplete: () => { this.hintText?.destroy(); this.hintText = null; } });
       GameState.seenMapHint = true;
     }
+    this.questBox = new QuestBox(this, {
+      onFind: q => this.onQuestFind?.(q),
+      onRoute: q => this.onQuestRoute?.(q),
+    });
+    this.questBox.onResize = () => this.layout();
     this.layout();
     this.scale.on('resize', this.layout, this);
-    this.events.once('shutdown', () => this.scale.off('resize', this.layout, this));
+    this.events.once('shutdown', () => { this.scale.off('resize', this.layout, this); this.questBox?.destroy(); this.questBox = null; });
   }
+
+  /** Redraw the jobs list — after taking work, finishing it, or a day passing. */
+  refreshQuests() { this.questBox?.refresh(); }
+  /** Is this tap the quest box's rather than the map's? */
+  questBoxContains(x: number, y: number) { return !!this.questBox?.contains(x, y); }
 
   private layout() {
     const { width: w, height: h } = this.scale;
@@ -91,6 +110,8 @@ export class MapHudScene extends Phaser.Scene {
     this.dateText.setPosition(left, top + 6 * u).setFontSize(Math.round(12 * u));
     this.goldText.setPosition(left, top + 22 * u).setFontSize(Math.round(16 * u));
     this.ledgerText.setPosition(left, top + 44 * u).setFontSize(Math.round(10 * u)).setWordWrapWidth(portrait ? w - left - m - ins.right : Math.min(w * 0.46, 420 * u), true);
+    // the jobs list hangs under the ledger, narrow enough that a phone keeps its map
+    this.questBox?.place(left, this.barBottom + 6 * u, u, portrait ? Math.min(w - left - m - ins.right, 260 * u) : 250 * u);
     const btnW = 96 * u;
     this.titleBtn.setPosition(w - m - ins.right - btnW / 2, top + 20 * u).setScale(u);
     this.titleBtn.setData('baseScale', u);
@@ -107,7 +128,8 @@ export class MapHudScene extends Phaser.Scene {
     this.infamyBg.setPosition(ix, iy + 22 * u).setSize(Math.min(150 * u, colW), 10 * u);
     this.infamyFg.setPosition(ix, iy + 22 * u).setSize(Math.min(150 * u, colW), 10 * u);
     this.bountyText.setPosition(ix + Math.min(150 * u, colW) + 8 * u, iy + 22 * u).setOrigin(0, 0.5).setFontSize(Math.round(10 * u));
-    this.hintText?.setPosition(w / 2, this.barBottom + 8 * u).setFontSize(Math.round(14 * u)).setWordWrapWidth(w - 4 * m);
+    // the first-run hint sits under whatever the jobs list is taking up, not across it
+    this.hintText?.setPosition(w / 2, this.barBottom + 8 * u + (this.questBox?.height ?? 0)).setFontSize(Math.round(14 * u)).setWordWrapWidth(w - 4 * m);
     if (this.spec) this.showPanel(this.spec);
     this.refresh();
   }
