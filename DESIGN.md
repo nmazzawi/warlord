@@ -424,3 +424,12 @@ This absorbs the old Milestone 7 (culture starts). Governance and coalition mile
 - **Every fortified layout has a way in.** At least one gate, always. The warband spawns TOGETHER, outside the walls, facing that gate — never split, never sealed inside.
 - **Validate before the fight starts.** A walkable path must exist from the spawn to every defender and every building. A layout that fails is regenerated, not shipped: an enclosed or split map never reaches the player.
 - **A fully walled village is a siege, not a wall.** The gate has hit points and must be broken, or a breach already stands open. A sealed ring is a bug, not a difficulty.
+
+## Milestone 5.6 — jobs, consequences, and maps you can walk (built 2026-08-31)
+
+**Working assumptions made by the build — overrule by feel:**
+- **The jobs list is a drawer, not a panel.** Closed it is one line under the ledger — `Quests · 2` — and on a phone that is all it costs you. Opened, each job is a row you can press: once to be flown to it with a ring pulsing on the marker, again to be offered the march with its day cost. Nothing walks without the same confirmation the map itself asks for.
+- **A quest destination is drawn like a landmark.** It keeps a gold pin and is laid out before every other settlement, so it claims its name first and is never the one that steps aside. Both your own villages and foreign cities are held out of the fade the same way.
+- **Losing is settled before the screen is drawn.** The defeat screen has one button on it, and it says GET UP. Half the purse goes above a floor of 25 gold, the dead are named, and the days you were down are days the world spent — wages were still owed, tribute still came in.
+- **A wall with no way through is a bug, so the map fixes itself.** Every layout is walked before the fight: spawn to every defender, spawn to every building. A ring that cannot be crossed has a gate cut into the side the warband is standing at — and if the approach to that wall is blocked, the next side, and the next. A defender nobody can reach is moved to ground they can.
+- **A closed village is a siege.** The cut gate has hit points and must be broken, the same rule Kingsport plays by, because "you cannot get in" should be a fight and not a dead end.
