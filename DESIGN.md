@@ -463,3 +463,8 @@ This absorbs the old Milestone 7 (culture starts). Governance and coalition mile
 - **The fare is the crossing, and a hull of your own is 1600 gold** — about three long voyages, after which every crossing anywhere is free for good.
 - **The map sells the passage; the quay sells the ship.** Sixty-two destinations will not fit in a shop panel that does not scroll, and the chart is already a destination picker. Tap where you want to go: if there is no road and there is water, the panel quotes the days and the fare and the button says SAIL.
 - **Opening the sea made four thrones honest.** Japan, the Aztecs, the Inca and the Norse had no entry in the strength table, which quietly left them the softest crowns on the board — the only ones nobody could reach. A fifty-day crossing had better land you somewhere worth the fare.
+
+## THE CHART READS AT A GLANCE (designer, 2026-09-01)
+
+- **A settlement is a landmark before it is a name.** The marks over towns and cities are drawn large enough to pick out without reading anything. The names were already right; only the marks grew.
+- **What is yours is written in green.** The moment you hold a village, a town or a city, its name and its rating turn green on the chart — and so does every place in a realm whose crown you wear. One look tells you how far you have got.

@@ -968,6 +968,32 @@ async function desktopRun(browser) {
   check(crowding.inv === 0,
     `standing over a place, you can always see it (${crowding.inv ? crowding.invisible.join(', ') : `all ${crowding.markers} drawn`}, ${crowding.unnamed} without room for a name)`);
 
+  // --- what you hold is written in green, and a settlement is a landmark before it is a name
+  const ownership = await page.evaluate(() => {
+    const m = window.__warlord.scene.getScene('Map');
+    const g = window.__GameState;
+    const keep = JSON.parse(JSON.stringify(g.toJSON()));
+    const take = ['Baghdad', 'Al-Kufah'].map(n => window.__NODES.find(x => x.name === n)).filter(Boolean);
+    for (const n of take) g.settlements[n.id] = { timesRaided: 1, lastRaidDay: 1, occupied: true, sacked: false, wealth: 1 };
+    m.refresh();
+    const colourOf = (name) => m.markers.find(k => k.place.name === name)?.label.style.color;
+    const held = take.map(n => ({ name: n.name, colour: colourOf(n.name) }));
+    const free = ['Dimashq', 'Alexandria'].map(n => ({ name: n, colour: colourOf(n) }));
+    // and the marks: a capital must read bigger than a city, a city bigger than a village
+    m.setZoom(2); m.cameras.main.preRender();
+    const px = (name) => { const k = m.markers.find(x => x.place.name === name); return k ? Math.round(k.icon.height * k.icon.scaleY * m.cameras.main.zoom) : 0; };
+    const sizes = { capital: px('Baghdad'), city: px('Dimashq'), village: px('Bir Sada') };
+    g.fromJSON(keep);
+    m.refresh();
+    const after = colourOf('Baghdad');
+    return { held, free, sizes, after };
+  });
+  check(ownership.held.every(h => h.colour === '#2f6b2a') && ownership.free.every(f => f.colour !== '#2f6b2a'),
+    `what you hold is named in green (${ownership.held.map(h => `${h.name} ${h.colour}`).join(', ')}; theirs stays ${ownership.free[0].colour})`);
+  check(ownership.after !== '#2f6b2a', 'and it goes back to their colour when it is no longer yours');
+  check(ownership.sizes.capital >= 24 && ownership.sizes.capital > ownership.sizes.city && ownership.sizes.city > ownership.sizes.village,
+    `a settlement is a landmark you can pick out without reading it (capital ${ownership.sizes.capital}px, city ${ownership.sizes.city}px, village ${ownership.sizes.village}px)`);
+
   // --- the sea is ONE sea, and a boat is always there
   const water = await page.evaluate(async () => {
     const S = await import('/src/world/Sea.ts');
@@ -1066,6 +1092,32 @@ async function desktopRun(browser) {
   });
   check(ports.wet.length > 0 && ports.stuck.length === 0,
     `a warband can march back out of every place drawn on the water (${ports.wet.length} of them: ${ports.stuck.join(', ') || 'all fine'})`);
+
+  // --- a run in progress when the atlas moved still stands where it says it stands
+  const drift = await page.evaluate(() => {
+    const S = window.__GameState;
+    const keep = JSON.parse(JSON.stringify(S.toJSON()));
+    const out = [];
+    for (const [name, by] of [['Baghdad', 95], ['Ashford', 60], ['Tenochtitlan', 110]]) {
+      const n = window.__NODES.find(x => x.name === name);
+      if (!n) continue;
+      const save = JSON.parse(JSON.stringify(keep));
+      save.location = n.id;
+      save.pos = { x: n.x - by, y: n.y + by * 0.4 };     // where that place used to be drawn
+      save.settlements = { ...(save.settlements ?? {}), [n.id]: { timesRaided: 1, lastRaidDay: 1, occupied: true, sacked: false, wealth: 1 } };
+      S.fromJSON(save);
+      out.push({ name, off: Math.round(Math.hypot(S.pos.x - n.x, S.pos.y - n.y)), kept: !!S.settlements[n.id]?.occupied });
+    }
+    // and one saved on the open road, which named no place and must not be dragged into one
+    const open = JSON.parse(JSON.stringify(keep));
+    open.location = ''; open.pos = { x: 3400, y: 1100 };
+    S.fromJSON(open);
+    const road = Math.round(Math.hypot(S.pos.x - 3400, S.pos.y - 1100));
+    S.fromJSON(keep);
+    return { out, road };
+  });
+  check(drift.out.every(d => d.off <= 8 && d.kept) && drift.road === 0,
+    `a run saved before the atlas moved still stands in the place it names (${drift.out.map(d => `${d.name} ${d.off}u off`).join(', ')}; on the road, moved ${drift.road}u)`);
 
   // --- a save from an older map that left the warband on a rock is carried ashore
   const stranded = await page.evaluate(async () => {

@@ -64,6 +64,9 @@ const LABEL_BASE = 22;
 interface Fadeable { alpha: number; visible: boolean; setAlpha(v: number): unknown; setVisible(v: boolean): unknown; }
 
 const MAX_ZOOM = 5;
+/** What is yours is written in green — dark enough to read on parchment, with a paler halo behind it. */
+const OURS = { ink: '#2f6b2a', halo: '#dff0cf' };
+
 /** Past this the chart is ground underfoot, not an index, and its settlements scale with it. */
 const GROUND_ZOOM = 1.5;
 /** How much of the world's growth a marker takes for itself past that. The rest becomes elbow room. */
@@ -600,10 +603,14 @@ export class MapScene extends Phaser.Scene {
       const want = MapScene.titleLines(GameState.rules(REGIONS[i].id) ? `\u265B ${REGIONS[i].name}` : REGIONS[i].name);
       if (this.empireLabels[i] && this.empireLabels[i].text !== want) this.empireLabels[i].setText(want);
     }
-    // how well each place is held, as it stands today — a city you took reads one star, a ruin none
+    // how well each place is held, as it stands today — a city you took reads one star, a ruin none.
+    // And what is YOURS is written in green, so the chart tells you at a glance how far you have got.
     for (const m of this.markers) {
       const n = FOREIGN_PLACES.find(f => f.territory === m.empire.id && f.name === m.place.name);
       m.stars.setText(n ? GameState.stars(n.id) : '');
+      const held = !!n && (GameState.controls(n.id) || GameState.rules(n.territory));
+      m.label.setColor(held ? OURS.ink : '#3d2f1c').setStroke(held ? OURS.halo : '#f2e6c8', m.label.style.strokeThickness);
+      m.stars.setColor(held ? OURS.ink : '#7a3b2a');
     }
     for (const n of NODES) {
       const st = this.status.get(n.id);
@@ -637,6 +644,9 @@ export class MapScene extends Phaser.Scene {
       // your own places carry the same rating as everybody else's, so the whole chart reads one way
       const rating = GameState.stars(n.id);
       st.setText(rating ? `${rating}  ${parts.join(' · ')}` : parts.join(' · ')).setColor(color);
+      // your own settlements are named in green on the chart too, the same as everybody's abroad
+      const mine = GameState.controls(n.id);
+      this.names.get(n.id)?.setColor(mine ? OURS.ink : CSS.ink);
       this.flags.get(n.id)?.setVisible(s.occupied);
       if (s.occupied || s.sacked) this.badges.get(n.id)?.setVisible(false);
     }

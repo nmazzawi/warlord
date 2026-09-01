@@ -547,6 +547,26 @@ class GameStateStore {
   takeQuest(q: Omit<Quest, 'id'>) { this.quests.push({ ...q, id: this.nextId++ }); }
 
   /**
+   * A save says two things about where you are: the id of the place you are standing in, and the raw
+   * coordinates you are standing on. Those agreed when the save was written — and then the atlas was
+   * eased apart, and the town moved out from under the man standing in it. He is now a day's march
+   * outside a place he believes he is inside: no gate to enter, no parcel to hand over, no panel that
+   * knows him. The id is the thing he meant, so the coordinates give way to it.
+   *
+   * Only ever while you are standing SOMEWHERE. A warband saved on the open road named no place, and
+   * nothing drags it to one.
+   */
+  private standWhereYouSaid() {
+    if (this.voyage) return;                       // at sea you are nowhere by design
+    if (!this.location) return;
+    let n: MapNode | null = null;
+    try { n = nodeById(this.location); } catch { return; }
+    const off = Math.hypot(n.x - this.pos.x, n.y - this.pos.y);
+    if (off <= 8 || off > 400) return;             // already there, or far enough that it is not drift
+    this.pos = { x: n.x, y: n.y };
+  }
+
+  /**
    * A warband standing where no road can leave is not a decision anybody made — it is a save written
    * by an older map. Rome's camp used to land on a six-cell islet off Italy, and a run continued from
    * one of those saves can march nowhere at all: every tap answers "there is water in the way",
@@ -917,6 +937,7 @@ class GameStateStore {
     this.formation = d.formation ?? 'line';
     this.loot = (d.loot ?? []).map(l => ({ ...l }));
     this.voyage = d.voyage ? { ...d.voyage } : null;
+    this.standWhereYouSaid();
     this.quests = (d.quests ?? []).map(q => ({ ...q }));
     // order matters: get the warband onto ground it can march from BEFORE the jobs are re-pointed,
     // because a job is repaired relative to where you are standing
