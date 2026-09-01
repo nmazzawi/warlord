@@ -4,7 +4,7 @@
 import { CONQUEST, DEFEAT, FOREIGN, FOREIGN_GARRISON, FOREIGN_MAX_DEFENDERS, FRONTIER_THIN, GARRISON_MIX, HUNT, PAY, REALM_POWER, WARBAND_GEAR, DEFENSE_SOFTCAP, EQUIPMENT, HERO, HORSES, INFAMY, PATROLS, RERAID, SIEGE, STEPPE, TRIBUTE, TROOP, UPKEEP, VILLAGE_TIERS } from '../config/balance';
 import { nameAt } from '../utils/names';
 import { frontier, NODES, nodeById, territoryOf, type MapNode, type Territory } from '../world/WorldMap';
-import { componentNear, landComponent, nearestOnLandmass, routeToPlace } from '../world/Terrain';
+import { componentNear, nearestOnLandmass, routeToPlace } from '../world/Terrain';
 import { CROWN_TITLE, ELITE_TINT, REALM_SHORT, visitOf } from '../world/Realms';
 import { REGIONS } from '../world/WorldChart';
 import { campPoint, civOf } from '../world/Civs';
@@ -560,7 +560,9 @@ class GameStateStore {
     }
     const peopled = (c: number) => (tally.get(c) ?? 0) >= 3;
     this.rescuedTo = null;
-    if (peopled(landComponent(this.pos.x, this.pos.y))) return null;
+    // the same shore-snap a march gets: standing at Roma means standing at its quay, which is drawn
+    // on the water and is a perfectly good place to be. Only ground with no country on it is a rock.
+    if (peopled(componentNear(this.pos.x, this.pos.y))) return null;
     let best: MapNode | null = null, bestD = Infinity, bestComp = 0;
     for (const n of NODES) {
       const c = componentNear(n.x, n.y);

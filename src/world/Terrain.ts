@@ -253,7 +253,13 @@ export function routeToPlace(from: Pt, to: Pt, mounted = false): Route | null {
  */
 export function route(from: Pt, to: Pt, mounted = false): Route | null {
   const g = terrain();
-  const start = cellOf(from[0], from[1]);
+  // Both ends get the same shore-snap. The goal always had it, because a port is drawn at the water's
+  // edge and a tap near one means "go there". The START needs it for exactly the same reason: Roma,
+  // Ostia, Carthago and eight others sit on a sea cell of this grid, and a warband standing in one of
+  // them was being asked to set out from open water — so every march out of Rome, in any direction,
+  // came back "there is water in the way".
+  const startPt = nearestLand(from[0], from[1]) ?? from;
+  const start = cellOf(startPt[0], startPt[1]);
   const goalPt = nearestLand(to[0], to[1]);
   if (!goalPt) return null;
   const goal = cellOf(goalPt[0], goalPt[1]);

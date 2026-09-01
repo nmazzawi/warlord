@@ -923,6 +923,24 @@ async function desktopRun(browser) {
   check(board.n >= 10 && board.bad.length === 0,
     `every job on a board is a real place, reachable, three to twelve days out (${board.n} checked${board.bad.length ? ': ' + board.bad.join('; ') : ''})`);
 
+  // --- a port is drawn at the water's edge: you must be able to march OUT of one, not only into it
+  const ports = await page.evaluate(async () => {
+    const T = await import('/src/world/Terrain.ts');
+    const named = window.__NODES.filter(n => n.name && n.kind !== 'cross' && n.kind !== 'waypoint');
+    const wet = named.filter(n => !T.isLand(n.x, n.y));
+    const stuck = [];
+    for (const n of wet) {
+      // stand exactly where a march to this place actually leaves you, then try to leave again
+      const arrive = T.routeToPlace([3590, 1005], [n.x, n.y]);
+      const at = arrive ? arrive.points[arrive.points.length - 1] : [n.x, n.y];
+      const out = named.filter(m => m.id !== n.id && T.route(at, [m.x, m.y])).length;
+      if (out < 5) stuck.push(`${n.name} (${out} ways out)`);
+    }
+    return { wet: wet.map(n => n.name), stuck };
+  });
+  check(ports.wet.length > 0 && ports.stuck.length === 0,
+    `a warband can march back out of every place drawn on the water (${ports.wet.length} of them: ${ports.stuck.join(', ') || 'all fine'})`);
+
   // --- a save from an older map that left the warband on a rock is carried ashore
   const stranded = await page.evaluate(async () => {
     const T = await import('/src/world/Terrain.ts');
@@ -940,11 +958,16 @@ async function desktopRun(browser) {
       S.fromJSON(save);
       out.push({ name, wokeAt: S.rescuedTo, canMarch: reach() });
     }
-    // and a warband standing somewhere perfectly good is left exactly where it is
+    // and a warband standing somewhere perfectly good is left exactly where it is — including on the
+    // quay at Roma, which is drawn on the water and is not a rock
     const good = JSON.parse(JSON.stringify(keep));
     good.pos = { x: 2781, y: 1016 };
     S.fromJSON(good);
     out.push({ name: 'good ground', wokeAt: S.rescuedTo, canMarch: reach(), moved: S.pos.x !== 2781 || S.pos.y !== 1016 });
+    const roma = JSON.parse(JSON.stringify(keep));
+    roma.pos = { x: 2748.7, y: 1206.1 };
+    S.fromJSON(roma);
+    out.push({ name: 'good ground', wokeAt: S.rescuedTo, canMarch: reach(), moved: Math.round(S.pos.x) !== 2749 });
     S.fromJSON(keep);
     return out;
   });
