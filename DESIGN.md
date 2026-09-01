@@ -433,3 +433,13 @@ This absorbs the old Milestone 7 (culture starts). Governance and coalition mile
 - **Losing is settled before the screen is drawn.** The defeat screen has one button on it, and it says GET UP. Half the purse goes above a floor of 25 gold, the dead are named, and the days you were down are days the world spent — wages were still owed, tribute still came in.
 - **A wall with no way through is a bug, so the map fixes itself.** Every layout is walked before the fight: spawn to every defender, spawn to every building. A ring that cannot be crossed has a gate cut into the side the warband is standing at — and if the approach to that wall is blocked, the next side, and the next. A defender nobody can reach is moved to ground they can.
 - **A closed village is a siege.** The cut gate has hit points and must be broken, the same rule Kingsport plays by, because "you cannot get in" should be a fight and not a dead end.
+
+## SHIPS (designer, 2026-09-01)
+
+*This retires "no ship will carry you — yet." The dashed lanes on the chart become real.*
+
+- **Every coastal settlement has a harbour, and a harbour sells passage.** Stand in one and you can buy a crossing to any other harbour in the world. The price is the crossing — a long haul across an ocean costs what a long haul costs — and it takes days, the same as marching does.
+- **Or buy a boat.** A ship is a large one-off purchase, bought at a harbour the way a horse is bought at the stables. Own one and passage costs nothing ever again: you sail from any harbour to any harbour, as often as you like. Passage is what you do before you can afford a ship; a ship is what you buy so you never think about it again.
+- **The sea opens the world.** Japan, the Aztecs, the Inca and Iceland stop being scenery. Every start is a whole-world campaign now — the confined starts are confined only until they can pay for a crossing, and their cards should say that rather than "the sea is your wall".
+- **The sea is not a road.** Nobody hunts you on the water: no patrols, no infamy for crossing, no realm entered until you land. Wages are still paid and the days still pass, so a crossing is paid for twice — in silver and in time.
+- **Distance stays honest.** A crossing to the far side of the world is a long voyage, and arriving there with a warband that suits the Borderland is the player's business. The world does not scale itself down to meet you.
