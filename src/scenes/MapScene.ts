@@ -61,6 +61,8 @@ const LABEL_BASE = 22;
 interface Fadeable { alpha: number; visible: boolean; setAlpha(v: number): unknown; setVisible(v: boolean): unknown; }
 
 const MAX_ZOOM = 5;
+/** Past this the chart is ground underfoot, not an index, and its settlements scale with it. */
+const GROUND_ZOOM = 1.5;
 /** How far in the chart is drawn: the whole Earth, then capitals, then every road and hut. */
 const BAND = { major: [0.55, 0.85], minor: [1.3, 1.8], empire: [1.15, 1.95] };
 
@@ -388,7 +390,16 @@ export class MapScene extends Phaser.Scene {
   private layoutMarkers() {
     const zoom = this.cameras.main.zoom;
     const dpr = this.scale.displayScale.x || 1;
-    const u = dpr / zoom;                                   // one CSS pixel, in world units
+    // A marker holds a constant size on screen while you are looking at the world, which is what
+    // keeps a world view legible instead of a wall of overlapping crowns. Past the close band the
+    // map stops being an index and becomes ground you are standing on, so from there the markers
+    // grow with it — your own camp and its plate are drawn in world units and do exactly that, and
+    // a Roman village has no business being a speck beside them.
+    const u = dpr / Math.min(zoom, GROUND_ZOOM);             // one CSS pixel, in world units
+    // Your own settlements are laid out by applyLOD, not by this, and they take up what IT gives them:
+    // a plate and a name held at a constant size on screen until the clamp catches. Claim that, or a
+    // close view has every atlas name stepping aside for a box far bigger than the plate it stands for.
+    const hu = Phaser.Math.Clamp(dpr / zoom, 0.35, 2.6);
     const order = [...this.markers].sort((a, b) => a.rank - b.rank || a.place.x - b.place.x);
     const taken: Array<[number, number, number, number]> = [];       // everything that is written
     const solid: Array<[number, number, number, number]> = [];       // and the things that are drawn
@@ -404,9 +415,12 @@ export class MapScene extends Phaser.Scene {
     if (MapScene.fade(zoom, BAND.minor) > 0.3) {
       for (const n of NODES) {
         if (n.kind === 'cross' || n.kind === 'foreign') continue;
-        taken.push([n.x, n.y, 40 * u, 40 * u]);
-        solid.push([n.x, n.y, 40 * u, 40 * u]);
-        taken.push([n.x, n.y + 20 * u, 124 * u, 38 * u]);
+        taken.push([n.x, n.y, 24, 24]);                     // the marker itself is drawn in world units
+        solid.push([n.x, n.y, 24, 24]);
+        // the plate is opaque and drawn over the atlas, so a marker that would end up behind it is
+        // not a marker at all — it steps aside like anything else that cannot fit
+        taken.push([n.x, n.y + 10 + 17 * hu, 124 * hu, 38 * hu]);
+        solid.push([n.x, n.y + 10 + 17 * hu, 124 * hu, 38 * hu]);
       }
     }
     for (const m of order) {
@@ -427,14 +441,24 @@ export class MapScene extends Phaser.Scene {
       const both: [number, number, number, number] =
         [m.place.x, m.place.y + (gap + lh + sh - ih) / 2, Math.max(iw, lw, m.stars.width * sscale), ih + gap + lh + sh];
       const alone: [number, number, number, number] = [m.place.x, m.place.y - ih / 2, iw, ih];
+      // and if the ground below is spoken for — the camp's own banner is a wide thing at close range —
+      // the name goes above the marker instead. Moving the writing is what a cartographer does before
+      // he gives up on naming a place at all.
+      const drop = gap + lh + sh;
+      // the claim runs from the top of the writing down to the foot of the marker, exactly as below
+      const above: [number, number, number, number] =
+        [both[0], m.place.y - (ih + drop + gap) / 2, both[2], ih + drop + gap];
       if (zoom < spec.from) { m.icon.setVisible(false); m.label.setVisible(false); m.stars.setVisible(false); continue; }
-      const named = !hit(both, taken);
+      let named = !hit(both, taken), up = false;
+      if (!named && !hit(above, taken)) { named = true; up = true; }
+      const box = named ? (up ? above : both) : alone;
       if (!named && hit(alone, solid)) { m.icon.setVisible(false); m.label.setVisible(false); m.stars.setVisible(false); continue; }
-      taken.push(named ? both : alone);
-      solid.push(named ? both : alone);   // what is actually drawn, so nothing later lands on a name
+      taken.push(box);
+      solid.push(box);                    // what is actually drawn, so nothing later lands on a name
+      const ly = up ? m.place.y - ih - drop - gap : m.place.y + gap;
       m.icon.setVisible(true).setScale(scale).setAlpha(m.rank === 0 ? 1 : 0.92);
-      m.label.setVisible(named).setScale(lscale).setPosition(m.place.x, m.place.y + gap);
-      m.stars.setVisible(named && !!m.stars.text).setScale(sscale).setPosition(m.place.x, m.place.y + gap + lh);
+      m.label.setVisible(named).setScale(lscale).setPosition(m.place.x, ly);
+      m.stars.setVisible(named && !!m.stars.text).setScale(sscale).setPosition(m.place.x, ly + lh);
     }
   }
 

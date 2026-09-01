@@ -572,13 +572,19 @@ export function campPoint(id: string): Pt {
     const cands: Pt[] = [];
     const mx = fringe.reduce((n, k) => n + k.x, 0) / fringe.length;
     const my = fringe.reduce((n, k) => n + k.y, 0) / fringe.length;
-    for (const c of [[mx, my] as Pt, ...fringe.map(k => [k.x + 30, k.y + 24] as Pt)]) {
+    const spread: Array<[number, number]> = [[0, 0], [40, 30], [-40, 30], [40, -30], [-40, -30],
+      [56, 0], [-56, 0], [0, 52], [0, -52], [74, 40], [-74, 40], [74, -40], [-74, -40]];
+    for (const [dx, dy] of spread) {
+      const c: Pt = [mx + dx, my + dy];
       if (isLand(c[0], c[1])) { cands.push([Math.round(c[0]), Math.round(c[1])]); continue; }
       const snap = nearestLand(c[0], c[1], 8);
       if (snap) cands.push([Math.round(snap[0]), Math.round(snap[1])]);
     }
     let best: Pt | null = null, bestWorst = Infinity;
     for (const c of cands) {
+      // A camp pitched ON a hamlet buries it: the camp's own name plate is drawn over the chart and is
+      // wider than the gap, so the hamlet is neither readable nor visible. Stand clear of all three.
+      if (fringe.some(k => Math.hypot(k.x - c[0], k.y - c[1]) < 46)) continue;
       let worst = 0, ok = true;
       for (const k of fringe) {
         const r = route(c, [k.x, k.y]);
