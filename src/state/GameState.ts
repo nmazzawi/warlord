@@ -561,9 +561,12 @@ class GameStateStore {
       const c = componentNear(n.x, n.y);
       if (c) tally.set(c, (tally.get(c) ?? 0) + 1);
     }
-    // Ground with ANY named place on it is somewhere you can live — Iceland holds exactly one, and
-    // once a ship can put you there, three would have carried you off it on your next reload.
+    // Two different questions, and they want two different answers. Ground with ANY named place on it
+    // is somewhere you may STAND — Iceland holds exactly one, and once a ship can put you there, a
+    // stricter rule would carry you off it on your next reload. But ground you are CARRIED to when you
+    // were on a rock has to be a country you can leave on foot, or the rescue just maroons you again.
     const peopled = (c: number) => (tally.get(c) ?? 0) >= 1;
+    const acountry = (c: number) => (tally.get(c) ?? 0) >= 3;
     this.rescuedTo = null;
     // and a warband in the middle of the ocean is not stranded, it is travelling
     if (this.voyage) return null;
@@ -573,7 +576,7 @@ class GameStateStore {
     let best: MapNode | null = null, bestD = Infinity, bestComp = 0;
     for (const n of NODES) {
       const c = componentNear(n.x, n.y);
-      if (!n.name || !peopled(c)) continue;
+      if (!n.name || !acountry(c)) continue;
       const d = Math.hypot(n.x - this.pos.x, n.y - this.pos.y);
       if (d < bestD) { bestD = d; best = n; bestComp = c; }
     }
@@ -608,16 +611,13 @@ class GameStateStore {
       if (q.kind !== 'deliver' || !q.to) continue;
       let node: MapNode | null = null;
       try { node = nodeById(q.to); } catch { node = null; }
-      // A job is broken when its destination is GONE from the chart, or stands on ground no country
-      // lives on. It is NOT broken because you got on a ship — a parcel for Ashford is still a parcel
-      // for Ashford while you are in Japan, and re-pointing it there would be theft.
-      if (node && componentNear(node.x, node.y)) {
-        if (q.days == null) {
-          const walk = routeToPlace([this.pos.x, this.pos.y], [node.x, node.y]);
-          if (walk) q.days = Math.max(1, Math.round(walk.days));
-        }
-        continue;
-      }
+      // A courier's job is a march, so a job is broken when nobody could have walked it FROM THE BOARD
+      // THAT OFFERED IT. That is a fact about the job, not about you: a parcel for Ashford is still a
+      // parcel for Ashford while you are standing in Japan, and re-pointing it there would be theft.
+      const board = NODES.find(n => n.name === q.from);
+      const start: [number, number] = board ? [board.x, board.y] : [this.pos.x, this.pos.y];
+      const walk = node ? routeToPlace(start, [node.x, node.y]) : null;
+      if (node && walk) { if (q.days == null) q.days = Math.max(1, Math.round(walk.days)); continue; }
       const land = componentNear(this.pos.x, this.pos.y);
       const alt = NODES
         .filter(n => !!n.name && n.kind !== 'cross' && n.kind !== 'waypoint' && n.kind !== 'camp'

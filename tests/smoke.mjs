@@ -430,7 +430,8 @@ async function desktopRun(browser) {
   await page.mouse.click(at.x, at.y);
   await sleep(400);
   const seaSpec = await page.evaluate(() => { const h = window.__warlord.scene.getScene('MapHud'); return h.spec ? h.spec.lines.join(' ') : ''; });
-  check(/No ship will carry you/.test(seaSpec), 'a sea road is locked: "no ship will carry you — yet"');
+  check(/ship/i.test(seaSpec) && !/no ship will carry you/i.test(seaSpec),
+    `open water is a road for a ship now, not a wall ("${seaSpec.slice(0, 70)}")`);
   await hidePanel(page);
   // mid zoom: capitals and cities appear, towns and villages stay hidden
   const mid = await page.evaluate(() => {
@@ -1081,7 +1082,7 @@ async function desktopRun(browser) {
       const save = JSON.parse(JSON.stringify(keep));
       save.pos = { ...pos };
       S.fromJSON(save);
-      out.push({ name, wokeAt: S.rescuedTo, canMarch: reach() });
+      out.push({ name, rock: true, wokeAt: S.rescuedTo, canMarch: reach() });
     }
     // and a warband standing somewhere perfectly good is left exactly where it is — including on the
     // quay at Roma, which is drawn on the water and is not a rock
@@ -1093,14 +1094,22 @@ async function desktopRun(browser) {
     roma.pos = { x: 2748.7, y: 1206.1 };
     S.fromJSON(roma);
     out.push({ name: 'good ground', wokeAt: S.rescuedTo, canMarch: reach(), moved: Math.round(S.pos.x) !== 2749 });
+    // Iceland holds exactly one named place, and a ship can now put you on it: standing there is a
+    // decision, not a shipwreck, and reloading must not carry you off it
+    const ice = window.__NODES.find(n => n.name === 'Reykjavik');
+    const island = JSON.parse(JSON.stringify(keep));
+    island.pos = { x: ice.x, y: ice.y };
+    S.fromJSON(island);
+    out.push({ name: 'Iceland', wokeAt: S.rescuedTo, canMarch: true, moved: Math.round(S.pos.x) !== Math.round(ice.x) });
     S.fromJSON(keep);
     return out;
   });
-  const marooned = stranded.filter(r => r.name !== 'good ground' && (!r.wokeAt || !r.canMarch)).map(r => r.name);
-  const meddled = stranded.filter(r => r.name === 'good ground' && (r.wokeAt || r.moved || !r.canMarch));
+  const marooned = stranded.filter(r => r.rock && (!r.wokeAt || !r.canMarch)).map(r => r.name);
+  const meddled = stranded.filter(r => (r.name === 'good ground' || r.name === 'Iceland') && (r.wokeAt || r.moved));
   check(marooned.length === 0,
     `a save left on a rock by an older map is carried ashore (${stranded.filter(r => r.wokeAt).map(r => `${r.name} → ${r.wokeAt}`).join(', ') || 'none rescued'})`);
-  check(meddled.length === 0, 'and a warband on good ground is left exactly where it stands');
+  check(meddled.length === 0,
+    `a warband on good ground is left exactly where it stands, Iceland included (${meddled.map(m => `${m.name} moved to ${m.wokeAt}`).join(', ') || 'none moved'})`);
 
   // --- an old save pointing at somewhere unreachable is re-pointed, not left broken
   const migrated = await page.evaluate(() => {
