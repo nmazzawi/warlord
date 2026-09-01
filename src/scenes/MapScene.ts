@@ -194,6 +194,16 @@ export class MapScene extends Phaser.Scene {
     this.hud.onQuestFind = q => this.showQuest(q);
     this.hud.onQuestRoute = q => this.routeToQuest(q);
     this.markQuestPins();
+    // a save written by an older map may have left the warband on a rock: say so, once, plainly
+    if (GameState.rescuedTo) {
+      const where = GameState.rescuedTo;
+      GameState.rescuedTo = null;
+      GameState.save();
+      this.time.delayedCall(400, () => this.hud.toast([
+        `The old chart had you on a rock with no road off it.`,
+        `Your warband is at ${where}. Nothing else is lost.`,
+      ], '#f5c542'));
+    }
     this.fitViewport();
 
     // a battle won just before a reload: offer the sack/occupy choice again
@@ -835,6 +845,16 @@ export class MapScene extends Phaser.Scene {
               this.hud.toast(paid.map(q => `Delivered ${q.text}: +${q.reward} gold.`), '#c8f0c8');
               this.hud.refreshQuests();
               this.markQuestPins();
+    // a save written by an older map may have left the warband on a rock: say so, once, plainly
+    if (GameState.rescuedTo) {
+      const where = GameState.rescuedTo;
+      GameState.rescuedTo = null;
+      GameState.save();
+      this.time.delayedCall(400, () => this.hud.toast([
+        `The old chart had you on a rock with no road off it.`,
+        `Your warband is at ${where}. Nothing else is lost.`,
+      ], '#f5c542'));
+    }
             }
           }
           this.passDays(1);

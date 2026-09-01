@@ -923,6 +923,37 @@ async function desktopRun(browser) {
   check(board.n >= 10 && board.bad.length === 0,
     `every job on a board is a real place, reachable, three to twelve days out (${board.n} checked${board.bad.length ? ': ' + board.bad.join('; ') : ''})`);
 
+  // --- a save from an older map that left the warband on a rock is carried ashore
+  const stranded = await page.evaluate(async () => {
+    const T = await import('/src/world/Terrain.ts');
+    const S = window.__GameState;
+    const keep = JSON.parse(JSON.stringify(S.toJSON()));
+    const reach = () => ['ashford', 'f_rome_roma', 'f_rome_massilia']
+      .map(id => window.__NODES.find(x => x.id === id))
+      .filter(Boolean)
+      .every(n => !!T.routeToPlace([S.pos.x, S.pos.y], [n.x, n.y]));
+    const out = [];
+    // the exact islet a Rome save written before the camp fix was left standing on, and open water
+    for (const [name, pos] of [['the old Rome islet', { x: 2679, y: 1251 }], ['open sea', { x: 1800, y: 800 }]]) {
+      const save = JSON.parse(JSON.stringify(keep));
+      save.pos = { ...pos };
+      S.fromJSON(save);
+      out.push({ name, wokeAt: S.rescuedTo, canMarch: reach() });
+    }
+    // and a warband standing somewhere perfectly good is left exactly where it is
+    const good = JSON.parse(JSON.stringify(keep));
+    good.pos = { x: 2781, y: 1016 };
+    S.fromJSON(good);
+    out.push({ name: 'good ground', wokeAt: S.rescuedTo, canMarch: reach(), moved: S.pos.x !== 2781 || S.pos.y !== 1016 });
+    S.fromJSON(keep);
+    return out;
+  });
+  const marooned = stranded.filter(r => r.name !== 'good ground' && (!r.wokeAt || !r.canMarch)).map(r => r.name);
+  const meddled = stranded.filter(r => r.name === 'good ground' && (r.wokeAt || r.moved || !r.canMarch));
+  check(marooned.length === 0,
+    `a save left on a rock by an older map is carried ashore (${stranded.filter(r => r.wokeAt).map(r => `${r.name} → ${r.wokeAt}`).join(', ') || 'none rescued'})`);
+  check(meddled.length === 0, 'and a warband on good ground is left exactly where it stands');
+
   // --- an old save pointing at somewhere unreachable is re-pointed, not left broken
   const migrated = await page.evaluate(() => {
     const S = window.__GameState;

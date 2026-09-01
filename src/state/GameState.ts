@@ -4,7 +4,7 @@
 import { CONQUEST, DEFEAT, FOREIGN, FOREIGN_GARRISON, FOREIGN_MAX_DEFENDERS, FRONTIER_THIN, GARRISON_MIX, HUNT, PAY, REALM_POWER, WARBAND_GEAR, DEFENSE_SOFTCAP, EQUIPMENT, HERO, HORSES, INFAMY, PATROLS, RERAID, SIEGE, STEPPE, TRIBUTE, TROOP, UPKEEP, VILLAGE_TIERS } from '../config/balance';
 import { nameAt } from '../utils/names';
 import { frontier, NODES, nodeById, territoryOf, type MapNode, type Territory } from '../world/WorldMap';
-import { componentNear, routeToPlace } from '../world/Terrain';
+import { componentNear, landComponent, nearestOnLandmass, routeToPlace } from '../world/Terrain';
 import { CROWN_TITLE, ELITE_TINT, REALM_SHORT, visitOf } from '../world/Realms';
 import { REGIONS } from '../world/WorldChart';
 import { campPoint, civOf } from '../world/Civs';
@@ -543,6 +543,44 @@ class GameStateStore {
   /** Take a job. Arriving, or killing, is what finishes it. */
   takeQuest(q: Omit<Quest, 'id'>) { this.quests.push({ ...q, id: this.nextId++ }); }
 
+  /**
+   * A warband standing where no road can leave is not a decision anybody made — it is a save written
+   * by an older map. Rome's camp used to land on a six-cell islet off Italy, and a run continued from
+   * one of those saves can march nowhere at all: every tap answers "there is water in the way",
+   * because it is true in every direction. Carry them to the nearest shore that has places on it.
+   */
+  rescueStranded(): string | null {
+    // ground that actually holds a country: three or more named places standing on it. A lone islet
+    // that a capital's dot happens to snap onto does not count as somewhere you can live.
+    const tally = new Map<number, number>();
+    for (const n of NODES) {
+      if (!n.name) continue;
+      const c = componentNear(n.x, n.y);
+      if (c) tally.set(c, (tally.get(c) ?? 0) + 1);
+    }
+    const peopled = (c: number) => (tally.get(c) ?? 0) >= 3;
+    this.rescuedTo = null;
+    if (peopled(landComponent(this.pos.x, this.pos.y))) return null;
+    let best: MapNode | null = null, bestD = Infinity, bestComp = 0;
+    for (const n of NODES) {
+      const c = componentNear(n.x, n.y);
+      if (!n.name || !peopled(c)) continue;
+      const d = Math.hypot(n.x - this.pos.x, n.y - this.pos.y);
+      if (d < bestD) { bestD = d; best = n; bestComp = c; }
+    }
+    if (!best) return null;
+    // and put them on GROUND, not on the dot: the atlas draws Ostia and Roma a hair out to sea, and a
+    // warband standing on a sea cell can no more leave it than it could leave the islet
+    const stand = nearestOnLandmass(best.x, best.y, bestComp) ?? [best.x, best.y];
+    this.pos = { x: Math.round(stand[0]), y: Math.round(stand[1]) };
+    this.location = best.id;
+    this.rescuedTo = best.name;
+    return best.name;
+  }
+
+  /** Set when a stranded save was carried ashore on load, so the map can say so once. */
+  rescuedTo: string | null = null;
+
   /** The settlements an active job points at — these stay on the chart at every zoom. */
   questTargets(): string[] {
     return this.quests.filter(q => q.kind === 'deliver' && q.to).map(q => q.to as string);
@@ -855,6 +893,9 @@ class GameStateStore {
     this.formation = d.formation ?? 'line';
     this.loot = (d.loot ?? []).map(l => ({ ...l }));
     this.quests = (d.quests ?? []).map(q => ({ ...q }));
+    // order matters: get the warband onto ground it can march from BEFORE the jobs are re-pointed,
+    // because a job is repaired relative to where you are standing
+    this.rescueStranded();
     this.repairQuests();
     this.huntQuiet = { ...(d.huntQuiet ?? {}) };
     this.ruled = [...(d.ruled ?? [])];
