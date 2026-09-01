@@ -22,7 +22,9 @@ export type WeaponKind = 'sword' | 'bow' | 'halberd' | 'composite';
 export type ArmorKind = 'none' | 'leather' | 'plate';
 export type ShieldKind = 'none' | 'round' | 'kite';
 export type HorseKind = 'none' | 'courser' | 'destrier';
-export interface Owned { leather: boolean; plate: boolean; round: boolean; kite: boolean; bow: boolean; halberd: boolean; courser: boolean; destrier: boolean; composite: boolean; }
+export interface Owned { leather: boolean; plate: boolean; round: boolean; kite: boolean; bow: boolean; halberd: boolean; courser: boolean; destrier: boolean; composite: boolean;
+  /** A hull of your own: passage stops costing anything, anywhere, for good. */
+  ship: boolean; }
 export interface SettlementState { timesRaided: number; lastRaidDay: number | null; occupied: boolean; sacked: boolean; wealth: number; }
 export type Conquest = 'sack' | 'occupy' | 'leave';
 
@@ -70,7 +72,7 @@ interface SaveData {
   fortifyStepsDone: number; fortifyCarry: number; unpaidDays: number; seenMapHint: boolean;
   rumorsHeard: string[]; pendingVictory: PendingVictory | null;
   steppeInfamy: number; campScattered: Record<string, number>; huntedUntil: number; civ?: string;
-  loot?: LootItem[]; quests?: Quest[]; huntQuiet?: Record<string, number>; ruled?: string[];
+  loot?: LootItem[]; quests?: Quest[]; voyage?: { toId: string; daysLeft: number } | null; huntQuiet?: Record<string, number>; ruled?: string[];
   gearTier?: number; payRate?: 'half' | 'full' | 'double';
   realmInfamy?: Record<string, number>;
 }
@@ -84,7 +86,7 @@ class GameStateStore {
   horse: HorseKind = 'none';
   armor: ArmorKind = 'none';
   shield: ShieldKind = 'none';
-  owned: Owned = { leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false, composite: false };
+  owned: Owned = { leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false, composite: false, ship: false };
   troops: TroopRecord[] = [];
   fallen: FallenRecord[] = [];
   deserted: string[] = [];
@@ -139,7 +141,8 @@ class GameStateStore {
   reset() {
     this.gold = UPKEEP.startingGold; this.day = 1; this.infamy = 0; this.weaponTier = 1; this.equippedWeapon = 'sword'; this.horse = 'none';
     this.armor = 'none'; this.shield = 'none';
-    this.owned = { leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false, composite: false };
+    this.owned = { leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false, composite: false, ship: false };
+    this.voyage = null;
     this.steppeInfamy = 0; this.realmInfamy = {}; this.campScattered = {}; this.loot = []; this.quests = []; this.huntQuiet = {}; this.ruled = []; this.gearTier = 0; this.payRate = 'full'; this.huntedUntil = -1;
     this.troops = []; this.fallen = []; this.deserted = []; this.raidsDone = 0; this.location = 'camp';
     this.patrolPending = false; this.patrolFrom = 'homeland'; this.pos = { x: nodeById('camp').x, y: nodeById('camp').y }; this.hunters = []; this.settlements = {}; this.garrisons = {}; this.fortifyStepsDone = 0; this.fortifyCarry = 0;
@@ -558,8 +561,12 @@ class GameStateStore {
       const c = componentNear(n.x, n.y);
       if (c) tally.set(c, (tally.get(c) ?? 0) + 1);
     }
-    const peopled = (c: number) => (tally.get(c) ?? 0) >= 3;
+    // Ground with ANY named place on it is somewhere you can live — Iceland holds exactly one, and
+    // once a ship can put you there, three would have carried you off it on your next reload.
+    const peopled = (c: number) => (tally.get(c) ?? 0) >= 1;
     this.rescuedTo = null;
+    // and a warband in the middle of the ocean is not stranded, it is travelling
+    if (this.voyage) return null;
     // the same shore-snap a march gets: standing at Roma means standing at its quay, which is drawn
     // on the water and is a perfectly good place to be. Only ground with no country on it is a rock.
     if (peopled(componentNear(this.pos.x, this.pos.y))) return null;
@@ -582,6 +589,8 @@ class GameStateStore {
 
   /** Set when a stranded save was carried ashore on load, so the map can say so once. */
   rescuedTo: string | null = null;
+  /** Where the warband is sailing, while it is at sea. A crossing survives a reload like anything else. */
+  voyage: { toId: string; daysLeft: number } | null = null;
 
   /** The settlements an active job points at — these stay on the chart at every zoom. */
   questTargets(): string[] {
@@ -599,8 +608,16 @@ class GameStateStore {
       if (q.kind !== 'deliver' || !q.to) continue;
       let node: MapNode | null = null;
       try { node = nodeById(q.to); } catch { node = null; }
-      const walk = node ? routeToPlace([this.pos.x, this.pos.y], [node.x, node.y]) : null;
-      if (node && walk) { if (q.days == null) q.days = Math.max(1, Math.round(walk.days)); continue; }
+      // A job is broken when its destination is GONE from the chart, or stands on ground no country
+      // lives on. It is NOT broken because you got on a ship — a parcel for Ashford is still a parcel
+      // for Ashford while you are in Japan, and re-pointing it there would be theft.
+      if (node && componentNear(node.x, node.y)) {
+        if (q.days == null) {
+          const walk = routeToPlace([this.pos.x, this.pos.y], [node.x, node.y]);
+          if (walk) q.days = Math.max(1, Math.round(walk.days));
+        }
+        continue;
+      }
       const land = componentNear(this.pos.x, this.pos.y);
       const alt = NODES
         .filter(n => !!n.name && n.kind !== 'cross' && n.kind !== 'waypoint' && n.kind !== 'camp'
@@ -749,7 +766,12 @@ class GameStateStore {
    * the field took him somewhere that would have him.
    */
   nearestRefuge(): { id: string; name: string; x: number; y: number } {
-    const mine = NODES.filter(n => n.id === 'camp' || this.settlements[n.id]?.occupied);
+    // Whoever carried you off the field carried you somewhere on THIS shore. Losing a fight in Japan
+    // must not post you home to the Borderland — that is a free crossing, and the sea is not free.
+    const shore = componentNear(this.pos.x, this.pos.y);
+    const held = NODES.filter(n => n.id === 'camp' || this.settlements[n.id]?.occupied);
+    const onThisShore = held.filter(n => !shore || componentNear(n.x, n.y) === shore);
+    const mine = onThisShore.length ? onThisShore : held;
     const home = mine.find(n => n.id === 'camp') ?? mine[0];
     if (!mine.length) return { id: 'camp', name: 'your camp', x: this.pos.x, y: this.pos.y };
     let best = home, bestD = Infinity;
@@ -870,13 +892,13 @@ class GameStateStore {
       fortifyStepsDone: this.fortifyStepsDone, fortifyCarry: this.fortifyCarry,
       unpaidDays: this.unpaidDays, seenMapHint: this.seenMapHint,
       rumorsHeard: [...this.rumorsHeard], pendingVictory: this.pendingVictory ? JSON.parse(JSON.stringify(this.pendingVictory)) : null,
-      civ: this.civ, formation: this.formation, loot: this.loot.map(l => ({ ...l })), quests: this.quests.map(q => ({ ...q })), steppeInfamy: this.steppeInfamy, realmInfamy: { ...this.realmInfamy }, campScattered: { ...this.campScattered }, huntedUntil: this.huntedUntil,
+      civ: this.civ, formation: this.formation, voyage: this.voyage ? { ...this.voyage } : null, loot: this.loot.map(l => ({ ...l })), quests: this.quests.map(q => ({ ...q })), steppeInfamy: this.steppeInfamy, realmInfamy: { ...this.realmInfamy }, campScattered: { ...this.campScattered }, huntedUntil: this.huntedUntil,
     };
   }
   fromJSON(d: SaveData) {
     this.gold = d.gold; this.day = d.day; this.infamy = d.infamy; this.weaponTier = d.weaponTier;
     this.equippedWeapon = d.equippedWeapon; this.horse = d.horse; this.armor = d.armor ?? 'none'; this.shield = d.shield ?? 'none';
-    this.owned = Object.assign({ leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false, composite: false }, d.owned);
+    this.owned = Object.assign({ leather: false, plate: false, round: false, kite: false, bow: false, halberd: false, courser: false, destrier: false, composite: false, ship: false }, d.owned);
     this.troops = d.troops.map(t => ({ ...t, kind: t.kind ?? 'raider' })); this.fallen = (d.fallen ?? []).map(f => ({ ...f })); this.deserted = [...(d.deserted ?? [])];
     this.nextId = d.nextId; this.nameCursor = d.nameCursor; this.raidsDone = d.raidsDone;
     this.location = d.location;
@@ -894,6 +916,7 @@ class GameStateStore {
     this.setCiv(d.civ ?? 'outlaw');
     this.formation = d.formation ?? 'line';
     this.loot = (d.loot ?? []).map(l => ({ ...l }));
+    this.voyage = d.voyage ? { ...d.voyage } : null;
     this.quests = (d.quests ?? []).map(q => ({ ...q }));
     // order matters: get the warband onto ground it can march from BEFORE the jobs are re-pointed,
     // because a job is repaired relative to where you are standing

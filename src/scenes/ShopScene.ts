@@ -3,7 +3,7 @@
 // settlement and on whether you own the place or are merely visiting.
 import Phaser from 'phaser';
 import { GameState, type ArmorKind, type HorseKind, type ShieldKind, type WeaponKind } from '../state/GameState';
-import { COMPOSITE_BOW, EQUIPMENT, HORSES, PAY, WARBAND_GEAR, WEAPONS } from '../config/balance';
+import { COMPOSITE_BOW, EQUIPMENT, HORSES, PAY, SHIP, WARBAND_GEAR, WEAPONS } from '../config/balance';
 import { unitDef } from '../world/Units';
 import { Sound } from '../systems/Sound';
 import { stockFor } from '../world/Stock';
@@ -164,8 +164,20 @@ export class ShopScene extends Phaser.Scene {
       return { title: 'THE BARRACKS', blurb: `Recruits follow you in formation and fight on their own. Your warband eats ${g.wagesPerDay} gold a day as it stands.`, rows };
     }
     if (this.building === 'harbor') {
-      return { title: 'THE HARBOR', blurb: 'Hulls on the tide, and every one of them spoken for.',
-        rows: [{ name: 'No passage', desc: 'Boats come and go and none of them takes a warband. What is over that water stays over it.', button: null }] };
+      // There is always a hull and always a man willing to take silver for it. What the quay sells is
+      // a ship of your own; where you are going is chosen on the chart, not off a list of sixty ports.
+      const cost = this.price(SHIP.cost);
+      const rows: Row[] = [{
+        name: 'A hull of your own', desc: SHIP.desc,
+        button: g.owned.ship ? { label: 'OWNED', enabled: false, onPress: () => {} }
+          : { label: `${cost} gold`, enabled: g.gold >= cost, onPress: () => this.buy(cost, () => { g.owned.ship = true; }) },
+      }, {
+        name: 'Passage', desc: g.owned.ship
+          ? 'You own a ship. Any harbour on the chart, any time, and nothing to pay — tap the place and take the crossing.'
+          : `Any harbour on the chart will take you, any day, whoever you are — the fare is the crossing. Tap where you want to go and the panel names the price.`,
+        button: null,
+      }];
+      return { title: 'THE HARBOR', blurb: g.owned.ship ? 'Your ship rides at anchor.' : 'Hulls on the tide, and men who sail them for silver.', rows };
     }
     if (this.building === 'market') {
       const rows: Row[] = [];

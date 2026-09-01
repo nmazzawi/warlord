@@ -546,9 +546,9 @@ export function civList(): CivDef[] {
  * that in its own voice, because it is a promise about the run and not a warning label.
  */
 export const CONFINED: Record<string, string> = {
-  japan: 'The sea is your wall, and your cage. Every pass and every province of these islands is yours to take, and nothing beyond them is yours to want.',
-  aztecs: 'The water rings this valley and the ocean rings the water. There is a whole world here to conquer, and its edge is a shoreline.',
-  inca: 'Mountains on one hand and ocean on the other, and the road runs only between them. This country is the war, from the coast to the last high pass.',
+  japan: 'The sea is your wall until you can pay a man to cross it. Take these islands first; every harbour on them sells passage to the rest of the world.',
+  aztecs: 'The water rings this valley and the ocean rings the water. Take the valley, then buy your way onto a ship — the far shore is a fare, not a wall.',
+  inca: 'Mountains on one hand and ocean on the other. The road runs only between them, but the ocean is a road too, once there is silver for the crossing.',
 };
 
 /**

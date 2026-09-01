@@ -21,6 +21,7 @@ import type { AtlasPlace } from '../world/AtlasData';
 import { TEX } from '../systems/Textures';
 import { Sound } from '../systems/Sound';
 import type { MapHudScene, PanelButton } from './MapHudScene';
+import { crossing, isHarbour, nearestHarbour } from '../world/Sea';
 import { CSS, DISPLAY, FONT, PAL } from './ui';
 
 /** How far the sea is painted beyond the chart's own frame. */
@@ -838,7 +839,7 @@ export class MapScene extends Phaser.Scene {
   private clearPlan() { this.planLine.clear(); }
 
   /** Walk it, a day at a time: wages are paid, hunters move, and one of them may catch you on the way. */
-  private walk(r: Route) {
+  private walk(r: Route, sea = false) {
     this.traveling = true;
     this.marchAt = this.time.now;
     this.legsDone = 0;
@@ -858,7 +859,9 @@ export class MapScene extends Phaser.Scene {
           GameState.pos = { x: at[0], y: at[1] };
           const here = MapScene.placeAt(at[0], at[1]);
           GameState.location = here ? here.id : '';
-          const crossed = GameState.noteRealm();
+          // At sea you are in nobody's country until you step off the ship, so a crossing does not
+          // introduce you to every coast it passes.
+          const crossed = sea && leg < legs ? null : GameState.noteRealm();
           if (crossed) this.hud.toast([crossed, 'Nobody here has heard of you.'], '#f5c542');
           // anything you were carrying to this place is delivered by standing in it
           if (here) {
@@ -870,7 +873,9 @@ export class MapScene extends Phaser.Scene {
             }
           }
           this.passDays(1);
-          const caught = GameState.runHunters(1);
+          // and nobody hunts you on the water — a Roman party cannot ride out onto the Atlantic
+          const caught = sea ? null : GameState.runHunters(1);
+          if (sea) GameState.voyage = leg < legs ? { toId: GameState.voyage?.toId ?? '', daysLeft: legs - leg } : null;
           GameState.save();
           this.refresh();
           if (caught) {
@@ -1047,7 +1052,7 @@ export class MapScene extends Phaser.Scene {
   /** What a foreign realm's card says: what it keeps under arms, and how far its throne is. */
   private foreignLines(r: Region): string[] {
     const v = visitOf(r.id);
-    if (!v) return ['Across water, and no ship will carry you — yet.'];
+    if (!v) return ['Across water. Take ship at a harbour and it is a voyage like any other.'];
     const cap = capitalOf(r.id);
     if (GameState.rules(r.id)) {
       const cap = capitalOf(r.id);
@@ -1060,7 +1065,12 @@ export class MapScene extends Phaser.Scene {
     const untouched = (n: MapNode) => { const st = GameState.settlement(n.id); return !st.sacked && !st.occupied; };
     const cap0 = capitalOf(r.id);
     if (cap0 && this.routeDays(cap0.id) <= 0 && !GameState.isHome(r.id)) {
-      return [v.army.armyNote, 'No road runs to this country from where you stand. There is water in the way, and no ship.'];
+      const port = capitalOf(r.id) && isHarbour(capitalOf(r.id)!.id) ? capitalOf(r.id)! : null;
+      const here = GameState.location;
+      const c = port && here && isHarbour(here) ? crossing(here, port.id) : null;
+      return [v.army.armyNote, c
+        ? `No road runs there — but ${port!.name} has a harbour: ${c.days} days at sea${GameState.owned.ship ? '' : `, ${c.fare} gold`}.`
+        : 'No road runs to this country from where you stand. It is reached by ship, from a harbour.'];
     }
     const fringe = FOREIGN_PLACES.filter(n => n.territory === r.id && n.rank === 'village' && untouched(n) && this.routeDays(n.id) > 0)
       .sort((a, b) => this.routeDays(a.id) - this.routeDays(b.id))[0];
@@ -1118,13 +1128,59 @@ export class MapScene extends Phaser.Scene {
       : m.place.kind === 'town' ? `A town of ${m.empire.name}.` : `A village of ${m.empire.name}.`;
     this.hud.showPanel({
       title: m.place.name.toUpperCase(),
-      lines: [m.place.note, rank, 'Across water, and no ship will carry you — yet.'],
+      lines: [m.place.note, rank, 'Across water. A ship reaches it; a warband on foot does not.'],
       buttons: [{ label: 'Leave', color: 0x555555, onPress: () => this.hud.hidePanel() }],
     });
   }
 
   private showSeaPanel(name: string) {
-    this.hud.showPanel({ title: name.toUpperCase(), lines: ['No ship will carry you — yet.'], buttons: [{ label: 'Leave', color: 0x555555, onPress: () => this.hud.hidePanel() }] });
+    this.hud.showPanel({ title: name.toUpperCase(), lines: ['Open water. A ship crosses it; a warband on foot does not.'],
+      buttons: [{ label: 'Leave', color: 0x555555, onPress: () => this.hud.hidePanel() }] });
+  }
+
+  /**
+   * The offer a harbour makes. There is always a hull and always somebody willing to take silver for
+   * it — the only thing that ever stops a crossing is water that does not join the two places, or a
+   * purse that will not cover the fare.
+   */
+  private sailButton(n: MapNode): PanelButton | null {
+    const from = GameState.location;
+    if (!from || from === n.id) return null;
+    if (!isHarbour(from) || !isHarbour(n.id)) return null;
+    const c = crossing(from, n.id);
+    if (!c) return null;
+    const own = GameState.owned.ship;
+    const afford = own || GameState.gold >= c.fare;
+    return {
+      label: own ? `SAIL (${c.days}d)` : `SAIL (${c.days}d, ${c.fare}g)`,
+      color: 0x2f6b8a, enabled: afford,
+      onPress: () => {
+        if (!afford) return;
+        if (!own) GameState.gold -= c.fare;
+        GameState.voyage = { toId: n.id, daysLeft: c.days };
+        GameState.save();
+        this.hud.hidePanel();
+        this.hud.toast([own ? `Your ship stands out for ${n.name}.` : `Passage bought for ${c.fare} gold.`,
+          `${c.days} days at sea.`], '#c8e8f0');
+        this.walk(c.route, true);
+      },
+    };
+  }
+
+  /** What a panel says about getting there by water, when there is no road. */
+  private seaLine(n: MapNode): string | null {
+    const from = GameState.location;
+    if (from && isHarbour(from) && isHarbour(n.id)) {
+      const c = crossing(from, n.id);
+      if (c) return GameState.owned.ship
+        ? `A crossing of ${c.days} days — you have a ship.`
+        : `A crossing of ${c.days} days, ${c.fare} gold from this quay.`;
+    }
+    if (!isHarbour(n.id)) return 'No road runs there, and it stands too far from any water to be reached by ship.';
+    const h = nearestHarbour(GameState.pos.x, GameState.pos.y);
+    if (!h) return 'No road runs there from where you stand.';
+    const d = this.routeDays(h.id);
+    return `No road runs there. Take ship at ${h.name}${d > 0 ? `, ${d} days' march` : ''}.`;
   }
 
   private showNodePanel(n: MapNode) {
@@ -1134,7 +1190,10 @@ export class MapScene extends Phaser.Scene {
     // Aztecs and the Inca have no road to them from anywhere, and the panel must say so rather than
     // offer a march of nought days.
     const days = here ? 0 : this.routeDays(n.id);
-    const march = here || days <= 0 ? null : { label: `MARCH (${days}d)`, color: 0x2f6b8a, onPress: () => this.travelTo(n.id) };
+    // no road there? then the water, if a ship can make the crossing from where you stand
+    const march = here ? null
+      : days > 0 ? { label: `MARCH (${days}d)`, color: 0x2f6b8a, onPress: () => this.travelTo(n.id) }
+      : this.sailButton(n);
     if (n.kind === 'foreign') { this.showForeignPanel(n, here, march, leave); return; }
     if (n.kind === 'camp') {
       this.hud.showPanel({
@@ -1265,7 +1324,7 @@ export class MapScene extends Phaser.Scene {
     if (!here) {
       const d = this.routeDays(n.id);
       lines.push(d > 0 ? `${d} day${d === 1 ? '' : 's'}' march from where you stand.`
-        : 'No road runs there from where you stand. There is water in the way, and no ship.');
+        : (this.seaLine(n) ?? 'No road runs there from where you stand.'));
     }
 
     const buttons: PanelButton[] = [];

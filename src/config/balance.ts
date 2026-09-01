@@ -175,6 +175,10 @@ export const FRONTIER_THIN: Record<string, number> = { village: 0.72, town: 0.6,
 /** And how hard the realm itself is. Kush is a kingdom; Rome is Rome. */
 export const REALM_POWER: Record<string, number> = {
   kush: 0.78, rus: 0.86, greece: 0.94, egypt: 1.0, india: 1.06, arabia: 1.1, persia: 1.16, china: 1.22, rome: 1.28,
+  // The four across water had no entry at all, which quietly made them the SOFTEST thrones on the
+  // board — the only ones nobody could reach. Now that a ship can, a crossing of fifty days had
+  // better land you somewhere worth the fare.
+  viking: 1.12, japan: 1.24, aztecs: 1.18, inca: 1.14,
 };
 /** No battle may put more bodies on the field than this — a phone has to draw all of them. */
 export const FOREIGN_MAX_DEFENDERS = 58;
@@ -204,6 +208,13 @@ export const STEPPE = {
 };
 /** The siege of Kingsport. */
 // the gate is a phase: ~20-30 s for a fresh warband (~50 dps) under arrow fire — bring a bow, use the rocks, or eat it
+/**
+ * A hull of your own. Priced against the fares it replaces: a crossing of the world is about 700 gold,
+ * so a ship pays for itself on the third long voyage and every one after it is free.
+ */
+export const SHIP = { cost: 1600,
+  desc: 'Forty feet of oak, a sail, and men who know the water. Owned, you sail from any harbour to any other for nothing, for good.' };
+
 /** Losing is not a rewind. What it costs: half your purse, your dead, and the better part of a week. */
 export const DEFEAT = { plunderShare: 0.5, floorGold: 25, restDays: [3, 5] as const };
 

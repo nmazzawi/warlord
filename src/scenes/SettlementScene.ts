@@ -15,6 +15,7 @@ import { CSS, displayStyle, dprOf, makeButton, uiStyle, uiUnit } from './ui';
 import { archOf, type ArchSet } from '../systems/Architecture';
 import { landmark, townScene } from '../systems/Town';
 import { isCoastal } from '../world/Coast';
+import { isHarbour } from '../world/Sea';
 
 export type BuildingId = 'forge' | 'barracks' | 'stables' | 'inn' | 'market' | 'harbor';
 interface Card { id: BuildingId; label: string; tex: string; sub: string; locked?: string; }
@@ -104,7 +105,9 @@ export class SettlementScene extends Phaser.Scene {
         sub: GameState.loot.length ? `sell ${GameState.loot.length} piece${GameState.loot.length === 1 ? '' : 's'} · notice board${jobs ? ` (${jobs} taken)` : ''}`
           : `nothing to sell yet · notice board${jobs ? ` (${jobs} taken)` : ''}` });
     }
-    if (isCoastal(this.id)) cards.push({ id: 'harbor', label: 'HARBOR', tex: TEX.inn, sub: 'boats, and nobody sailing them for you' });
+    // a harbour is where a hull can actually lie, not merely where you can see the sea
+    if (isHarbour(this.id)) cards.push({ id: 'harbor', label: 'HARBOR', tex: TEX.inn,
+      sub: GameState.owned.ship ? 'your ship rides at anchor' : 'passage to any coast, or a hull of your own' });
     if (stock.inn) cards.push({ id: 'inn', label: 'INN', tex: TEX.inn,
       sub: nextRumor(this.id)
         ? (foreign ? `${foreign.inn.name} — buy a rumor of their own land` : 'buy a rumor — news of the world')

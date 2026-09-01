@@ -967,6 +967,87 @@ async function desktopRun(browser) {
   check(crowding.inv === 0,
     `standing over a place, you can always see it (${crowding.inv ? crowding.invisible.join(', ') : `all ${crowding.markers} drawn`}, ${crowding.unnamed} without room for a name)`);
 
+  // --- the sea is ONE sea, and a boat is always there
+  const water = await page.evaluate(async () => {
+    const S = await import('/src/world/Sea.ts');
+    const hs = S.harbours();
+    const byRealm = {};
+    for (const h of hs) byRealm[h.territory] = (byRealm[h.territory] ?? 0) + 1;
+    // every harbour must be reachable from a Mediterranean one — the Med and the Red Sea are sealed
+    // off by grid aliasing unless the straits are opened, which strands 27 ports including all of Rome
+    const from = hs.find(h => h.name === 'Ostia');
+    const cut = from ? hs.filter(h => h.id !== from.id && !S.crossing(from.id, h.id)).map(h => h.name) : ['no Ostia'];
+    // and a few crossings the design promises: the sea-locked realms and Iceland
+    const named = (n) => hs.find(h => h.name === n);
+    const runs = [['Ostia', 'Sakai'], ['Athenai', 'Reykjavik'], ['Massilia', 'Cuauhnahuac'], ['Alexandria', 'Pachacamac']];
+    const quotes = runs.map(([a, c]) => {
+      const A = named(a), C = named(c);
+      const x = A && C ? S.crossing(A.id, C.id) : null;
+      return { run: `${a}→${c}`, ok: !!x, days: x?.days, fare: x?.fare };
+    });
+    return { n: hs.length, byRealm, cut: cut.slice(0, 6), cutN: cut.length, quotes };
+  });
+  check(water.cutN === 0,
+    `the world's water is one sea — every harbour reaches every other (${water.n} harbours${water.cutN ? ', cut off: ' + water.cut.join(', ') : ''})`);
+  check(water.quotes.every(q => q.ok && q.days > 0 && q.fare > 0),
+    `the crossings the design promises all exist (${water.quotes.map(q => `${q.run} ${q.days}d/${q.fare}g`).join(', ')})`);
+  const noPort = ['rome', 'greece', 'japan', 'aztecs', 'inca', 'viking', 'egypt', 'kush', 'arabia', 'persia', 'rus', 'india', 'china']
+    .filter(r => !water.byRealm[r]);
+  check(noPort.length === 0,
+    `every realm has a way to sea (${noPort.length ? 'landlocked: ' + noPort.join(', ') : JSON.stringify(water.byRealm)})`);
+
+  // a boat is there whatever your name is worth: no reputation, no season, no condition gates it
+  const always = await page.evaluate(async () => {
+    const S = await import('/src/world/Sea.ts');
+    const g = window.__GameState;
+    const keep = JSON.parse(JSON.stringify(g.toJSON()));
+    const ostia = window.__NODES.find(n => n.name === 'Ostia');
+    const sakai = window.__NODES.find(n => n.name === 'Sakai');
+    const tries = [];
+    for (const [what, apply] of [
+      ['a nobody on day one', () => { g.infamy = 0; g.day = 1; }],
+      ['hunted, deep in infamy', () => { g.infamy = 400; g.realmInfamy = { rome: 400, japan: 400 }; g.huntedUntil = g.day + 30; }],
+      ['broke and unpaid', () => { g.gold = 0; g.unpaidDays = 9; }],
+      ['in the dead of winter, year five', () => { g.day = 5 * 360 + 300; }],
+    ]) {
+      apply();
+      const c = S.crossing(ostia.id, sakai.id);
+      tries.push({ what, offered: !!c, fare: c?.fare });
+    }
+    g.fromJSON(keep);
+    return tries;
+  });
+  check(always.every(t => t.offered && t.fare > 0),
+    `a boat is at the quay whatever the condition (${always.map(t => `${t.what}: ${t.offered ? t.fare + 'g' : 'REFUSED'}`).join('; ')})`);
+
+  // owning a hull makes every crossing free, for good
+  const owned = await page.evaluate(() => {
+    const g = window.__GameState;
+    const keep = JSON.parse(JSON.stringify(g.toJSON()));
+    g.owned.ship = true;
+    const has = g.owned.ship;
+    g.save();
+    g.fromJSON(JSON.parse(JSON.stringify(g.toJSON())));
+    const survived = g.owned.ship;
+    g.fromJSON(keep);
+    return { has, survived, gone: g.owned.ship };
+  });
+  check(owned.has && owned.survived && !owned.gone, 'a ship you bought is yours across a reload');
+
+  // nothing anywhere still tells the player ships do not exist
+  const noShip = await page.evaluate(() => {
+    const m = window.__warlord.scene.getScene('Map');
+    const said = [];
+    for (const n of window.__NODES.filter(x => x.kind === 'foreign').slice(0, 40)) {
+      m.showNodePanel(n);
+      const h = window.__warlord.scene.getScene('MapHud');
+      for (const l of h.spec?.lines ?? []) if (/no ship/i.test(l)) said.push(`${n.name}: ${l}`);
+    }
+    window.__warlord.scene.getScene('MapHud').hidePanel();
+    return said.slice(0, 3);
+  });
+  check(noShip.length === 0, `no panel still says a ship will not carry you (${noShip.join(' | ') || 'none do'})`);
+
   // --- a port is drawn at the water's edge: you must be able to march OUT of one, not only into it
   const ports = await page.evaluate(async () => {
     const T = await import('/src/world/Terrain.ts');
