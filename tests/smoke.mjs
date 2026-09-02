@@ -1093,6 +1093,32 @@ async function desktopRun(browser) {
   check(ports.wet.length > 0 && ports.stuck.length === 0,
     `a warband can march back out of every place drawn on the water (${ports.wet.length} of them: ${ports.stuck.join(', ') || 'all fine'})`);
 
+  // --- a crown is a condition, not a moment you might have missed
+  const fealty = await page.evaluate(() => {
+    const S = window.__GameState;
+    const keep = JSON.parse(JSON.stringify(S.toJSON()));
+    const az = window.__NODES.filter(n => n.territory === 'aztecs');
+    const save = JSON.parse(JSON.stringify(keep));
+    save.settlements = { ...(save.settlements ?? {}) };
+    for (const n of az) save.settlements[n.id] = { timesRaided: 1, lastRaidDay: 900, occupied: true, sacked: false, wealth: 1 };
+    save.realmInfamy = { ...(save.realmInfamy ?? {}), aztecs: 45 };
+    save.ruled = [];
+    S.fromJSON(save);
+    const held = { rules: S.rules('aztecs'), infamy: S.realmInfamy.aztecs ?? 0, title: S.title, said: [...S.crowned] };
+    // and one great city short of it grants nothing
+    const short = JSON.parse(JSON.stringify(save));
+    const city = az.find(n => n.rank === 'city');
+    delete short.settlements[city.id];
+    short.ruled = [];
+    S.fromJSON(short);
+    const nearly = { rules: S.rules('aztecs'), without: city.name };
+    S.fromJSON(keep);
+    return { held, nearly };
+  });
+  check(fealty.held.rules && fealty.held.infamy === 0 && !!fealty.held.title && fealty.held.said.length === 1,
+    `holding a throne and its great cities IS the crown, whenever you took them (${fealty.held.title}, their score ${fealty.held.infamy})`);
+  check(!fealty.nearly.rules, `and one great city short of it grants nothing (without ${fealty.nearly.without})`);
+
   // --- a run in progress when the atlas moved still stands where it says it stands
   const drift = await page.evaluate(() => {
     const S = window.__GameState;

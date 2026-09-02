@@ -204,6 +204,16 @@ export class MapScene extends Phaser.Scene {
     this.hud.onQuestFind = q => this.showQuest(q);
     this.hud.onQuestRoute = q => this.routeToQuest(q);
     this.markQuestPins();
+    // a country you already held is a country you rule: tell the player it has finally been noticed
+    if (GameState.crowned.length) {
+      const won = GameState.crowned;
+      GameState.crowned = [];
+      GameState.save();
+      this.time.delayedCall(700, () => this.hud.toast([
+        `${won.join(' and ')} ${won.length > 1 ? 'are' : 'is'} yours — you hold the throne and every great city.`,
+        `They call you ${GameState.title}. The hunts stop and the score is cleared.`,
+      ], '#c8f0c8'));
+    }
     // a save written by an older map may have left the warband on a rock: say so, once, plainly
     if (GameState.rescuedTo) {
       const where = GameState.rescuedTo;

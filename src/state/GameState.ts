@@ -612,6 +612,8 @@ class GameStateStore {
 
   /** Set when a stranded save was carried ashore on load, so the map can say so once. */
   rescuedTo: string | null = null;
+  /** Realms whose crown was granted on load because the terms were already met. Said once, then cleared. */
+  crowned: string[] = [];
   /** Where the warband is sailing, while it is at sea. A crossing survives a reload like anything else. */
   voyage: { toId: string; daysLeft: number } | null = null;
 
@@ -695,6 +697,21 @@ class GameStateStore {
    * villages send fealty rather than making you walk to each of them, which is the difference between
    * a conquest and a mopping-up chore.
    */
+  /**
+   * A crown is a CONDITION, not a moment. Holding a throne and all its great cities is what makes a
+   * realm yours — but this used to be examined only at the instant a battle ended, so a warband that
+   * met the terms any other way, or met them in a build that asked something different, held the
+   * whole country and was still called a raider in it forever. Every realm is re-examined on load and
+   * after every victory, so the chart can never disagree with the map about who rules what.
+   */
+  settleCrowns(): string[] {
+    const won: string[] = [];
+    for (const realm of new Set(NODES.map(n => n.territory))) {
+      if (this.checkFealty(realm)) won.push(REGIONS.find(r => r.id === realm)?.name ?? realm);
+    }
+    return won;
+  }
+
   checkFealty(realm: Territory): boolean {
     if (!realm || realm === 'steppe' || this.rules(realm)) return false;
     const held = (n: MapNode) => { const st = this.settlements[n.id]; return !!(st && (st.occupied || st.sacked)); };
@@ -949,6 +966,9 @@ class GameStateStore {
     this.payRate = d.payRate ?? 'full';
     this.steppeInfamy = d.steppeInfamy ?? 0; this.realmInfamy = { ...(d.realmInfamy ?? {}) }; this.campScattered = { ...(d.campScattered ?? {}) }; this.huntedUntil = d.huntedUntil ?? -1;
     this.owned.composite = this.owned.composite ?? false;
+    // LAST, once every field is back: a country you already hold is a country you already rule,
+    // whenever and however you took it. Earlier than this and the load overwrites the crown.
+    this.crowned = this.settleCrowns();
   }
   /** Parse and sanity-check the stored save without touching the live state. */
   private peek(): SaveData | null {

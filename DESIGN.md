@@ -468,3 +468,7 @@ This absorbs the old Milestone 7 (culture starts). Governance and coalition mile
 
 - **A settlement is a landmark before it is a name.** The marks over towns and cities are drawn large enough to pick out without reading anything. The names were already right; only the marks grew.
 - **What is yours is written in green.** The moment you hold a village, a town or a city, its name and its rating turn green on the chart — and so does every place in a realm whose crown you wear. One look tells you how far you have got.
+
+## A CROWN IS A CONDITION (designer, 2026-09-01)
+
+- **Holding a realm's throne and every one of its great cities IS the crown** — not a prize handed out at the instant a particular battle ends. It is re-examined whenever a run is loaded, so a country you already hold is a country you already rule, whenever and however you came to hold it. A warband that took the last city in an older build, or by any path that did not run the check, is crowned the moment it next opens the map.
