@@ -8,7 +8,7 @@
 // Roman and Greek port in it, a Red Sea of 51, and eight puddles. Twenty-seven harbours could reach
 // each other and nowhere else on Earth. So three cells are opened by hand, named for the straits they
 // are, and the world's water becomes one body.
-import { CELL, COLS, ROWS, cellOf, centreOf, DAY, terrain, type Route } from './Terrain';
+import { CELL, COLS, ROWS, cellOf, centreOf, componentNear, DAY, terrain, type Route } from './Terrain';
 import { nodeById, NODES, type MapNode } from './WorldMap';
 import type { Pt } from './geo';
 
@@ -117,13 +117,26 @@ export function isHarbour(id: string) {
 }
 
 /** The nearest harbour to a point, for telling a landlocked warband where to go and take ship. */
-export function nearestHarbour(x: number, y: number): MapNode | null {
+export function nearestHarbour(x: number, y: number, sameLandAs?: MapNode): MapNode | null {
+  const want = sameLandAs ? componentNear(sameLandAs.x, sameLandAs.y) : 0;
   let best: MapNode | null = null, bd = Infinity;
   for (const h of harbours()) {
+    // a port you can walk inland from: no use landing in Spain for a city in Peru
+    if (want && componentNear(h.x, h.y) !== want) continue;
     const d = Math.hypot(h.x - x, h.y - y);
     if (d < bd) { bd = d; best = h; }
   }
   return best;
+}
+
+/**
+ * The port that serves a place. Tenochtitlan sits inland and no keel reaches it, but Huaxyacac is on
+ * its coast and on its ground — so "you cannot sail to the Aztec throne" is the wrong answer, and
+ * "sail to Huaxyacac, then march" is the right one.
+ */
+export function portFor(n: MapNode): MapNode | null {
+  if (isHarbour(n.id)) return n;
+  return nearestHarbour(n.x, n.y, n);
 }
 
 /**

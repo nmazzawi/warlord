@@ -141,7 +141,10 @@ export class MapHudScene extends Phaser.Scene {
     const wages = GameState.wagesPerDay, tribute = GameState.tributePerDay, net = tribute - wages;
     const pay = GameState.payRate === 'full' ? '' : ` (${PAY[GameState.payRate].label} pay)`;
     const unpaid = GameState.unpaidDays > 0;
-    this.ledgerText.setText(`Troops ${GameState.troops.length}/${GameState.troopCap}  ·  wages −${wages}/day${pay}  ·  tribute +${tribute}/day  ·  net ${net >= 0 ? '+' : ''}${net}/day${unpaid ? '   ·   UNPAID — the men grumble' : ''}`)
+    // how far you have got, on a chart that holds the whole Earth
+    const w = GameState.conquered();
+    const world = `  ·  world ${w.pct}% (${w.held}/${w.total}${w.crowns ? `, ${w.crowns} crown${w.crowns === 1 ? '' : 's'}` : ''})`;
+    this.ledgerText.setText(`Troops ${GameState.troops.length}/${GameState.troopCap}  ·  wages −${wages}/day${pay}  ·  tribute +${tribute}/day  ·  net ${net >= 0 ? '+' : ''}${net}/day${world}${unpaid ? '   ·   UNPAID — the men grumble' : ''}`)
       .setColor(unpaid ? '#ff9a8a' : net >= 0 ? '#c8f0c8' : '#ffe9a8');
     // the meter shows how the territory you stand in sees you
     const where = GameState.territoryName();
@@ -183,6 +186,9 @@ export class MapHudScene extends Phaser.Scene {
 
   showPanel(spec: PanelSpec) {
     this.hidePanel();
+    // A panel must never come up empty. A button that could not be offered is left out rather than
+    // pushed in as a hole for the loop to fall down — a blank plate tells the player nothing at all.
+    spec = { ...spec, buttons: (spec.buttons ?? []).filter(Boolean), lines: (spec.lines ?? []).filter(l => l != null) };
     this.spec = spec;
     const { width: w, height: h } = this.scale;
     const u = this.u;

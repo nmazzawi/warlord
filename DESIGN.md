@@ -472,3 +472,10 @@ This absorbs the old Milestone 7 (culture starts). Governance and coalition mile
 ## A CROWN IS A CONDITION (designer, 2026-09-01)
 
 - **Holding a realm's throne and every one of its great cities IS the crown** — not a prize handed out at the instant a particular battle ends. It is re-examined whenever a run is loaded, so a country you already hold is a country you already rule, whenever and however you came to hold it. A warband that took the last city in an older build, or by any path that did not run the check, is crowned the moment it next opens the map.
+
+## GETTING THERE, AND HOW FAR YOU HAVE GOT (designer, 2026-09-01)
+
+- **A panel never comes up empty.** Every place says what it is and offers a way out of the box, whatever you can or cannot do there.
+- **A ship is offered wherever one could take you** — beside the road when there is a road, and instead of it when there is not. Any land route, however long, used to hide the sea entirely: Mexico to Peru is a road, and a two-month one.
+- **An inland city is reached through the port that serves it.** Tenochtitlan has no quay, so the offer names Huaxyacac or Texcoco and says how many days' march is left when you land. "You cannot sail to the Aztec throne" was the wrong answer.
+- **The ledger says how much of the world you hold** — every settlement standing on the chart, a hamlet and a throne counting one each, with your crowns named beside it for the part a percentage cannot say.

@@ -21,7 +21,7 @@ import type { AtlasPlace } from '../world/AtlasData';
 import { TEX } from '../systems/Textures';
 import { Sound } from '../systems/Sound';
 import type { MapHudScene, PanelButton } from './MapHudScene';
-import { crossing, isHarbour, nearestHarbour } from '../world/Sea';
+import { crossing, isHarbour, nearestHarbour, portFor } from '../world/Sea';
 import { CSS, DISPLAY, FONT, PAL } from './ui';
 
 /** How far the sea is painted beyond the chart's own frame. */
@@ -946,6 +946,11 @@ export class MapScene extends Phaser.Scene {
     return this.planTo(to)?.days ?? 0;
   }
 
+  /** The march from somewhere you are NOT — what is left of a journey after the ship puts you ashore. */
+  private routeDaysFrom(from: [number, number], n: MapNode) {
+    return routeToPlace(from, [n.x, n.y], !!GameState.horse)?.days ?? 0;
+  }
+
   /** Smoothly bring the camera back to the warband. Pressing it again while it is already flying
    *  restarts the flight rather than stacking a second one on top of the first. */
   private locate() {
@@ -1154,7 +1159,7 @@ export class MapScene extends Phaser.Scene {
   }
 
   private showSeaPanel(name: string) {
-    this.hud.showPanel({ title: name.toUpperCase(), lines: ['Open water. A ship crosses it; a warband on foot does not.'],
+    this.hud.showPanel({ title: (name || 'Open water').toUpperCase(), lines: ['Open water. A ship crosses it; a warband on foot does not.'],
       buttons: [{ label: 'Leave', color: 0x555555, onPress: () => this.hud.hidePanel() }] });
   }
 
@@ -1166,22 +1171,27 @@ export class MapScene extends Phaser.Scene {
   private sailButton(n: MapNode): PanelButton | null {
     const from = GameState.location;
     if (!from || from === n.id) return null;
-    if (!isHarbour(from) || !isHarbour(n.id)) return null;
-    const c = crossing(from, n.id);
+    if (!isHarbour(from)) return null;
+    // an inland city is reached by sailing to the port that serves it and walking the rest
+    const port = portFor(n);
+    if (!port || port.id === from) return null;
+    const c = crossing(from, port.id);
     if (!c) return null;
+    const onward = port.id === n.id ? 0 : this.routeDaysFrom([port.x, port.y], n);
     const own = GameState.owned.ship;
     const afford = own || GameState.gold >= c.fare;
+    const dest = port.id === n.id ? '' : ` → ${port.name}`;
     return {
-      label: own ? `SAIL (${c.days}d)` : `SAIL (${c.days}d, ${c.fare}g)`,
+      label: own ? `SAIL (${c.days}d)${dest}` : `SAIL (${c.days}d, ${c.fare}g)${dest}`,
       color: 0x2f6b8a, enabled: afford,
       onPress: () => {
         if (!afford) return;
         if (!own) GameState.gold -= c.fare;
-        GameState.voyage = { toId: n.id, daysLeft: c.days };
+        GameState.voyage = { toId: port.id, daysLeft: c.days };
         GameState.save();
         this.hud.hidePanel();
-        this.hud.toast([own ? `Your ship stands out for ${n.name}.` : `Passage bought for ${c.fare} gold.`,
-          `${c.days} days at sea.`], '#c8e8f0');
+        this.hud.toast([own ? `Your ship stands out for ${port.name}.` : `Passage bought for ${c.fare} gold.`,
+          onward > 0 ? `${c.days} days at sea, then ${onward} days' march to ${n.name}.` : `${c.days} days at sea.`], '#c8e8f0');
         this.walk(c.route, true);
       },
     };
@@ -1204,32 +1214,36 @@ export class MapScene extends Phaser.Scene {
   }
 
   private showNodePanel(n: MapNode) {
+    // a crossroads is a bend in a road, not a place: it has no name and nothing to say
+    if (n.kind === 'cross' || !n.name) return;
     const leave = { label: 'Leave', color: 0x555555, onPress: () => { this.hud.hidePanel(); this.clearPlan(); } };
     const here = GameState.location === n.id;
     // anywhere you are not standing can be marched to — if a road actually reaches it. Japan, the
     // Aztecs and the Inca have no road to them from anywhere, and the panel must say so rather than
     // offer a march of nought days.
     const days = here ? 0 : this.routeDays(n.id);
-    // no road there? then the water, if a ship can make the crossing from where you stand
-    const march = here ? null
-      : days > 0 ? { label: `MARCH (${days}d)`, color: 0x2f6b8a, onPress: () => this.travelTo(n.id) }
-      : this.sailButton(n);
-    if (n.kind === 'foreign') { this.showForeignPanel(n, here, march, leave); return; }
+    // Both ways of getting there, when both exist. A ship was only ever offered where no road ran,
+    // which hid it behind any land route however long — Mexico to Peru is a road, and a two-month one.
+    const march = here || days <= 0 ? null
+      : { label: `MARCH (${days}d)`, color: 0x2f6b8a, onPress: () => this.travelTo(n.id) };
+    const sail = here ? null : this.sailButton(n);
+    const ways: PanelButton[] = [march, sail].filter(Boolean) as PanelButton[];
+    if (n.kind === 'foreign') { this.showForeignPanel(n, here, ways, leave); return; }
     if (n.kind === 'camp') {
       this.hud.showPanel({
         title: 'BANDIT CAMP', lines: ['Your home. Tap the Forge, the Barracks or the Stables to spend your gold. Waiting here still costs wages.'],
-        buttons: [...(march ? [march] : [{ label: 'ENTER CAMP', color: 0x3f7a3f, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: 'camp' }); } }]), leave],
+        buttons: [...(ways.length ? ways : [{ label: 'ENTER CAMP', color: 0x3f7a3f, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: 'camp' }); } }]), leave],
       });
       return;
     }
     if (n.kind === 'gate') {
-      this.hud.showPanel({ title: n.name.toUpperCase(), lines: [n.blurb ?? '', 'Beyond here there are no villages — only camps that move, a neutral trader, and riders who shoot at a gallop.'], buttons: [...(march ? [march] : []), leave] });
+      this.hud.showPanel({ title: n.name.toUpperCase(), lines: [n.blurb ?? '', 'Beyond here there are no villages — only camps that move, a neutral trader, and riders who shoot at a gallop.'], buttons: [...ways, leave] });
       return;
     }
     if (n.kind === 'trade') {
       this.hud.showPanel({
         title: n.name.toUpperCase(), lines: [n.blurb ?? '', 'Steppe riders for hire, the composite bow, a courser, and an innkeeper who has heard things.'],
-        buttons: [here ? { label: 'ENTER', color: 0x3f7a3f, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: n.id }); } } : march!, leave],
+        buttons: [...(here ? [{ label: 'ENTER', color: 0x3f7a3f, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: n.id }); } }] : ways), leave],
       });
       return;
     }
@@ -1256,7 +1270,7 @@ export class MapScene extends Phaser.Scene {
       this.hud.showPanel({
         title: n.name.toUpperCase(),
         lines: [`Yours. ${garrison} hold it for you. Tribute +${n.kind === 'town' ? 15 : 4 + (n.tier ?? 1)} gold a day. Its shops are open to you.`],
-        buttons: [here ? { label: 'ENTER', color: 0x3f7a3f, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: n.id }); } } : march!, leave],
+        buttons: [...(here ? [{ label: 'ENTER', color: 0x3f7a3f, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: n.id }); } }] : ways), leave],
       });
       return;
     }
@@ -1274,7 +1288,7 @@ export class MapScene extends Phaser.Scene {
           buttons: [
             here
               ? { label: 'SIEGE', color: 0xa0341f, onPress: () => { GameState.save(); this.scene.start('Raid', siegeBattle()); } }
-              : march!,
+              : ways[0],
             ...(visit ? [visit] : []), leave],
         });
       }
@@ -1295,7 +1309,7 @@ export class MapScene extends Phaser.Scene {
       buttons: [
         here
           ? { label: 'RAID', color: 0xa0341f, enabled: !info.ruined, onPress: () => { GameState.save(); this.scene.start('Raid', villageBattle(n.id)); } }
-          : march!,
+          : ways[0],
         ...(visit ? [visit] : []), leave,
       ],
     });
@@ -1305,7 +1319,7 @@ export class MapScene extends Phaser.Scene {
    * A foreign settlement. Every one of them can be attacked, so the panel's job is to tell you the
    * truth about what is standing there and then get out of the way. Nothing here says no.
    */
-  private showForeignPanel(n: MapNode, here: boolean, march: PanelButton | null, leave: PanelButton) {
+  private showForeignPanel(n: MapNode, here: boolean, ways: PanelButton[], leave: PanelButton) {
     const v = visitOf(n.territory);
     const realm = REGIONS.find(r => r.id === n.territory);
     const st = GameState.settlement(n.id);
@@ -1317,7 +1331,7 @@ export class MapScene extends Phaser.Scene {
     const lines = [n.blurb ?? '', rankLine];
 
     if (st.sacked) {
-      this.hud.showPanel({ title: n.name.toUpperCase(), lines: [...lines, 'You burned it. Nothing lives here now.'], buttons: [...(march ? [march] : []), leave] });
+      this.hud.showPanel({ title: n.name.toUpperCase(), lines: [...lines, 'You burned it. Nothing lives here now.'], buttons: [...ways, leave] });
       return;
     }
     if (st.occupied) {
@@ -1325,7 +1339,7 @@ export class MapScene extends Phaser.Scene {
       this.hud.showPanel({
         title: n.name.toUpperCase(),
         lines: [...lines, `Yours, and a long way from home. ${garrison} hold it. Tribute +${FOREIGN.tribute[n.rank ?? 'town']} gold a day.`],
-        buttons: [here ? { label: 'ENTER', color: 0x3f7a3f, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: n.id }); } } : march!, leave],
+        buttons: [...(here ? [{ label: 'ENTER', color: 0x3f7a3f, onPress: () => { GameState.save(); this.scene.start('Settlement', { id: n.id }); } }] : ways), leave],
       });
       return;
     }
@@ -1355,7 +1369,7 @@ export class MapScene extends Phaser.Scene {
       } else if (GameState.access(n.id) === 'closed') {
         lines.push(GameState.closedReason(n.id));
       }
-    } else if (march) buttons.push(march);
+    } else buttons.push(...ways);
     buttons.push(leave);
     this.hud.showPanel({ title: n.name.toUpperCase(), lines, buttons });
   }

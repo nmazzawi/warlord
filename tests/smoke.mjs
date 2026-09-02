@@ -1093,6 +1093,77 @@ async function desktopRun(browser) {
   check(ports.wet.length > 0 && ports.stuck.length === 0,
     `a warband can march back out of every place drawn on the water (${ports.wet.length} of them: ${ports.stuck.join(', ') || 'all fine'})`);
 
+  // --- no tap anywhere may ever produce a panel with nothing in it
+  const blanks = await page.evaluate(() => {
+    const m = window.__warlord.scene.getScene('Map');
+    const h = window.__warlord.scene.getScene('MapHud');
+    const g = window.__GameState;
+    const keep = JSON.parse(JSON.stringify(g.toJSON()));
+    const bad = [];
+    const look = (what) => {
+      const s = h.spec;
+      if (!s) return;
+      if (!s.title || !s.title.trim()) bad.push(`${what}: no title`);
+      else if (!(s.lines ?? []).filter(l => l && l.trim()).length) bad.push(`${what}: nothing written`);
+      else if (!(s.buttons ?? []).length) bad.push(`${what}: no way out`);
+      else if ((s.buttons ?? []).some(b => !b || !b.label)) bad.push(`${what}: a button that is not there`);
+    };
+    // from several places, including a shore with no road home — the case ships made reachable
+    for (const where of ['Tumbes', 'Ostia', 'Hakata', 'Ashford', 'Tenochtitlan']) {
+      const w = window.__NODES.find(n => n.name === where);
+      if (!w) continue;
+      g.pos = { x: w.x, y: w.y }; g.location = w.id;
+      for (const n of window.__NODES) {
+        try { m.showNodePanel(n); look(`at ${where}, tapping ${n.name || n.kind}`); }
+        catch (e) { bad.push(`at ${where}, tapping ${n.name || n.kind}: THREW ${e.message}`); }
+      }
+      for (const r of window.__REGIONS ?? []) {
+        try { m.showRegionPanel(r); look(`at ${where}, tapping ${r.id}`); } catch (e) { bad.push(`region ${r.id}: THREW ${e.message}`); }
+      }
+      try { m.showSeaPanel(''); look(`at ${where}, tapping unnamed water`); } catch (e) { bad.push(`sea: THREW ${e.message}`); }
+    }
+    h.hidePanel();
+    g.fromJSON(keep);
+    return { bad: bad.slice(0, 5), n: bad.length };
+  });
+  check(blanks.n === 0, `no tap anywhere opens an empty box (${blanks.n ? blanks.bad.join('; ') : 'every panel says something and offers a way out'})`);
+
+  // --- a ship is offered wherever one could take you, inland cities included
+  const sailing = await page.evaluate(() => {
+    const m = window.__warlord.scene.getScene('Map');
+    const h = window.__warlord.scene.getScene('MapHud');
+    const g = window.__GameState;
+    const keep = JSON.parse(JSON.stringify(g.toJSON()));
+    g.gold = 100000;
+    const rows = [];
+    for (const [from, to] of [['Ostia', 'Sakai'], ['Ostia', 'Tenochtitlan'], ['Tumbes', 'Roma'], ['Ostia', 'Roma']]) {
+      const f = window.__NODES.find(n => n.name === from), t = window.__NODES.find(n => n.name === to);
+      g.pos = { x: f.x, y: f.y }; g.location = f.id;
+      m.showNodePanel(t);
+      const labels = (h.spec?.buttons ?? []).map(b => b.label);
+      rows.push({ run: `${from}→${to}`, sail: labels.some(l => /^SAIL/.test(l)), both: labels.filter(l => /MARCH|SAIL/.test(l)).length });
+    }
+    h.hidePanel();
+    g.fromJSON(keep);
+    return rows;
+  });
+  check(sailing.every(r => r.sail) && sailing.find(r => r.run === 'Ostia→Roma').both === 2,
+    `a ship is offered wherever one could take you, and beside the road when there is one (${sailing.map(r => `${r.run} ${r.both} way(s)`).join(', ')})`);
+
+  // --- how much of the world you hold
+  const world = await page.evaluate(() => {
+    const g = window.__GameState;
+    const keep = JSON.parse(JSON.stringify(g.toJSON()));
+    const before = g.conquered();
+    for (const n of window.__NODES.filter(x => x.territory === 'aztecs')) g.settlements[n.id] = { timesRaided: 1, lastRaidDay: 1, occupied: true, sacked: false, wealth: 1 };
+    g.settleCrowns();
+    const after = g.conquered();
+    g.fromJSON(keep);
+    return { before, after };
+  });
+  check(world.before.total > 100 && world.after.held > world.before.held && world.after.pct > world.before.pct && world.after.crowns >= 1,
+    `the chart says how far you have got (${world.before.pct}% → ${world.after.pct}%, ${world.after.held}/${world.after.total}, ${world.after.crowns} crown)`);
+
   // --- a crown is a condition, not a moment you might have missed
   const fealty = await page.evaluate(() => {
     const S = window.__GameState;

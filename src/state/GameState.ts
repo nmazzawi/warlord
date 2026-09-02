@@ -617,6 +617,21 @@ class GameStateStore {
   /** Where the warband is sailing, while it is at sea. A crossing survives a reload like anything else. */
   voyage: { toId: string; daysLeft: number } | null = null;
 
+  /**
+   * How much of the world you have taken, as a share of every settlement standing on the chart. A
+   * hamlet counts for one and a throne for one: this answers "how far have I got", and the crowns you
+   * wear are named beside it for the part that number cannot say.
+   */
+  conquered(): { held: number; total: number; pct: number; crowns: number } {
+    let held = 0, total = 0;
+    for (const n of NODES) {
+      if (!n.name || n.kind === 'cross' || n.kind === 'waypoint' || n.kind === 'camp') continue;
+      total++;
+      if (this.controls(n.id) || this.rules(n.territory)) held++;
+    }
+    return { held, total, pct: total ? Math.round((held / total) * 100) : 0, crowns: this.ruled.length };
+  }
+
   /** The settlements an active job points at — these stay on the chart at every zoom. */
   questTargets(): string[] {
     return this.quests.filter(q => q.kind === 'deliver' && q.to).map(q => q.to as string);
