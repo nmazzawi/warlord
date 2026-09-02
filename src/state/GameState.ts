@@ -543,6 +543,22 @@ class GameStateStore {
     this.gold += paid;
     return paid;
   }
+  /**
+   * Empty the packs in one go. A warband back from a season abroad is carrying thirty pieces of other
+   * men's gear, and selling them one at a time is not a decision — it is thirty taps.
+   */
+  sellAllLoot(markup: number): { gold: number; pieces: number } {
+    let gold = 0;
+    const pieces = this.loot.length;
+    while (this.loot.length) gold += this.sellLoot(this.loot[0].id, markup);
+    return { gold, pieces };
+  }
+
+  /** What the packs would fetch here, before you commit to emptying them. */
+  lootWorth(markup: number) {
+    return this.loot.reduce((n, l) => n + Math.max(1, Math.round((l.value * 0.6) / Math.max(1, markup * 0.75))), 0);
+  }
+
   /** Take a job. Arriving, or killing, is what finishes it. */
   takeQuest(q: Omit<Quest, 'id'>) { this.quests.push({ ...q, id: this.nextId++ }); }
 

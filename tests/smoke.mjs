@@ -1150,6 +1150,28 @@ async function desktopRun(browser) {
   check(sailing.every(r => r.sail) && sailing.find(r => r.run === 'Ostia→Roma').both === 2,
     `a ship is offered wherever one could take you, and beside the road when there is one (${sailing.map(r => `${r.run} ${r.both} way(s)`).join(', ')})`);
 
+  // --- the packs empty in one tap, and for exactly what the pieces are worth one at a time
+  const packs = await page.evaluate(() => {
+    const g = window.__GameState;
+    const keep = JSON.parse(JSON.stringify(g.toJSON()));
+    g.loot = []; g.gold = 0;
+    for (let i = 0; i < 23; i++) g.takeLoot(`piece ${i}`, 40 + i * 3, 'Ashford');
+    const quoted = g.lootWorth(1);
+    const one = g.sellLoot(g.loot[0].id, 1);
+    const rest = g.sellAllLoot(1);
+    const out = { quoted, one, rest, gold: g.gold, left: g.loot.length, honest: one + rest.gold === quoted };
+    // and a market that buys lower pays less for the same packs
+    g.loot = []; for (let i = 0; i < 5; i++) g.takeLoot(`piece ${i}`, 100, 'Ashford');
+    out.atHome = g.lootWorth(1);
+    out.abroad = g.lootWorth(1.6);
+    g.fromJSON(keep);
+    return out;
+  });
+  check(packs.honest && packs.left === 0 && packs.rest.pieces === 22,
+    `the packs empty in one tap for what they are worth (quoted ${packs.quoted}g, got ${packs.one} + ${packs.rest.gold} for ${packs.rest.pieces} pieces, ${packs.left} left)`);
+  check(packs.abroad < packs.atHome,
+    `and a stranger's market still buys lower (${packs.atHome}g at home, ${packs.abroad}g abroad)`);
+
   // --- how much of the world you hold
   const world = await page.evaluate(() => {
     const g = window.__GameState;

@@ -188,7 +188,14 @@ export class ShopScene extends Phaser.Scene {
           rows.push({ name: item.name, desc: `taken at ${item.from}`,
             button: { label: `sell ${paid}g`, enabled: true, onPress: () => { const got = g.sellLoot(item.id, stock.markup); Sound.gold(); this.note(`+${got} gold`); g.save(); this.build(); } } });
         }
-        if (g.loot.length > 8) rows.push({ name: `and ${g.loot.length - 8} more`, desc: 'Sell what is on top first.', button: null });
+        if (g.loot.length > 8) rows.push({ name: `and ${g.loot.length - 8} more`, desc: 'Sell what is on top first, or empty the packs below.', button: null });
+        // the whole lot at once, because thirty taps is not a decision
+        if (g.loot.length > 1) {
+          const all = g.lootWorth(stock.markup);
+          rows.push({ name: 'Empty the packs', desc: `Everything you are carrying — ${g.loot.length} pieces — sold at this market's price.`,
+            button: { label: `SELL ALL (${all}g)`, enabled: true,
+              onPress: () => { const got = g.sellAllLoot(stock.markup); Sound.gold(); this.note(`+${got.gold} gold for ${got.pieces} pieces`); g.save(); this.build(); } } });
+        }
       } else {
         rows.push({ name: 'Nothing to sell', desc: 'Captains and an empire\u2019s own men carry gear worth carrying. Take it off them.', button: null });
       }
@@ -269,8 +276,11 @@ export class ShopScene extends Phaser.Scene {
     for (const r of rows) {
       this.add.graphics().lineStyle(1, 0x3a2a18, 0.18).lineBetween(cx - pw / 2 + 10 * u, y, cx + pw / 2 - 10 * u, y);
       const textW = pw - 32 * u - (r.button || r.choices ? btnW * (r.choices ? r.choices.length * 0.75 : 1) + 12 * u : 0);
-      this.add.text(left, y + 8 * u, r.name, uiStyle(13 * u, CSS.ink, { align: 'left', wrap: textW }));
-      this.add.text(left, y + 27 * u, r.desc, uiStyle(10 * u, CSS.inkSoft, { bold: false, align: 'left', wrap: textW }));
+      // the line under the name starts under the NAME, not at a fixed drop: a notice long enough to
+      // wrap used to run straight through its own description
+      const nameT = this.add.text(left, y + 8 * u, r.name, uiStyle(13 * u, CSS.ink, { align: 'left', wrap: textW }));
+      this.add.text(left, Math.max(y + 27 * u, nameT.y + nameT.height + 2 * u), r.desc,
+        uiStyle(10 * u, CSS.inkSoft, { bold: false, align: 'left', wrap: textW }));
       if (r.button) {
         makeButton(this, cx + pw / 2 - 16 * u - btnW / 2, y + rowH / 2, { width: btnW, height: Math.min(44 * u, rowH - 8 * u), label: r.button.label, sub: r.button.sub,
           enabled: r.button.enabled, tone: r.button.tone ?? 'primary', fontSize: Math.round(13 * u), onPress: r.button.onPress });
